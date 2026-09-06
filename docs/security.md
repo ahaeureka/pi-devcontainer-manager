@@ -1,0 +1,113 @@
+# Security model
+
+`pi-devcontainer-manager` keeps Pi and its credentials on the host and treats
+DevContainers as **explicitly selected, policy-checked command-execution
+targets**. This page documents the threat model, the controls, and the
+operational defaults.
+
+## Core invariants
+
+- **Pi never runs inside a container.** No Pi session, extension, skill,
+  configuration, model credential, or API key is installed, copied, mounted, or
+  persisted inside any target container.
+- **No silent host fallback.** A `container-required` route never executes on the
+  host. With no explicit selection, the session-cwd workspace is auto-selected as
+  the default when it has a DevContainer configuration (an empty-selection-only
+  convenience — an explicit `/devcontainer use` always wins); if no container
+  target resolves, the route returns a typed error (`no-candidate`,
+  `ambiguous-candidate`, `target-stopped`, `policy-denied`). The only host escape hatch
+  is the visibly named `devcontainer_host_exec` tool and `/devcontainer
+  host-exec` command, which pass a *separate* `hostExecution.allow` policy check
+  and write their own audit records.
+- **Default-deny policy.** Workspace roots, forwarded environment names,
+  destructive actions, and host execution are all denied unless explicitly
+  granted. Grants from an untrusted project config can never *expand* a global
+  grant (merge is monotonic — see `docs/configuration.md`).
+- **Fresh validation before every action.** Selection intent is persisted as a
+  stable workspace key + candidate discriminator, and each operation re-resolves
+  the target and freezes an immutable policy snapshot before any spawn. A
+  concurrent selection switch cannot redirect a bound operation.
+
+## Execution pathway
+
+Every command surface — the `devcontainer_exec` tool, routed Pi `bash`,
+`!`/`!!`, `up`, `build`, `stop`, `remove`, and `logs` — delegates to the shared
+execution service, which:
+
+1. freezes a policy snapshot for the operation and workspace;
+2. binds an immutable context from the serialized target store (re-resolving the
+   selected target);
+3. builds a minimal child environment from the effective allowlist (never an
+   arbitrary inherited Pi environment);
+4. runs the command with **fixed argv, `shell: false`**, through the pinned
+   Dev Containers CLI or Docker, streaming bounded output;
+5. writes one audit record and returns a structured result with **no
+   environment values**.
+
+## Environment control
+
+- `PI_*` variables and secret-pattern names (`api_key`, `token`, `secret`,
+  `password`, `credential`, `auth`, `bearer`) are always excluded from child
+  environments, even if listed in `environmentAllowlist`.
+- Requesting a denied environment variable raises `policy-denied`
+  (`environment-variable-denied`) — the operation is refused, never silently
+  stripped.
+- The extension's replacement `bash` tool is registered with
+  `exposeSessionEnvironment: false`, so the container never sees Pi session
+  metadata.
+
+## Destructive and host-escape gates
+
+| Action | Policy grant | Additional gate |
+|---|---|---|
+| `/devcontainer stop` | `destructive.allowStop = true` | Fresh per-action confirmation naming the exact action + container ID; noninteractive callers receive `confirmation-required` and can never bypass |
+| `/devcontainer remove` | `destructive.allowRemove = true` | Same confirmation contract |
+| `devcontainer_host_exec` / `/devcontainer host-exec` | `hostExecution.allow = true` | Audited with `operation: "host-exec"`, `initiator: "host-escape"` |
+
+## Audit
+
+Every operation writes a host-local JSONL record. The effective config carries
+an `audit.enabled` flag (default **true**); the v1 runtime writes records
+unconditionally and the default retention is **90 days** with
+**`fingerprint-only` command capture**.
+
+- Audit directory (mode `0700`, files `0600`):
+  - Linux: `$XDG_STATE_HOME/pi-devcontainer-manager/audit`
+    (default `~/.local/state/pi-devcontainer-manager/audit`)
+  - macOS: `~/Library/Application Support/pi-devcontainer-manager/audit`
+- `audit.directory` is **global-only** in the effective config; the v1 runtime
+  writes to the platform default above (the override is not yet consumed).
+- Command identity is a SHA-256 **fingerprint** over argv by default, never
+  plaintext. `redacted-text` mode stores the joined command with secret-looking
+  patterns redacted (`key=[REDACTED]`); `none` stores no command identity.
+- Audit records never contain environment values, and error/command text is
+  redacted before write.
+- `retentionDays` (default 90) is the retention window passed to the audit
+  writer. Its `prune(now)` method (unit-tested, available to host code that
+  constructs `JsonlAuditWriter` directly) removes `.jsonl` files whose mtime
+  is older than the window; the shipped extension does not schedule periodic
+  pruning itself, so operators who want bounded disk usage should rotate or
+  delete the dated `.jsonl` files (one file per day) externally.
+
+## Process boundary
+
+- All host and container processes are spawned with `shell: false`, a fixed
+  executable, an argv array, a sanitized environment, cancellation, timeout, and
+  bounded stream accounting.
+- Only read-only `docker ps --all` / `inspect` exist on the discovery adapter;
+  the lifecycle adapter is the *sole* owner of `docker logs`, `stop`, and
+  `rm -f`.
+
+## Operator checklist
+
+- Keep `routeMode: "container-required"` unless you have a concrete host-exec
+  workflow; use the explicit host escape surface for it.
+- Grant `environmentAllowlist` names sparingly — the container inherits the
+  *values* from the host session.
+- Grant `destructive.*` only to workspaces whose containers you are willing to
+  stop/remove; the confirmation token is a second, human-in-the-loop gate.
+- Set `audit.commandCapture` above `fingerprint-only` only when your retention
+  and review process justify storing command text.
+- On shared hosts, remember project config is ignored unless the project is
+  trusted by Pi — do not rely on an untrusted project's file for *more*
+  restrictive policy than the global file already sets.

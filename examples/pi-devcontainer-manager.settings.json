@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "dockerPath": "docker",
+  "devcontainerPath": "devcontainer",
+  "routeMode": "container-required",
+  "allowedWorkspaceRoots": [
+    "/home/me/code"
+  ],
+  "environmentAllowlist": [
+    "HOME",
+    "LANG"
+  ],
+  "maxTimeoutSeconds": 900,
+  "maxOutputBytes": 51200,
+  "discovery": {
+    "maxDepth": 3,
+    "excludedDirectories": [
+      "node_modules",
+      ".git",
+      ".pi",
+      "dist",
+      "build"
+    ]
+  },
+  "audit": {
+    "enabled": true,
+    "retentionDays": 90,
+    "commandCapture": "fingerprint-only"
+  },
+  "destructive": {
+    "allowStop": false,
+    "allowRemove": false
+  },
+  "hostExecution": {
+    "allow": false
+  }
+}

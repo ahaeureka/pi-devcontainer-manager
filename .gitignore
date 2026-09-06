@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tgz
+
+# Pi machine-local state
+.pi/remote-pi/
+
+# Scratch (workflow temp files)
+.rpiv/tmp/
+
+# Logs / OS
+*.log
+.DS_Store

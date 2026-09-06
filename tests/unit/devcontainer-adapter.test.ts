@@ -1,0 +1,213 @@
+/**
+ * Unit tests for the Dev Containers CLI adapter (Slice 5).
+ *
+ * The CLI is never executed: a fake {@link ProcessRunner} records the exact
+ * argv/environment handed to it and returns scripted {@link ProcessResult}s.
+ * Assertions pin the verified 0.88.0 contract:
+ * - `up`/`build` parse the single JSON document (trailing space tolerated);
+ * - `exec` always passes `-- <cmd> [args...]` and `--remote-env` at most once;
+ * - structural failures (container missing, daemon unreachable, not running)
+ *   become typed `RuntimeError`s; container-side exit codes are carried in
+ *   the result, never thrown.
+ */
+import { describe, expect, it } from "vitest";
+import { NodeDevcontainerAdapter } from "../../src/runtime/devcontainer-adapter.js";
+import { RuntimeError } from "../../src/errors.js";
+import type { ProcessResult, ProcessRunner, ProcessRunnerOptions } from "../../src/runtime/process-runner.js";
+
+interface CallRecord {
+  file: string;
+  args: readonly string[];
+  options: ProcessRunnerOptions;
+}
+
+function fakeRunner(results: ProcessResult[], onCall?: (call: CallRecord) => void): { runner: ProcessRunner; calls: CallRecord[] } {
+  const calls: CallRecord[] = [];
+  const runner: ProcessRunner = {
+    exec(file, args, options) {
+      const call: CallRecord = { file, args, options };
+      calls.push(call);
+      onCall?.(call);
+      const next = results.shift();
+      if (next === undefined) {
+        return Promise.reject(new Error("unexpected runner call"));
+      }
+      return Promise.resolve(next);
+    },
+  };
+  return { runner, calls };
+}
+
+function makeAdapter(runner: ProcessRunner, extra: Partial<{ devcontainerPath: string; cwd: string }> = {}) {
+  return new NodeDevcontainerAdapter(runner, {
+    devcontainerPath: extra.devcontainerPath ?? "devcontainer",
+    env: { PATH: "/usr/bin" },
+    cwd: extra.cwd ?? "/ws",
+  });
+}
+
+const ok = (exitCode: number): ProcessResult => ({
+  exitCode,
+  signal: null,
+  durationMs: 5,
+  truncated: false,
+});
+
+describe("NodeDevcontainerAdapter.up", () => {
+  it("passes fixed argv and parses the JSON document (trailing space tolerated)", async () => {
+    const { runner, calls } = fakeRunner([ok(0)]);
+    const adapter = makeAdapter(runner);
+    const stdout = Buffer.from(
+      '{"outcome":"success","containerId":"abc123","remoteUser":"vscode","remoteWorkspaceFolder":"/workspaces/p"}\n ',
+    );
+    // Emulate the runner writing to onData before resolving.
+    const origExec = runner.exec.bind(runner);
+    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
+      options.onData?.(stdout);
+      return origExec(file, args, options);
+    };
+
+    const result = await adapter.up("/ws/project-a", { dockerPath: "/usr/bin/docker" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.args).toEqual(["up", "--workspace-folder", "/ws/project-a", "--docker-path", "/usr/bin/docker"]);
+    expect(result.containerId).toBe("abc123");
+    expect(result.remoteUser).toBe("vscode");
+    expect(result.remoteWorkspaceFolder).toBe("/workspaces/p");
+  });
+
+  it("maps error outcome to devcontainer-cli-failure", async () => {
+    const { runner } = fakeRunner([{ ...ok(1), truncated: false }]);
+    const adapter = makeAdapter(runner);
+    const origExec = runner.exec.bind(runner);
+    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
+      options.onData?.(Buffer.from('{"outcome":"error","message":"config invalid","description":"x"}\n '));
+      return origExec(file, args, options);
+    };
+    await expect(adapter.up("/ws")).rejects.toThrowError(/config invalid/);
+  });
+
+  it("maps daemon-unreachable stderr to daemon-unavailable when no structured JSON is present", async () => {
+    const { runner } = fakeRunner([{ ...ok(1), truncated: false }]);
+    const adapter = makeAdapter(runner);
+    const origExec = runner.exec.bind(runner);
+    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
+      options.onStderr?.(Buffer.from("Cannot connect to the Docker daemon at unix:///var/run/docker.sock"));
+      return origExec(file, args, options);
+    };
+    await expect(adapter.up("/ws")).rejects.toMatchObject({ kind: "daemon-unavailable" });
+  });
+
+  it("prefers the structured error message over daemon stderr", async () => {
+    const { runner } = fakeRunner([{ ...ok(1), truncated: false }]);
+    const adapter = makeAdapter(runner);
+    const origExec = runner.exec.bind(runner);
+    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
+      options.onData?.(Buffer.from('{"outcome":"error","message":"docker daemon is not running"}\n '));
+      options.onStderr?.(Buffer.from("Cannot connect to the Docker daemon at unix:///var/run/docker.sock"));
+      return origExec(file, args, options);
+    };
+    await expect(adapter.up("/ws")).rejects.toMatchObject({ kind: "devcontainer-cli-failure", message: /docker daemon is not running/ });
+  });
+});
+
+describe("NodeDevcontainerAdapter.build", () => {
+  it("passes optional flags and parses imageName", async () => {
+    const { runner, calls } = fakeRunner([ok(0)]);
+    const adapter = makeAdapter(runner);
+    const origExec = runner.exec.bind(runner);
+    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
+      options.onData?.(Buffer.from('{"outcome":"success","imageName":"devcontainer:p"}\n '));
+      return origExec(file, args, options);
+    };
+    const result = await adapter.build("/ws", { noCache: true, imageName: "img:tag" });
+    expect(calls[0]!.args).toContain("--no-cache");
+    expect(calls[0]!.args).toContain("--image-name");
+    expect(result.imageName).toBe("devcontainer:p");
+  });
+});
+
+describe("NodeDevcontainerAdapter.exec", () => {
+  it("builds argv with flags before the -- separator and the container-side command after", async () => {
+    const { runner, calls } = fakeRunner([{ ...ok(0), truncated: false }]);
+    const adapter = makeAdapter(runner);
+    await adapter.exec("/ws", "abc123", "npm", ["test", "--", "--watch"], {
+      dockerPath: "/usr/bin/docker",
+      remoteEnv: { FOO: "1" },
+    });
+    expect(calls[0]!.args).toEqual([
+      "exec",
+      "--workspace-folder", "/ws",
+      "--container-id", "abc123",
+      "--docker-path", "/usr/bin/docker",
+      "--remote-env", "FOO=1",
+      "--", "npm", "test", "--", "--watch",
+    ]);
+  });
+
+  it("passes at most ONE --remote-env when multiple variables are requested (0.88.0 last-wins)", async () => {
+    const { runner, calls } = fakeRunner([{ ...ok(0), truncated: false }]);
+    const adapter = makeAdapter(runner);
+    await adapter.exec("/ws", "abc123", "echo", ["hi"], { remoteEnv: { A: "1", B: "2", C: "3" } });
+    const remoteEnvFlags = calls[0]!.args.filter((a) => a === "--remote-env");
+    expect(remoteEnvFlags).toHaveLength(1);
+  });
+
+  it("carries the container-side exit code instead of throwing", async () => {
+    const { runner } = fakeRunner([{ exitCode: 42, signal: null, durationMs: 10, truncated: false }]);
+    const adapter = makeAdapter(runner);
+    const result = await adapter.exec("/ws", "abc123", "exit", ["42"]);
+    expect(result.exitCode).toBe(42);
+  });
+
+  it("maps 'Dev container not found.' to target-stopped", async () => {
+    const { runner } = fakeRunner([{ exitCode: 1, signal: null, durationMs: 10, truncated: false }]);
+    const adapter = makeAdapter(runner);
+    const origExec = runner.exec.bind(runner);
+    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
+      options.onStderr?.(Buffer.from("Dev container not found. Run devcontainer up to create it."));
+      return origExec(file, args, options);
+    };
+    await expect(adapter.exec("/ws", "abc123", "ls", [])).rejects.toMatchObject({ kind: "target-stopped" });
+  });
+
+  it("maps 'is not running' to target-stopped", async () => {
+    const { runner } = fakeRunner([{ exitCode: 1, signal: null, durationMs: 10, truncated: false }]);
+    const adapter = makeAdapter(runner);
+    const origExec = runner.exec.bind(runner);
+    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
+      options.onStderr?.(Buffer.from('container "abc" is not running'));
+      return origExec(file, args, options);
+    };
+    await expect(adapter.exec("/ws", "abc123", "ls", [])).rejects.toMatchObject({ kind: "target-stopped" });
+  });
+
+  it("remaps executable-missing to devcontainer-cli-failure", async () => {
+    const runner: ProcessRunner = {
+      exec() {
+        return Promise.reject(new RuntimeError({ kind: "executable-missing", message: "ENOENT" }));
+      },
+    };
+    const adapter = makeAdapter(runner);
+    await expect(adapter.up("/ws")).rejects.toMatchObject({ kind: "devcontainer-cli-failure" });
+  });
+
+  it("passes the adapter signal to the runner", async () => {
+    const { runner, calls } = fakeRunner([{ ...ok(0), truncated: false }]);
+    const adapter = makeAdapter(runner);
+    const controller = new AbortController();
+    await adapter.exec("/ws", "abc123", "ls", [], { signal: controller.signal });
+    expect(calls[0]!.options.signal).toBe(controller.signal);
+  });
+
+  it("propagates truncated: true when the runner caps output at the configured maxOutputBytes", async () => {
+    // Review gap closed (plan review R2): the adapter unit suite never drove
+    // a chunk past the configured cap, so truncated propagation from a capped
+    // runner was unpinned. Fake runner resolves with truncated: true (the
+    // runner-level cap it applies when maxOutputBytes is exceeded).
+    const { runner } = fakeRunner([{ ...ok(0), truncated: true }]);
+    const adapter = makeAdapter(runner);
+    const result = await adapter.exec("/ws", "abc123", "cat", ["/large.bin"], {});
+    expect(result.truncated).toBe(true);
+    expect(result.stdout.length).toBeGreaterThanOrEqual(0);
+  });
+});

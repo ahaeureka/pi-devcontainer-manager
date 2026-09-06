@@ -1,0 +1,116 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to release (e.g. v1.0.0)"
+        required: true
+      dry_run:
+        description: "Run verification + packing without publishing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: verify + pack
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22.19]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install pinned deps
+        run: npm ci
+
+      - name: Whole-package gate (typecheck, tests, build, pack:check)
+        run: node scripts/verify-package.mjs
+
+      - name: Package smoke (no model)
+        run: node scripts/smoke-pi-package.mjs --no-model
+
+      - name: Confirm tag matches package version
+        run: |
+          TAG="${TAG_INPUT#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG_VERSION" ]; then
+            echo "::error::tag v${TAG} does not match package version ${PKG_VERSION}"
+            exit 1
+          fi
+        env:
+          TAG_INPUT: ${{ github.event.inputs.tag }}
+
+      - name: Create release tarball (real pack)
+        run: npm pack
+
+      - name: Upload tarball artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tarball
+          path: pi-devcontainer-manager-*.tgz
+          if-no-files-found: error
+
+  publish:
+    name: publish to npm
+    needs: [verify]
+    runs-on: ubuntu-latest
+    # github.event.inputs.* arrives as the STRING "true"/"false"; compare
+    # explicitly so a real (non-dry-run) dispatch actually publishes.
+    if: ${{ github.event.inputs.dry_run == 'false' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19
+          registry-url: https://registry.npmjs.org
+
+      - name: npm ci + build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publish
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  smoke-pi:
+    name: packed-tarball Pi runtime smoke
+    runs-on: ubuntu-latest
+    needs: [verify]
+    if: ${{ secrets.PI_PROVIDER != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19
+          cache: npm
+      - name: Install deps
+        run: npm ci
+      - name: Install real Pi CLI (global, for smoke)
+        run: npm i -g @earendil-works/pi-coding-agent
+      - name: Build dist
+        run: npm run build
+      - name: Packed Pi runtime smoke (model-touching, secret-gated)
+        env:
+          PI_PROVIDER: ${{ secrets.PI_PROVIDER }}
+          PI_MODEL: ${{ secrets.PI_MODEL }}
+          PI_API_KEY: ${{ secrets.PI_API_KEY }}
+        run: node scripts/smoke-pi-package.mjs

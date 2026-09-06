@@ -1,0 +1,42 @@
+{
+  "name": "pi-devcontainer-manager",
+  "version": "1.0.0",
+  "description": "Host-side Pi extension for governed multi-DevContainer discovery and execution",
+  "type": "module",
+  "main": "./dist/extensions/index.js",
+  "types": "./dist/extensions/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/extensions/index.d.ts",
+      "import": "./dist/extensions/index.js"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md", "docs", "examples"],
+  "keywords": ["pi-package", "pi-extension", "devcontainer", "docker"],
+  "pi": {
+    "extensions": ["./dist/extensions/index.js"]
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest --run",
+    "test:unit": "vitest --run tests/unit",
+    "pack:check": "npm pack --dry-run"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@devcontainers/cli": "0.88.0",
+    "@earendil-works/pi-coding-agent": "0.84.4",
+    "@types/node": "22.19.19",
+    "typescript": "5.9.3",
+    "vitest": "4.1.9"
+  },
+  "license": "MIT"
+}
