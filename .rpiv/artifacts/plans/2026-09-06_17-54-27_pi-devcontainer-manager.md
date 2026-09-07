@@ -20,7 +20,7 @@ phases:
   - { n: 8, title: "Operator-facing documentation and release contract", files: [README.md, docs/installation.md, docs/configuration.md, docs/security.md, docs/compatibility.md, examples/pi-devcontainer-manager.settings.json, CHANGELOG.md, LICENSE], depends_on: [1, 2, 3, 4, 5, 6, 7] }
 last_updated: 2026-09-07T14:45:00+0800
 last_updated_by: geebytes
-last_updated_note: "Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
+last_updated_note: "Decision (2026-09-07): container-mode file-tool routing increment built then reverted per the environment-related-only principle: bind-mount workspace files are the same file host- and container-side, so only execution-shaped ops (bash/!/!!/devcontainer_exec) are environment-sensitive and route; file tools stay host-native. See trailing Follow-up for rationale + ffind/ffgrep boundary note. Prior: Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
 ---
 
 # pi-devcontainer-manager Implementation Plan
@@ -9723,5 +9723,47 @@ the container-side pwd.
 Files: `src/path-mapper.ts` + `tests/unit/path-mapper.test.ts` (NEW, added to
 Phase 5 `files:`), `src/execution-service.ts`, `extensions/index.ts`. Plan
 fences re-synced byte-for-byte.
+
+No open questions. History preserved above.
+
+---
+
+## Follow-up (2026-09-07T17:20:00+0800)
+
+Decision: full file-tool container routing was implemented as a container-mode
+increment (session container state + `containerMode: auto|manual|off` +
+`registerContainerAwareTools` overriding read/write/edit/grep/find/ls with
+container-exec operations), validated live against a real container, then
+REVERTED (commit `0b99449` removed; HEAD back at `4af7b3a`).
+
+Why reverted — the operator's "environment-related only" principle:
+
+A DevContainer's primary workspace is a bind mount
+(`workspaceMount: source=${localWorkspaceFolder},target=<containerPath>`), so
+the host path and the container path are the SAME file (verified write-through
+live). Routing read/write/edit/grep/find/ls into the container therefore buys
+nothing for workspace files: it only adds a per-operation `devcontainer exec`
+round-trip, base64 content transfer, path-translation edges, and a dependency
+on in-container grep/find. Only execution-shaped operations are
+environment-sensitive (interpreter, toolchain, node_modules platform builds,
+PATH, container-only mounts such as wisebythree's `/app/.models`) — those
+already route via the v1 `container-required` bash/`!`/`!!`/`devcontainer_exec`
+surface with auto-select on the session cwd.
+
+Container-only paths remain reachable through the explicit `devcontainer_exec`
+tool (container-side cat/find) rather than by moving the whole file toolbox.
+
+Boundary note — host extension tools are not routable by this package:
+`ffgrep`/`fffind` come from the third-party `@ff-labs/pi-fff` extension
+(npm-global, `tools-and-ui` mode by default: it adds ffgrep/fffind on top of
+the built-ins; `/fff-mode override` renames them to grep/find and would then
+collide with built-in tool overrides). pi-fff runs its own indexed engine and
+does not participate in `createGrepToolDefinition`/`createFindToolDefinition`
+operations, so it always searches the HOST index. This is expected: frecency
+file search is a host-capability surface, not a container-environment one.
+
+Net state: v1 semantics restored (file tools host-native, execution routes to
+the selected container, auto-select makes container work frictionless).
+183 deterministic tests pass; typecheck + build clean; real-Pi e2e layer loads.
 
 No open questions. History preserved above.
