@@ -81,6 +81,30 @@ only host execution surface is the explicit, policy-gated, audited
 `devcontainer_host_exec` tool and `/devcontainer host-exec` command
 (`hostExecution.allow`).
 
+### What routes into the container vs what stays on the host
+
+`routeMode` governs **execution-shaped** operations only:
+
+| Surface | Where it runs |
+|---|---|
+| `devcontainer_exec` tool | Container (selected target) |
+| routed `bash` (`bash` tool, `!`/`!!`) | Container (selected target) |
+| `devcontainer_host_exec` tool / `/devcontainer host-exec` | Host (explicit, policy-gated) |
+| `read` / `write` / `edit` / `grep` / `find` / `ls` | **Always host** |
+
+Pi's file tools are deliberately never routed into the container. A
+DevContainer's workspace is a bind mount of your host folder
+(`workspaceMount`), so the host path and the container path are the *same
+files* — running file tools in the container would add a per-call
+`devcontainer exec` round-trip for zero benefit. File edits made through the
+host tools appear inside the container immediately (and vice versa).
+
+Execution is the environment-sensitive half: the toolchain, interpreter,
+platform-specific dependencies, and container-only mounts live in the
+container, which is why commands route there. Paths that exist only inside
+the container (extra mounts, named volumes) are not visible to the host file
+tools; use `devcontainer_exec` (container-side `cat`/`find`) to reach them.
+
 ### `allowedWorkspaceRoots`
 
 - Type: `string[]` · Default: `[]`

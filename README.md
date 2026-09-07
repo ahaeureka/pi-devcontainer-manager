@@ -21,6 +21,11 @@ or persisted.
 - **Executes** through a shared, governed service — the `devcontainer_exec` tool,
   routed Pi `bash`, and `!`/`!!` all hit the same target validation, policy,
   environment filtering, audit, output accounting, cancellation, and timeout.
+- **Keeps file tools on the host.** `read`/`write`/`edit`/`grep`/`find`/`ls`
+  always operate on the host filesystem — never routed into the container.
+  A DevContainer's workspace is a bind mount, so host and container paths
+  are the same files; only execution is environment-sensitive (toolchain,
+  interpreter, dependencies, container-only mounts).
 - **Manages** lifecycle: `up`, `build`, `stop`, `remove` (stop/remove need a
   policy grant **plus** a fresh per-action confirmation), and bounded `logs`.
 - **Audits** every operation to a host-local JSONL file (fingerprint capture by
@@ -30,6 +35,11 @@ or persisted.
   `policy-denied` error instead. The only host escape hatch is the visibly named,
   separately policy-gated, audited `devcontainer_host_exec` tool and
   `/devcontainer host-exec` command.
+
+Because file tools stay on the host, paths that exist **only inside the
+container** (extra mounts, named volumes, container-local clones) are not
+directly readable by `read`/`ls`/`grep`; reach them through `devcontainer_exec`
+(e.g. container-side `cat`/`find`), which runs in the container.
 
 ## Requirements
 

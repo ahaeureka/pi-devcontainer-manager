@@ -27,6 +27,13 @@ operational defaults.
   stable workspace key + candidate discriminator, and each operation re-resolves
   the target and freezes an immutable policy snapshot before any spawn. A
   concurrent selection switch cannot redirect a bound operation.
+- **File tools are a host capability, not a container route.** Pi's built-in
+  file tools (`read`/`write`/`edit`/`grep`/`find`/`ls`) always run against
+  the host filesystem under the normal Pi trust model; they are never
+  delegated into a container, and the container is never a path to a host
+  filesystem action. This keeps the container boundary limited to
+  execution-shaped commands, which is the only surface where the container
+  environment differs from the host.
 
 ## Execution pathway
 
@@ -43,6 +50,28 @@ execution service, which:
    Dev Containers CLI or Docker, streaming bounded output;
 5. writes one audit record and returns a structured result with **no
    environment values**.
+
+## File access model
+
+File access and command execution have different trust surfaces, and this
+extension keeps them separate:
+
+- **Host file tools** (`read`/`write`/`edit`/`grep`/`find`/`ls`) read and
+  write the host workspace directly. Because a DevContainer's workspace is a
+  bind mount of the host folder, those files are the same files the
+  container sees — an edit on the host is immediately visible in the
+  container. No container round-trip is involved, so no container path,
+  translation, or in-container tool availability is in the trust path.
+- **Container execution** runs only through the governed execution service
+  (fixed argv, policy snapshot, minimal env, audit). A command can read or
+  write whatever the container user can — including host files reachable
+  through the bind mount — but always as an explicitly routed, audited
+  execution action, never as Pi's own file tooling.
+- **Container-only paths** (extra mounts such as a model cache, named
+  volumes, container-local clones) are outside the host file tools' view.
+  They are reachable only by executing a command in the container (for
+  example `devcontainer_exec` with a container-side `cat` or `find`), which
+  keeps those accesses on the audited execution pathway.
 
 ## Environment control
 

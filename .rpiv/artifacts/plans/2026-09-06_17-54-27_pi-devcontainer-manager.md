@@ -8673,6 +8673,11 @@ or persisted.
 - **Executes** through a shared, governed service — the `devcontainer_exec` tool,
   routed Pi `bash`, and `!`/`!!` all hit the same target validation, policy,
   environment filtering, audit, output accounting, cancellation, and timeout.
+- **Keeps file tools on the host.** `read`/`write`/`edit`/`grep`/`find`/`ls`
+  always operate on the host filesystem — never routed into the container.
+  A DevContainer's workspace is a bind mount, so host and container paths
+  are the same files; only execution is environment-sensitive (toolchain,
+  interpreter, dependencies, container-only mounts).
 - **Manages** lifecycle: `up`, `build`, `stop`, `remove` (stop/remove need a
   policy grant **plus** a fresh per-action confirmation), and bounded `logs`.
 - **Audits** every operation to a host-local JSONL file (fingerprint capture by
@@ -8682,6 +8687,11 @@ or persisted.
   `policy-denied` error instead. The only host escape hatch is the visibly named,
   separately policy-gated, audited `devcontainer_host_exec` tool and
   `/devcontainer host-exec` command.
+
+Because file tools stay on the host, paths that exist **only inside the
+container** (extra mounts, named volumes, container-local clones) are not
+directly readable by `read`/`ls`/`grep`; reach them through `devcontainer_exec`
+(e.g. container-side `cat`/`find`), which runs in the container.
 
 ## Requirements
 
@@ -9002,6 +9012,30 @@ only host execution surface is the explicit, policy-gated, audited
 `devcontainer_host_exec` tool and `/devcontainer host-exec` command
 (`hostExecution.allow`).
 
+### What routes into the container vs what stays on the host
+
+`routeMode` governs **execution-shaped** operations only:
+
+| Surface | Where it runs |
+|---|---|
+| `devcontainer_exec` tool | Container (selected target) |
+| routed `bash` (`bash` tool, `!`/`!!`) | Container (selected target) |
+| `devcontainer_host_exec` tool / `/devcontainer host-exec` | Host (explicit, policy-gated) |
+| `read` / `write` / `edit` / `grep` / `find` / `ls` | **Always host** |
+
+Pi's file tools are deliberately never routed into the container. A
+DevContainer's workspace is a bind mount of your host folder
+(`workspaceMount`), so the host path and the container path are the *same
+files* — running file tools in the container would add a per-call
+`devcontainer exec` round-trip for zero benefit. File edits made through the
+host tools appear inside the container immediately (and vice versa).
+
+Execution is the environment-sensitive half: the toolchain, interpreter,
+platform-specific dependencies, and container-only mounts live in the
+container, which is why commands route there. Paths that exist only inside
+the container (extra mounts, named volumes) are not visible to the host file
+tools; use `devcontainer_exec` (container-side `cat`/`find`) to reach them.
+
 ### `allowedWorkspaceRoots`
 
 - Type: `string[]` · Default: `[]`
@@ -9135,6 +9169,13 @@ operational defaults.
   stable workspace key + candidate discriminator, and each operation re-resolves
   the target and freezes an immutable policy snapshot before any spawn. A
   concurrent selection switch cannot redirect a bound operation.
+- **File tools are a host capability, not a container route.** Pi's built-in
+  file tools (`read`/`write`/`edit`/`grep`/`find`/`ls`) always run against
+  the host filesystem under the normal Pi trust model; they are never
+  delegated into a container, and the container is never a path to a host
+  filesystem action. This keeps the container boundary limited to
+  execution-shaped commands, which is the only surface where the container
+  environment differs from the host.
 
 ## Execution pathway
 
@@ -9151,6 +9192,28 @@ execution service, which:
    Dev Containers CLI or Docker, streaming bounded output;
 5. writes one audit record and returns a structured result with **no
    environment values**.
+
+## File access model
+
+File access and command execution have different trust surfaces, and this
+extension keeps them separate:
+
+- **Host file tools** (`read`/`write`/`edit`/`grep`/`find`/`ls`) read and
+  write the host workspace directly. Because a DevContainer's workspace is a
+  bind mount of the host folder, those files are the same files the
+  container sees — an edit on the host is immediately visible in the
+  container. No container round-trip is involved, so no container path,
+  translation, or in-container tool availability is in the trust path.
+- **Container execution** runs only through the governed execution service
+  (fixed argv, policy snapshot, minimal env, audit). A command can read or
+  write whatever the container user can — including host files reachable
+  through the bind mount — but always as an explicitly routed, audited
+  execution action, never as Pi's own file tooling.
+- **Container-only paths** (extra mounts such as a model cache, named
+  volumes, container-local clones) are outside the host file tools' view.
+  They are reachable only by executing a command in the container (for
+  example `devcontainer_exec` with a container-side `cat` or `find`), which
+  keeps those accesses on the audited execution pathway.
 
 ## Environment control
 
