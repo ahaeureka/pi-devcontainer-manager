@@ -173,6 +173,18 @@ suite("devcontainer-manager integration (real Docker + CLI)", () => {
   });
 
   beforeAll(async () => {
+    // Remove any containers left by a prior interrupted run whose local_folder
+    // points into tests/fixtures, so the discovery test starts clean (a stale
+    // fixture container would flip discoveredFrom from "host-config" to "both").
+    const ps = spawnSync("docker", ["ps", "-a", "--no-trunc", "--format", "{{.ID}}"], { encoding: "utf8", timeout: 20_000 });
+    const fixtureRoot = resolve(process.cwd(), "tests", "fixtures");
+    for (const id of (ps.stdout ?? "").split("\n").map((s) => s.trim()).filter(Boolean)) {
+      const inspect = spawnSync("docker", ["inspect", "--format", "{{index .Config.Labels \"devcontainer.local_folder\"}}", id], { encoding: "utf8", timeout: 15_000 });
+      const folder = (inspect.stdout ?? "").trim();
+      if (folder.startsWith(fixtureRoot)) {
+        spawnSync("docker", ["rm", "-f", id], { timeout: 20_000 });
+      }
+    }
     composed = composeRuntime(makeConfig());
   });
 
@@ -231,6 +243,8 @@ suite("devcontainer-manager integration (real Docker + CLI)", () => {
     // The two exec calls hit the same devcontainer CLI through the SAME
     // execution service with different bound contexts; the container-side
     // hostnames must differ, proving the intended container received each.
+    // Re-select A first (the previous block left B selected).
+    await selectRunning(composed.store, FIXTURE_A, upA.candidateId!);
     const hostA = await composed.service.exec({
       operation: "container-exec",
       initiator: "tool",
@@ -238,6 +252,7 @@ suite("devcontainer-manager integration (real Docker + CLI)", () => {
       cmd: "hostname",
       args: [],
     });
+    await selectRunning(composed.store, FIXTURE_B, upB.candidateId!);
     const hostB = await composed.service.exec({
       operation: "container-exec",
       initiator: "tool",

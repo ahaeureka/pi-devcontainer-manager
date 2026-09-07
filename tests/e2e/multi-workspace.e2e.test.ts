@@ -24,7 +24,7 @@
  * the plain `npm test` gate stays deterministic on machines without Docker
  * or without a configured model provider.
  */
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -156,6 +156,19 @@ suite("multi-workspace e2e (composed runtime)", () => {
     }
   });
 
+  beforeAll(() => {
+    // Start clean: remove fixture containers left by any prior/interrupted run
+    // (their docker labels would flip the discovery test's expected
+    // discoveredFrom from "host-config" to "both").
+    const ps = spawnSync("docker", ["ps", "-a", "--no-trunc", "--format", "{{.ID}}"], { encoding: "utf8", timeout: 20_000 });
+    const fixtureRoot = resolve(process.cwd(), "tests", "fixtures");
+    for (const id of (ps.stdout ?? "").split("\n").map((s) => s.trim()).filter(Boolean)) {
+      const inspect = spawnSync("docker", ["inspect", "--format", "{{index .Config.Labels \"devcontainer.local_folder\"}}", id], { encoding: "utf8", timeout: 15_000 });
+      if ((inspect.stdout ?? "").trim().startsWith(fixtureRoot)) {
+        spawnSync("docker", ["rm", "-f", id], { timeout: 20_000 });
+      }
+    }
+  });
   it("discovers project-a and project-b config-only before any start", async () => {
     const entries = await registryEntries();
     const keys = entries.map((e) => e.workspacePath);
@@ -196,7 +209,10 @@ suite("multi-workspace e2e (composed runtime)", () => {
     expect(execB.exitCode).toBe(0);
     expect(execB.stdout.trim()).toMatch(/project-b/);
 
+    // Re-select A then B for the hostname contrast (B was left selected above).
+    await selectRunning(store, FIXTURE_A, upA.candidateId!);
     const hostA = await service.exec({ operation: "container-exec", initiator: "tool", workspace: FIXTURE_A, cmd: "hostname", args: [] });
+    await selectRunning(store, FIXTURE_B, upB.candidateId!);
     const hostB = await service.exec({ operation: "container-exec", initiator: "tool", workspace: FIXTURE_B, cmd: "hostname", args: [] });
     expect(hostA.stdout.trim()).not.toBe(hostB.stdout.trim());
 

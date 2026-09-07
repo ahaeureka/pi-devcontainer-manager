@@ -18,7 +18,7 @@ phases:
   - { n: 6, title: "Pi extension integration and dual execution interfaces", files: [extensions/index.ts, src/tools.ts, src/tool-output.ts, src/commands.ts, src/bash-router.ts, tests/unit/bash-router.test.ts, tests/unit/tools.test.ts, tests/unit/commands.test.ts, tests/unit/user-bash.test.ts, tests/unit/tool-output.test.ts], depends_on: [1, 2, 3, 4, 5] }
   - { n: 7, title: "Package quality gates and real multi-workspace integration", files: [tests/fixtures/project-a/.devcontainer/devcontainer.json, tests/fixtures/project-b/.devcontainer/devcontainer.json, tests/integration/devcontainer-manager.integration.test.ts, tests/e2e/multi-workspace.e2e.test.ts, tests/package-smoke.test.ts, scripts/verify-package.mjs, scripts/smoke-pi-package.mjs, .github/workflows/ci.yml, .github/workflows/integration.yml, .github/workflows/release.yml], depends_on: [1, 2, 3, 4, 5, 6] }
   - { n: 8, title: "Operator-facing documentation and release contract", files: [README.md, docs/installation.md, docs/configuration.md, docs/security.md, docs/compatibility.md, examples/pi-devcontainer-manager.settings.json, CHANGELOG.md, LICENSE], depends_on: [1, 2, 3, 4, 5, 6, 7] }
-last_updated: 2026-09-07T11:00:00+0800
+last_updated: 2026-09-07T11:20:00+0800
 last_updated_by: geebytes
 last_updated_note: "Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
 ---
@@ -7145,6 +7145,18 @@ suite("devcontainer-manager integration (real Docker + CLI)", () => {
   });
 
   beforeAll(async () => {
+    // Remove any containers left by a prior interrupted run whose local_folder
+    // points into tests/fixtures, so the discovery test starts clean (a stale
+    // fixture container would flip discoveredFrom from "host-config" to "both").
+    const ps = spawnSync("docker", ["ps", "-a", "--no-trunc", "--format", "{{.ID}}"], { encoding: "utf8", timeout: 20_000 });
+    const fixtureRoot = resolve(process.cwd(), "tests", "fixtures");
+    for (const id of (ps.stdout ?? "").split("\n").map((s) => s.trim()).filter(Boolean)) {
+      const inspect = spawnSync("docker", ["inspect", "--format", "{{index .Config.Labels \"devcontainer.local_folder\"}}", id], { encoding: "utf8", timeout: 15_000 });
+      const folder = (inspect.stdout ?? "").trim();
+      if (folder.startsWith(fixtureRoot)) {
+        spawnSync("docker", ["rm", "-f", id], { timeout: 20_000 });
+      }
+    }
     composed = composeRuntime(makeConfig());
   });
 
@@ -7203,6 +7215,8 @@ suite("devcontainer-manager integration (real Docker + CLI)", () => {
     // The two exec calls hit the same devcontainer CLI through the SAME
     // execution service with different bound contexts; the container-side
     // hostnames must differ, proving the intended container received each.
+    // Re-select A first (the previous block left B selected).
+    await selectRunning(composed.store, FIXTURE_A, upA.candidateId!);
     const hostA = await composed.service.exec({
       operation: "container-exec",
       initiator: "tool",
@@ -7210,6 +7224,7 @@ suite("devcontainer-manager integration (real Docker + CLI)", () => {
       cmd: "hostname",
       args: [],
     });
+    await selectRunning(composed.store, FIXTURE_B, upB.candidateId!);
     const hostB = await composed.service.exec({
       operation: "container-exec",
       initiator: "tool",
@@ -7315,7 +7330,7 @@ if (!dockerOk || !cliOk) {
  * the plain `npm test` gate stays deterministic on machines without Docker
  * or without a configured model provider.
  */
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -7447,6 +7462,19 @@ suite("multi-workspace e2e (composed runtime)", () => {
     }
   });
 
+  beforeAll(() => {
+    // Start clean: remove fixture containers left by any prior/interrupted run
+    // (their docker labels would flip the discovery test's expected
+    // discoveredFrom from "host-config" to "both").
+    const ps = spawnSync("docker", ["ps", "-a", "--no-trunc", "--format", "{{.ID}}"], { encoding: "utf8", timeout: 20_000 });
+    const fixtureRoot = resolve(process.cwd(), "tests", "fixtures");
+    for (const id of (ps.stdout ?? "").split("\n").map((s) => s.trim()).filter(Boolean)) {
+      const inspect = spawnSync("docker", ["inspect", "--format", "{{index .Config.Labels \"devcontainer.local_folder\"}}", id], { encoding: "utf8", timeout: 15_000 });
+      if ((inspect.stdout ?? "").trim().startsWith(fixtureRoot)) {
+        spawnSync("docker", ["rm", "-f", id], { timeout: 20_000 });
+      }
+    }
+  });
   it("discovers project-a and project-b config-only before any start", async () => {
     const entries = await registryEntries();
     const keys = entries.map((e) => e.workspacePath);
@@ -7487,7 +7515,10 @@ suite("multi-workspace e2e (composed runtime)", () => {
     expect(execB.exitCode).toBe(0);
     expect(execB.stdout.trim()).toMatch(/project-b/);
 
+    // Re-select A then B for the hostname contrast (B was left selected above).
+    await selectRunning(store, FIXTURE_A, upA.candidateId!);
     const hostA = await service.exec({ operation: "container-exec", initiator: "tool", workspace: FIXTURE_A, cmd: "hostname", args: [] });
+    await selectRunning(store, FIXTURE_B, upB.candidateId!);
     const hostB = await service.exec({ operation: "container-exec", initiator: "tool", workspace: FIXTURE_B, cmd: "hostname", args: [] });
     expect(hostA.stdout.trim()).not.toBe(hostB.stdout.trim());
 
@@ -9230,5 +9261,19 @@ Changes in `extensions/index.ts`:
 - Replaced `resolveTool` with `registerNamedTool`, which reads name/label/description/promptSnippet/promptGuidelines from the composed runtime tool and only falls back to literal values before the runtime exists.
 
 Verified: typecheck clean; 175 deterministic tests pass; `npm run build` + verify chain pass; real-Pi layer loads the extension and, after session_start, `pi.getAllTools()` shows the devcontainer tools with their guidelines (getAllTools omits promptSnippet by design, but the identical spread path carries it into registration). Plan Phase 6 §1 (`extensions/index.ts`) fence re-synced byte-for-byte; §1–§4 headers verified intact.
+
+No open questions. History preserved above.
+
+---
+
+## Follow-up (2026-09-07T11:20:00+0800)
+
+Fix: real-Docker suite robustness. Two issues surfaced during full regression after the tool-registration change:
+
+1. **Test bug (integration + e2e): the A→B hostname-contrast assertion ran without re-selecting the target.** After `execB` the store was left on B; the subsequent `hostA` exec used the still-bound B container, so `hostA === hostB` failed. Both tests now `selectRunning(...)` back to A before the `hostname` probe and to B before the second, proving the two containers differ. This was a test-ordering defect, not an implementation bug (the immutable bind semantics are correct).
+
+2. **Stale-fixture-container flakiness in the discovery test.** A container left by any prior/interrupted run (whose `devcontainer.local_folder` points into `tests/fixtures`) flips the discovery assertion from `discoveredFrom: "host-config"` to `"both"`. Both composed suites now run a `beforeAll` that removes any container whose `devcontainer.local_folder` starts with the fixtures root, so discovery always starts from a clean no-container state regardless of prior residue. Verified: integration then e2e run back-to-back (no manual cleanup between) both pass 5/5.
+
+Plan Phase 7 §3 (integration test) and §4 (e2e test) code fences re-synced byte-for-byte with shipped source; surrounding section headers verified intact.
 
 No open questions. History preserved above.
