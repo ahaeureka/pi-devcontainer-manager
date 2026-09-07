@@ -102,8 +102,10 @@ export function createDevcontainerExecTool(options: ToolOptions): ToolDefinition
       "Returns the container-side exit code and captured stdout/stderr. Output is truncated to the last 2000 lines or 50KB (whichever first); if truncated, the full output is saved to a temp file whose path is reported so it can be read in full.",
     promptSnippet: "Execute an argv command in the selected DevContainer",
     promptGuidelines: [
-      `Use ${DEV_CONTAINER_EXEC_TOOL} when the user asks to run a command in their selected DevContainer.`,
+      `Use ${DEV_CONTAINER_EXEC_TOOL} when the user asks to run a command in their selected DevContainer: builds, tests, language toolchains (npm/pip/cargo/...), dev servers, or anything whose behavior depends on the container environment.`,
       `Prefer literal argv (["npm","test"]) over shell syntax; use the routed bash tool for pipelines.`,
+      `Container is NOT the host: run container-environment work here, never host administration (systemctl, host services, docker itself).`,
+      `If no target is selected or it is stopped, ${DEV_CONTAINER_EXEC_TOOL} fails closed (target-stopped) — run /devcontainer up first instead of trying the host.`,
     ],
     parameters: devcontainerExecParams,
     executionMode: "sequential",
@@ -206,8 +208,9 @@ export function createDevcontainerHostExecTool(options: ToolOptions): ToolDefini
       "Requires hostExecution.allow policy. Prefer devcontainer_exec or the routed bash tool for container work. Output is truncated to the last 2000 lines or 50KB (whichever first); if truncated, the full output is saved to a temp file whose path is reported so it can be read in full.",
     promptSnippet: "Execute an argv command on the HOST (escape hatch)",
     promptGuidelines: [
-      `${DEV_CONTAINER_HOST_EXEC_TOOL} runs on the HOST, not in the container; use it only for host administration.`,
-      `Prefer ${DEV_CONTAINER_EXEC_TOOL} or the routed bash tool for anything inside a DevContainer.`,
+      `${DEV_CONTAINER_HOST_EXEC_TOOL} runs on the HOST, not in the container. Use it ONLY for host administration the container must not do: managing docker itself, host services/daemons, or files outside the mounted workspace.`,
+      `Do NOT route project work here: builds/tests/toolchains belong in the container (${DEV_CONTAINER_EXEC_TOOL} or the routed bash tool); editing workspace files belongs to the host file tools (read/write/edit), which see the same files as the container via the bind mount.`,
+      `Requires hostExecution.allow policy; a policy-denied error means host execution is disabled, not that you should retry in the container.`,
     ],
     parameters: devcontainerHostExecParams,
     executionMode: "sequential",

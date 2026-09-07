@@ -21,6 +21,11 @@ or persisted.
 - **Executes** through a shared, governed service — the `devcontainer_exec` tool,
   routed Pi `bash`, and `!`/`!!` all hit the same target validation, policy,
   environment filtering, audit, output accounting, cancellation, and timeout.
+- **Guides the agent's routing.** Each execution tool carries system-prompt
+  guidance stating where it runs (`bash`/`devcontainer_exec` = inside the
+  selected container, `devcontainer_host_exec` = host-only administration,
+  file tools = host), so container-environment work is not run on the host
+  and host administration is not routed into the container.
 - **Keeps file tools on the host.** `read`/`write`/`edit`/`grep`/`find`/`ls`
   always operate on the host filesystem — never routed into the container.
   A DevContainer's workspace is a bind mount, so host and container paths

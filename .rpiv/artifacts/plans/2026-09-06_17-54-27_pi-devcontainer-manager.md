@@ -20,7 +20,7 @@ phases:
   - { n: 8, title: "Operator-facing documentation and release contract", files: [README.md, docs/installation.md, docs/configuration.md, docs/security.md, docs/compatibility.md, examples/pi-devcontainer-manager.settings.json, CHANGELOG.md, LICENSE], depends_on: [1, 2, 3, 4, 5, 6, 7] }
 last_updated: 2026-09-07T14:45:00+0800
 last_updated_by: geebytes
-last_updated_note: "Decision (2026-09-07): container-mode file-tool routing increment built then reverted per the environment-related-only principle: bind-mount workspace files are the same file host- and container-side, so only execution-shaped ops (bash/!/!!/devcontainer_exec) are environment-sensitive and route; file tools stay host-native. See trailing Follow-up for rationale + ffind/ffgrep boundary note. Prior: Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
+last_updated_note: "Routing-guidance hardening (2026-09-07): bash tool registration now overrides Pi built-in snippet/guidelines (which describe a HOST shell incl. PI_* inspection) with routed semantics — bash runs INSIDE the selected DevContainer, PI_* never exposed, prefer host file tools for reading, host administration via devcontainer_host_exec, /devcontainer up when target-stopped; devcontainer_exec/host_exec promptGuidelines expanded with container-vs-host routing criteria; new tools.test assertions pin the guidance; README gains a routing-guidance bullet. Prior: Decision (2026-09-07): container-mode file-tool routing increment built then reverted per the environment-related-only principle: bind-mount workspace files are the same file host- and container-side, so only execution-shaped ops (bash/!/!!/devcontainer_exec) are environment-sensitive and route; file tools stay host-native. See trailing Follow-up for rationale + ffind/ffgrep boundary note. Prior: Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
 ---
 
 # pi-devcontainer-manager Implementation Plan
@@ -4975,6 +4975,7 @@ import {
   devcontainerExecParams,
   devcontainerStatusParams,
   devcontainerHostExecParams,
+  DEV_CONTAINER_HOST_EXEC_TOOL,
   type ToolDefinitionLike,
 } from "../src/tools.js";
 import { createCommandHandlers, selectionFor, type CommandContextLike, type CommandServices } from "../src/commands.js";
@@ -5430,12 +5431,30 @@ export default function (pi: ExtensionAPI): void {
   // Same-name registration replaces the built-in `bash` tool (extension tools
   // override built-ins by name in `_refreshToolRegistry`). The operations are
   // resolved lazily so they observe the current runtime.
-  pi.registerTool(
-    createBashToolDefinition(process.cwd(), {
-      operations: lazyBashOperations(() => runtime),
-      exposeSessionEnvironment: false,
-    }),
-  );
+  // Build the routed bash definition, then override its system-prompt
+  // contribution. The built-in bash snippet/guidelines describe a HOST shell
+  // (including \"inspect PI_* variables\") which is false here: `bash` is
+  // routed into the selected DevContainer and PI_* is never exposed
+  // (exposeSessionEnvironment: false). The agent must see the routed
+  // semantics so it does not run container work on the host or expect host
+  // state inside bash.
+  const bashDefinition = createBashToolDefinition(process.cwd(), {
+    operations: lazyBashOperations(() => runtime),
+    exposeSessionEnvironment: false,
+  });
+  pi.registerTool({
+    ...bashDefinition,
+    promptSnippet:
+      "Execute a shell command inside the selected DevContainer (routed; not the host)",
+    promptGuidelines: [
+      `bash runs INSIDE the currently selected DevContainer, never on the host. Use it for container-side shells, pipelines, and quick command checks.`,
+      `The container environment differs from the host: toolchains, node_modules platform builds, interpreters, and container-only mounts live here. Anything whose result depends on the container (npm test, pip, cargo, dev servers) MUST run here, not via a host shell.`,
+      `Host-side file inspection and editing stay in the host file tools (read/ls/grep/find/write/edit) — they see the same workspace files as the container through the bind mount; prefer them over container bash for reading files.`,
+      `Host administration (systemctl, host services, docker itself) does NOT belong here — use ${DEV_CONTAINER_HOST_EXEC_TOOL} for that.`,
+      `PI_* environment variables are NOT available inside bash (session environment is not exposed to the container).`,
+      `If no target is selected or it is stopped, bash fails closed (target-stopped) — run /devcontainer up first.`,
+    ],
+  });
 
   pi.on("user_bash", (event) => resolveUserBash(runtime, event));
 }
@@ -5723,8 +5742,10 @@ export function createDevcontainerExecTool(options: ToolOptions): ToolDefinition
       "Returns the container-side exit code and captured stdout/stderr. Output is truncated to the last 2000 lines or 50KB (whichever first); if truncated, the full output is saved to a temp file whose path is reported so it can be read in full.",
     promptSnippet: "Execute an argv command in the selected DevContainer",
     promptGuidelines: [
-      `Use ${DEV_CONTAINER_EXEC_TOOL} when the user asks to run a command in their selected DevContainer.`,
+      `Use ${DEV_CONTAINER_EXEC_TOOL} when the user asks to run a command in their selected DevContainer: builds, tests, language toolchains (npm/pip/cargo/...), dev servers, or anything whose behavior depends on the container environment.`,
       `Prefer literal argv (["npm","test"]) over shell syntax; use the routed bash tool for pipelines.`,
+      `Container is NOT the host: run container-environment work here, never host administration (systemctl, host services, docker itself).`,
+      `If no target is selected or it is stopped, ${DEV_CONTAINER_EXEC_TOOL} fails closed (target-stopped) — run /devcontainer up first instead of trying the host.`,
     ],
     parameters: devcontainerExecParams,
     executionMode: "sequential",
@@ -5827,8 +5848,9 @@ export function createDevcontainerHostExecTool(options: ToolOptions): ToolDefini
       "Requires hostExecution.allow policy. Prefer devcontainer_exec or the routed bash tool for container work. Output is truncated to the last 2000 lines or 50KB (whichever first); if truncated, the full output is saved to a temp file whose path is reported so it can be read in full.",
     promptSnippet: "Execute an argv command on the HOST (escape hatch)",
     promptGuidelines: [
-      `${DEV_CONTAINER_HOST_EXEC_TOOL} runs on the HOST, not in the container; use it only for host administration.`,
-      `Prefer ${DEV_CONTAINER_EXEC_TOOL} or the routed bash tool for anything inside a DevContainer.`,
+      `${DEV_CONTAINER_HOST_EXEC_TOOL} runs on the HOST, not in the container. Use it ONLY for host administration the container must not do: managing docker itself, host services/daemons, or files outside the mounted workspace.`,
+      `Do NOT route project work here: builds/tests/toolchains belong in the container (${DEV_CONTAINER_EXEC_TOOL} or the routed bash tool); editing workspace files belongs to the host file tools (read/write/edit), which see the same files as the container via the bind mount.`,
+      `Requires hostExecution.allow policy; a policy-denied error means host execution is disabled, not that you should retry in the container.`,
     ],
     parameters: devcontainerHostExecParams,
     executionMode: "sequential",
@@ -6855,6 +6877,30 @@ describe("createDevcontainerHostExecTool", () => {
     const tool = createDevcontainerHostExecTool(makeOptions({ hostExecutionAllowed: true, hostRunner }));
     const promise = tool.execute("t1", { argv: ["nope"] }, undefined, undefined, { cwd: "/session" });
     await expect(promise).rejects.toMatchObject({ kind: "executable-missing" });
+  });
+});
+
+describe("execution-route prompt metadata", () => {
+  // These assertions pin the routing guidance the agent sees, so a future edit
+  // cannot silently weaken "what runs where" semantics.
+  it("devcontainer_exec advertises container-environment execution", () => {
+    const tool = createDevcontainerExecTool(makeOptions({ execution: { exec: vi.fn() } as unknown as ExecutionService }));
+    expect(tool.promptSnippet).toContain("selected DevContainer");
+    const joined = (tool.promptGuidelines ?? []).join("\n");
+    expect(joined).toContain("container environment");
+    expect(joined).toContain("never host administration");
+    expect(joined).toContain("target-stopped");
+    expect(joined).toContain("/devcontainer up");
+  });
+
+  it("devcontainer_host_exec is framed as host-only administration", () => {
+    const tool = createDevcontainerHostExecTool(makeOptions({ hostExecutionAllowed: true }));
+    expect(tool.promptSnippet).toContain("HOST");
+    const joined = (tool.promptGuidelines ?? []).join("\n");
+    expect(joined).toContain("HOST, not in the container");
+    expect(joined).toContain("host administration");
+    expect(joined).toContain("docker itself");
+    expect(joined).toContain("bind mount");
   });
 });
 ```
@@ -8673,6 +8719,11 @@ or persisted.
 - **Executes** through a shared, governed service — the `devcontainer_exec` tool,
   routed Pi `bash`, and `!`/`!!` all hit the same target validation, policy,
   environment filtering, audit, output accounting, cancellation, and timeout.
+- **Guides the agent's routing.** Each execution tool carries system-prompt
+  guidance stating where it runs (`bash`/`devcontainer_exec` = inside the
+  selected container, `devcontainer_host_exec` = host-only administration,
+  file tools = host), so container-environment work is not run on the host
+  and host administration is not routed into the container.
 - **Keeps file tools on the host.** `read`/`write`/`edit`/`grep`/`find`/`ls`
   always operate on the host filesystem — never routed into the container.
   A DevContainer's workspace is a bind mount, so host and container paths

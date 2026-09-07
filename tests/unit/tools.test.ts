@@ -185,3 +185,27 @@ describe("createDevcontainerHostExecTool", () => {
     await expect(promise).rejects.toMatchObject({ kind: "executable-missing" });
   });
 });
+
+describe("execution-route prompt metadata", () => {
+  // These assertions pin the routing guidance the agent sees, so a future edit
+  // cannot silently weaken "what runs where" semantics.
+  it("devcontainer_exec advertises container-environment execution", () => {
+    const tool = createDevcontainerExecTool(makeOptions({ execution: { exec: vi.fn() } as unknown as ExecutionService }));
+    expect(tool.promptSnippet).toContain("selected DevContainer");
+    const joined = (tool.promptGuidelines ?? []).join("\n");
+    expect(joined).toContain("container environment");
+    expect(joined).toContain("never host administration");
+    expect(joined).toContain("target-stopped");
+    expect(joined).toContain("/devcontainer up");
+  });
+
+  it("devcontainer_host_exec is framed as host-only administration", () => {
+    const tool = createDevcontainerHostExecTool(makeOptions({ hostExecutionAllowed: true }));
+    expect(tool.promptSnippet).toContain("HOST");
+    const joined = (tool.promptGuidelines ?? []).join("\n");
+    expect(joined).toContain("HOST, not in the container");
+    expect(joined).toContain("host administration");
+    expect(joined).toContain("docker itself");
+    expect(joined).toContain("bind mount");
+  });
+});

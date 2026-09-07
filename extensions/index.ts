@@ -58,6 +58,7 @@ import {
   devcontainerExecParams,
   devcontainerStatusParams,
   devcontainerHostExecParams,
+  DEV_CONTAINER_HOST_EXEC_TOOL,
   type ToolDefinitionLike,
 } from "../src/tools.js";
 import { createCommandHandlers, selectionFor, type CommandContextLike, type CommandServices } from "../src/commands.js";
@@ -513,12 +514,30 @@ export default function (pi: ExtensionAPI): void {
   // Same-name registration replaces the built-in `bash` tool (extension tools
   // override built-ins by name in `_refreshToolRegistry`). The operations are
   // resolved lazily so they observe the current runtime.
-  pi.registerTool(
-    createBashToolDefinition(process.cwd(), {
-      operations: lazyBashOperations(() => runtime),
-      exposeSessionEnvironment: false,
-    }),
-  );
+  // Build the routed bash definition, then override its system-prompt
+  // contribution. The built-in bash snippet/guidelines describe a HOST shell
+  // (including \"inspect PI_* variables\") which is false here: `bash` is
+  // routed into the selected DevContainer and PI_* is never exposed
+  // (exposeSessionEnvironment: false). The agent must see the routed
+  // semantics so it does not run container work on the host or expect host
+  // state inside bash.
+  const bashDefinition = createBashToolDefinition(process.cwd(), {
+    operations: lazyBashOperations(() => runtime),
+    exposeSessionEnvironment: false,
+  });
+  pi.registerTool({
+    ...bashDefinition,
+    promptSnippet:
+      "Execute a shell command inside the selected DevContainer (routed; not the host)",
+    promptGuidelines: [
+      `bash runs INSIDE the currently selected DevContainer, never on the host. Use it for container-side shells, pipelines, and quick command checks.`,
+      `The container environment differs from the host: toolchains, node_modules platform builds, interpreters, and container-only mounts live here. Anything whose result depends on the container (npm test, pip, cargo, dev servers) MUST run here, not via a host shell.`,
+      `Host-side file inspection and editing stay in the host file tools (read/ls/grep/find/write/edit) — they see the same workspace files as the container through the bind mount; prefer them over container bash for reading files.`,
+      `Host administration (systemctl, host services, docker itself) does NOT belong here — use ${DEV_CONTAINER_HOST_EXEC_TOOL} for that.`,
+      `PI_* environment variables are NOT available inside bash (session environment is not exposed to the container).`,
+      `If no target is selected or it is stopped, bash fails closed (target-stopped) — run /devcontainer up first.`,
+    ],
+  });
 
   pi.on("user_bash", (event) => resolveUserBash(runtime, event));
 }
