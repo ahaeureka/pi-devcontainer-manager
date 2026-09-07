@@ -105,6 +105,7 @@ function makeCtx(overrides: Partial<CommandContextLike> = {}): CommandContextLik
   };
   const ctx: CommandContextLike = {
     cwd: "/ws/project-a",
+    hasUI: true,
     ui,
     persistSelection: (record) => persisted.push(record),
     restoreSelection: () => undefined,
@@ -280,6 +281,18 @@ describe("/devcontainer stop + remove", () => {
     const ctx = makeCtx();
     const result = await handlers["remove"]!("", ctx);
     expect(result.text).toContain("[confirmation-required]");
+  });
+
+  it("refuses stop without an interactive UI (hasUI=false), never relying on confirm's silent default", async () => {
+    const { handlers, execution } = makeServices({
+      config: makeConfig({ destructive: { allowStop: true, allowRemove: false } }),
+    });
+    const ctx = makeCtx({ hasUI: false });
+    const result = await handlers["stop"]!("", ctx);
+    expect(result.text).toContain("[confirmation-required]");
+    expect(result.text).toContain("not available in this mode");
+    expect(ctx.ui.confirm).not.toHaveBeenCalled();
+    expect(execution.lifecycle).not.toHaveBeenCalled();
   });
 });
 

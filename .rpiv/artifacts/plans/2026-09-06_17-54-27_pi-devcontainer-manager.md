@@ -18,7 +18,7 @@ phases:
   - { n: 6, title: "Pi extension integration and dual execution interfaces", files: [extensions/index.ts, src/tools.ts, src/tool-output.ts, src/commands.ts, src/bash-router.ts, tests/unit/bash-router.test.ts, tests/unit/tools.test.ts, tests/unit/commands.test.ts, tests/unit/user-bash.test.ts, tests/unit/tool-output.test.ts], depends_on: [1, 2, 3, 4, 5] }
   - { n: 7, title: "Package quality gates and real multi-workspace integration", files: [tests/fixtures/project-a/.devcontainer/devcontainer.json, tests/fixtures/project-b/.devcontainer/devcontainer.json, tests/integration/devcontainer-manager.integration.test.ts, tests/e2e/multi-workspace.e2e.test.ts, tests/package-smoke.test.ts, scripts/verify-package.mjs, scripts/smoke-pi-package.mjs, .github/workflows/ci.yml, .github/workflows/integration.yml, .github/workflows/release.yml], depends_on: [1, 2, 3, 4, 5, 6] }
   - { n: 8, title: "Operator-facing documentation and release contract", files: [README.md, docs/installation.md, docs/configuration.md, docs/security.md, docs/compatibility.md, examples/pi-devcontainer-manager.settings.json, CHANGELOG.md, LICENSE], depends_on: [1, 2, 3, 4, 5, 6, 7] }
-last_updated: 2026-09-07T10:30:00+0800
+last_updated: 2026-09-07T10:45:00+0800
 last_updated_by: geebytes
 last_updated_note: "Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
 ---
@@ -4785,7 +4785,7 @@ Add the Pi extension factory composing every prior service, the TypeBox tool def
 
 #### 1. extensions/index.ts (NEW)
 **File**: `extensions/index.ts`
-**Changes**: Extension factory + lifecycle composition: config load, capability probe (advisory, result discarded), lazy runtime assembly, tool/command registration, replacement `bash` override (`createBashToolDefinition` with `exposeSessionEnvironment: false`), `user_bash` handler (fail-closed: returns a full `{ result }` replacement — never `undefined`/host fallback — when the runtime is not initialized), session_start selection recovery, custom-entry persistence (`applySelection` on running AND config-only), discovery refresh, audit writer construction, and an `autoSelect` hook wired to the execution service that default-selects the session-cwd workspace (empty selection only, exact-realpath match, config-only/stopped → `selected-stopped` so `exec` prompts `/devcontainer up`).
+**Changes**: Extension factory + lifecycle composition: config load, capability probe (advisory, result discarded), lazy runtime assembly, tool/command registration, replacement `bash` override (`createBashToolDefinition` with `exposeSessionEnvironment: false`), `user_bash` handler (receives the event; fail-closed: returns a full `{ result }` replacement — never `undefined`/host fallback — when the runtime is not initialized; terse message for `!!`), session_start selection recovery, custom-entry persistence, discovery refresh, audit writer construction, and an `autoSelect` hook default-selecting the session-cwd workspace.
 
 ```ts
 /**
@@ -5180,6 +5180,7 @@ export default function (pi: ExtensionAPI): void {
       }
       const cmdCtx: CommandContextLike = {
         cwd: ctx.cwd,
+        hasUI: ctx.hasUI,
         ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
         ui: {
           select: (title, options, opts) => ctx.ui.select(title, options, opts),
@@ -5206,12 +5207,17 @@ export default function (pi: ExtensionAPI): void {
     }),
   );
 
-  pi.on("user_bash", () => resolveUserBash(runtime));
+  pi.on("user_bash", (event) => resolveUserBash(runtime, event));
 }
 
 /**
  * Decide the `user_bash` (`!`/`!!`) interception result.
  *
+ * Receives the full `UserBashEvent` (per pi's extension convention) so callers
+ * can branch on `event.command`, `event.cwd`, and `event.excludeFromContext`
+ * (`!!` — output excluded from the LLM context).
+ *
+
  * Fail-closed contract: when the DevContainer runtime is not initialized
  * (session_start not yet run, or the reload window), returning `undefined`
  * would let Pi fall back to executing `!`/`!!` on the HOST's local bash — the
@@ -5223,17 +5229,27 @@ export default function (pi: ExtensionAPI): void {
  */
 export function resolveUserBash(
   rt: Runtime | undefined,
+  event: { command: string; cwd: string; excludeFromContext: boolean } | undefined = undefined,
 ): UserBashEventResult {
   if (rt === undefined) {
+    // For `!!` the output never reaches the LLM context, so the terse form
+    // is enough; for `!` the full guidance is shown to the agent too.
+    const output = event?.excludeFromContext
+      ? "[devcontainer-manager] runtime not initialized (run /reload)"
+      : "[devcontainer-manager] DevContainer runtime is not initialized. Run /reload or restart pi.";
     return {
       result: {
-        output: "[devcontainer-manager] DevContainer runtime is not initialized. Run /reload or restart pi.",
+        output,
         exitCode: 1,
         cancelled: false,
         truncated: false,
       },
     };
   }
+  // Future hook: `event` is available here to route by command/cwd or to
+  // honour excludeFromContext; today every `!`/`!!` routes through the same
+  // selected-container operations.
+  void event;
   return { operations: rt.bashOperations as unknown as BashOperations };
 }
 
@@ -5313,7 +5329,7 @@ function lazyBashOperations(getRuntime: () => Runtime | undefined): BashOperatio
 
 #### 2. src/tools.ts (NEW)
 **File**: `src/tools.ts`
-**Changes**: TypeBox schemas (`argv` minItems 1, optional `cwd`/`timeoutSeconds`); `devcontainer_exec` (literal-argv request through the shared ExecutionService; nonzero container exit → typed error with output appended; success summary `workspaceKey · shortId · exit N`), `devcontainer_host_exec` (explicit host escape, policy gate before any spawn, shared host-runner render + timeout/signal forwarding), `devcontainer_status` read-only selection summary. Both exec tools present captured output through `formatToolOutput` (`src/tool-output.ts`) exactly like Pi's bash tool: keep the tail within 2000 lines / 50KB (whichever first), persist the full output to a system temp file when truncated, and append a `[Showing lines X-Y of N ... Full output: <path>]` notice so the LLM never reasons from a silently partial view.
+**Changes**: TypeBox schemas (`argv` minItems 1, optional `cwd`/`timeoutSeconds`); `devcontainer_exec` / `devcontainer_host_exec` / `devcontainer_status`. Both exec tools present captured output through `formatToolOutput` (`src/tool-output.ts`) exactly like Pi's bash tool: tail within 2000 lines / 50KB, full output persisted to a temp file when truncated, `[Showing lines X-Y of N ... Full output: <path>]` notice.
 
 ```ts
 /**
@@ -5575,7 +5591,7 @@ export { errorKindOf };
 
 #### 3. src/commands.ts (NEW)
 **File**: `src/commands.ts`
-**Changes**: Namespaced `/devcontainer` command UX: `parseArgv` quoted argv, `list`/`use`/`status`/`up`/`build`/`stop`/`remove`/`logs`/`host-exec` verbs, confirmation token generated only AFTER `ui.confirm` acceptance, selection persistence on running + config-only, `confirmation-required` surfaced, `logs --tail` default 100, denied host-exec → `[policy-denied]` without spawn.
+**Changes**: Namespaced `/devcontainer` command UX: `parseArgv` quoted argv, `list`/`use`/`status`/`up`/`build`/`stop`/`remove`/`logs`/`host-exec` verbs, confirmation token generated only AFTER `ui.confirm` acceptance, `hasUI` guard refusing destructive actions in non-interactive modes, `confirmation-required` surfaced, `logs --tail` default 100, denied host-exec → `[policy-denied]`.
 
 ```ts
 /**
@@ -5612,6 +5628,8 @@ export interface CommandUI {
 /** Command execution context (structural subset of Pi's ExtensionCommandContext). */
 export interface CommandContextLike {
   readonly cwd: string;
+  /** Whether an interactive UI is available to confirm/select (mirrors ctx.hasUI). */
+  readonly hasUI: boolean;
   readonly signal?: AbortSignal;
   readonly ui: CommandUI;
   /** Persist selection intent to the session. */
@@ -5850,6 +5868,12 @@ async function lifecycleCommand(
   if (container === undefined) {
     return { text: `[${snapshot.status}] No resolvable target for ${action}. Run /devcontainer list then /devcontainer use.` };
   }
+  // Destructive actions REQUIRE an interactive human confirmation. In modes
+  // without UI (print/json) ctx.ui.confirm is a no-op; refuse explicitly
+  // rather than relying on its silent default (mirrors ctx.hasUI guidance).
+  if (!ctx.hasUI) {
+    return { text: `[confirmation-required] ${action} needs an interactive confirmation; not available in this mode (${action} cancelled).` };
+  }
   const confirmed = await ctx.ui.confirm(
     `Confirm ${action}`,
     `${action === "stop" ? "Stop" : "Remove"} container \`${container.name}\` (${container.id.slice(0, 12)})?`,
@@ -5925,7 +5949,7 @@ export { SELECTION_ENTRY_KIND, isWorkspaceAllowed, isEnvironmentAllowed, canonic
 
 #### 4. src/bash-router.ts (NEW)
 **File**: `src/bash-router.ts`
-**Changes**: `BashOperations` translation: `/bin/sh -lc` wrap, `routed-bash`/`user-bash` initiator mapping, `executeWithTimeout` (typed `timeout`, `request.timeoutMs` never forwarded), abort by reference, env sanitized to allowlist (`undefined` when nothing survives), session-workspace fallback for non-absolute cwd, stdout-then-stderr replay, `{exitCode, truncated}`, typed errors, no silent host fallback, no `onData` on denied requests.
+**Changes**: `BashOperations` translation: `/bin/sh -lc` wrap, `routed-bash`/`user-bash` initiator mapping, `executeWithTimeout` (typed `timeout`, `request.timeoutMs` never forwarded), abort by reference, env sanitized to allowlist, session-workspace fallback for non-absolute cwd, stdout-then-stderr replay, typed errors, no silent host fallback, no `onData` on denied requests.
 
 ```ts
 /**
@@ -9152,5 +9176,21 @@ Files:
 - Plan Phase 6 §2 (`src/tools.ts`) fence re-synced byte-for-byte; the §3 (`src/commands.ts`) header/fence lost in an earlier splice was reconstructed and byte-verified; all fences balanced.
 
 Verified: typecheck clean, 172 deterministic tests pass (17 files), `npm run build` + verify chain pass, real-Pi e2e layer loads the extension, and an end-to-end probe confirmed 100-line output with `maxLines: 5` yields the tail `out-95..out-99` plus `[Showing lines 96-100 of 100 ... Full output: /tmp/...]` with the full file readable.
+
+No open questions. History preserved above.
+
+---
+
+## Follow-up (2026-09-07T10:45:00+0800)
+
+Extensions-doc conformance pass (pi.dev/docs/latest/extensions):
+
+1. **`user_bash` handler now receives the event** (`pi.on("user_bash", (event) => resolveUserBash(runtime, event))`), per the docs' convention. `resolveUserBash(rt, event)` branches on `event.excludeFromContext`: `!!` (excluded from LLM context) gets a terse fail-closed message, `!` gets the full guidance. `event.command`/`event.cwd` are available for future per-command routing. Docs confirm our Option 1 + fail-closed Option 3 approach is the recommended pattern for routing `!`/`!!` into a remote/container (cf. ssh.ts, gondolin), and that returning `undefined` or throwing would both fall through to host local bash.
+
+2. **`hasUI` guard on destructive commands** (docs' `ctx.hasUI` guidance): `CommandContextLike` gains `hasUI`; `extensions/index.ts` threads `ctx.hasUI`. `/devcontainer stop`/`remove` now refuse explicitly when no interactive UI is available (print/json modes where `ctx.ui.confirm` is a no-op), instead of relying on confirm's silent default — never executing a destructive action without a real human confirmation.
+
+3. Plan Phase 6 §1–§4 section headers + code fences rebuilt cleanly from shipped source (a recurring blind closer-search splice had dropped the §2 tools.ts / §4 bash-router.ts headers); all four fences now byte-identical to `extensions/index.ts`, `src/tools.ts`, `src/commands.ts`, `src/bash-router.ts`.
+
+Verified: typecheck clean, 175 deterministic tests pass (17 files), `npm run build` + verify chain pass, real-Pi e2e layer loads the extension.
 
 No open questions. History preserved above.

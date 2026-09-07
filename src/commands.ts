@@ -32,6 +32,8 @@ export interface CommandUI {
 /** Command execution context (structural subset of Pi's ExtensionCommandContext). */
 export interface CommandContextLike {
   readonly cwd: string;
+  /** Whether an interactive UI is available to confirm/select (mirrors ctx.hasUI). */
+  readonly hasUI: boolean;
   readonly signal?: AbortSignal;
   readonly ui: CommandUI;
   /** Persist selection intent to the session. */
@@ -269,6 +271,12 @@ async function lifecycleCommand(
   const container = resolveContainer(snapshot);
   if (container === undefined) {
     return { text: `[${snapshot.status}] No resolvable target for ${action}. Run /devcontainer list then /devcontainer use.` };
+  }
+  // Destructive actions REQUIRE an interactive human confirmation. In modes
+  // without UI (print/json) ctx.ui.confirm is a no-op; refuse explicitly
+  // rather than relying on its silent default (mirrors ctx.hasUI guidance).
+  if (!ctx.hasUI) {
+    return { text: `[confirmation-required] ${action} needs an interactive confirmation; not available in this mode (${action} cancelled).` };
   }
   const confirmed = await ctx.ui.confirm(
     `Confirm ${action}`,

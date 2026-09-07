@@ -390,6 +390,7 @@ export default function (pi: ExtensionAPI): void {
       }
       const cmdCtx: CommandContextLike = {
         cwd: ctx.cwd,
+        hasUI: ctx.hasUI,
         ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
         ui: {
           select: (title, options, opts) => ctx.ui.select(title, options, opts),
@@ -416,12 +417,17 @@ export default function (pi: ExtensionAPI): void {
     }),
   );
 
-  pi.on("user_bash", () => resolveUserBash(runtime));
+  pi.on("user_bash", (event) => resolveUserBash(runtime, event));
 }
 
 /**
  * Decide the `user_bash` (`!`/`!!`) interception result.
  *
+ * Receives the full `UserBashEvent` (per pi's extension convention) so callers
+ * can branch on `event.command`, `event.cwd`, and `event.excludeFromContext`
+ * (`!!` — output excluded from the LLM context).
+ *
+
  * Fail-closed contract: when the DevContainer runtime is not initialized
  * (session_start not yet run, or the reload window), returning `undefined`
  * would let Pi fall back to executing `!`/`!!` on the HOST's local bash — the
@@ -433,17 +439,27 @@ export default function (pi: ExtensionAPI): void {
  */
 export function resolveUserBash(
   rt: Runtime | undefined,
+  event: { command: string; cwd: string; excludeFromContext: boolean } | undefined = undefined,
 ): UserBashEventResult {
   if (rt === undefined) {
+    // For `!!` the output never reaches the LLM context, so the terse form
+    // is enough; for `!` the full guidance is shown to the agent too.
+    const output = event?.excludeFromContext
+      ? "[devcontainer-manager] runtime not initialized (run /reload)"
+      : "[devcontainer-manager] DevContainer runtime is not initialized. Run /reload or restart pi.";
     return {
       result: {
-        output: "[devcontainer-manager] DevContainer runtime is not initialized. Run /reload or restart pi.",
+        output,
         exitCode: 1,
         cancelled: false,
         truncated: false,
       },
     };
   }
+  // Future hook: `event` is available here to route by command/cwd or to
+  // honour excludeFromContext; today every `!`/`!!` routes through the same
+  // selected-container operations.
+  void event;
   return { operations: rt.bashOperations as unknown as BashOperations };
 }
 
