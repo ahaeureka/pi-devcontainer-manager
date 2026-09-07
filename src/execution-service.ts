@@ -109,6 +109,14 @@ export interface ExecutionServiceOptions {
    * fail-closed `no-candidate` behavior.
    */
   readonly autoSelect?: (workspace: string) => Promise<void>;
+  /**
+   * Optional resolver that maps a HOST workspace path to its in-container
+   * path (from the workspace's devcontainer.json workspaceFolder/workspaceMount).
+   * Used ONLY for presentation (the workspaceKey the agent sees); the Dev
+   * Containers CLI still receives the host path, which it maps itself.
+   * Returns undefined when no mapping exists (host path is shown unchanged).
+   */
+  readonly resolveContainerWorkspace?: (hostWorkspace: string) => Promise<string | undefined>;
 }
 
 export class ExecutionService {
@@ -163,9 +171,15 @@ export class ExecutionService {
       throw error;
     }
 
+    // Present the workspace to the agent in container terms when a mapping
+    // exists (host path otherwise). CLI calls above used the host path.
+    const presentedWorkspace =
+      this.options.resolveContainerWorkspace !== undefined
+        ? (await this.options.resolveContainerWorkspace(ctx.workspaceKey)) ?? ctx.workspaceKey
+        : ctx.workspaceKey;
     const outcome: ExecOutcome = {
       operation: request.operation,
-      workspaceKey: ctx.workspaceKey,
+      workspaceKey: presentedWorkspace,
       candidateId: ctx.candidateId,
       candidateName: ctx.candidateName,
       exitCode: result.exitCode,

@@ -30,6 +30,7 @@
  * casts that wire them into the Pi runtime.
  */
 import { homedir } from "node:os";
+import { readFileSync } from "node:fs";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -45,7 +46,8 @@ import { NodeCapabilityService } from "../src/runtime/capabilities.js";
 import { NodeDockerAdapter } from "../src/runtime/docker-adapter.js";
 import { NodeDevcontainerAdapter } from "../src/runtime/devcontainer-adapter.js";
 import { NodeDockerLifecycleAdapter } from "../src/runtime/docker-lifecycle.js";
-import { buildWorkspaceRegistry, nodeTraversal } from "../src/runtime/host-discovery.js";
+import { buildWorkspaceRegistry, nodeTraversal, workspacePathFor } from "../src/runtime/host-discovery.js";
+import { buildPathMapping, hostToContainer, type PathMapping } from "../src/path-mapper.js";
 import { TargetStore } from "../src/target-store.js";
 import { ExecutionService } from "../src/execution-service.js";
 import { createRoutedBashOperations, type BashOperationsLike } from "../src/bash-router.js";
@@ -147,6 +149,22 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
     await targetStore.select(selectionFor(match, match.containerId));
   };
 
+  /**
+   * Map a HOST workspace path to its in-container path (presentation only).
+   * Reads the workspace's devcontainer.json workspaceFolder/workspaceMount;
+   * returns undefined (host path unchanged) when the config is absent or
+   * declares no resolvable mapping.
+   */
+  const resolveContainerWorkspace = async (hostWorkspace: string): Promise<string | undefined> => {
+    const { entries } = await registry();
+    const key = canonicalWorkspaceKey(hostWorkspace);
+    const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
+    if (entry === undefined || entry.configPath.length === 0) return undefined;
+    const mapping = readWorkspaceMapping(entry.configPath);
+    if (mapping === undefined) return undefined;
+    return hostToContainer(entry.workspacePath, mapping) ?? undefined;
+  };
+
   const execution = new ExecutionService({
     config,
     targetStore,
@@ -154,6 +172,7 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
     dockerLifecycle,
     audit,
     autoSelect,
+    resolveContainerWorkspace,
   });
   const bashOperations = createRoutedBashOperations({
     execution,
@@ -353,6 +372,30 @@ function hostCommandIdentity(
   const fingerprint = commandFingerprint(parts);
   if (capture === "fingerprint-only") return { commandFingerprint: fingerprint };
   return { commandFingerprint: fingerprint, commandText: parts.join(" ") };
+}
+
+/**
+ * Read a workspace's devcontainer.json and derive a host<->container path
+ * mapping (workspaceMount preferred, workspaceFolder fallback). Returns
+ * undefined when the config is absent/unreadable or declares no mapping.
+ */
+function readWorkspaceMapping(configPath: string): PathMapping | undefined {
+  let raw: string;
+  try {
+    raw = readFileSync(configPath, "utf8");
+  } catch {
+    return undefined;
+  }
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+  const configDir = workspacePathFor(configPath);
+  const workspaceFolder = typeof parsed.workspaceFolder === "string" ? parsed.workspaceFolder : undefined;
+  const workspaceMount = typeof parsed.workspaceMount === "string" ? parsed.workspaceMount : undefined;
+  return buildPathMapping(configDir, workspaceFolder, workspaceMount);
 }
 
 /** Compose the effective config, always including the session cwd as a root. */

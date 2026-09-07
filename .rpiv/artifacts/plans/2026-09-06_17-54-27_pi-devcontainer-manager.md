@@ -14,11 +14,11 @@ phases:
   - { n: 2, title: "Safe host process and capability boundary", files: [src/errors.ts, src/runtime/process-runner.ts, src/runtime/capabilities.ts, tests/unit/process-runner.test.ts, tests/unit/capabilities.test.ts], depends_on: [1] }
   - { n: 3, title: "Docker discovery and session-safe target state", files: [src/workspace-path.ts, src/runtime/docker-adapter.ts, src/target-store.ts, src/selection-state.ts, tests/unit/docker-adapter.test.ts, tests/unit/target-store.test.ts, tests/unit/selection-state.test.ts], depends_on: [1, 2] }
   - { n: 4, title: "Host-side configuration discovery and workspace registry", files: [src/runtime/host-discovery.ts, tests/unit/host-discovery.test.ts], depends_on: [1, 2, 3] }
-  - { n: 5, title: "Dev Containers and governed execution services", files: [src/runtime/devcontainer-adapter.ts, src/runtime/docker-lifecycle.ts, src/execution-service.ts, tests/unit/devcontainer-adapter.test.ts, tests/unit/execution-service.test.ts], depends_on: [1, 2, 3, 4] }
+  - { n: 5, title: "Dev Containers and governed execution services", files: [src/runtime/devcontainer-adapter.ts, src/runtime/docker-lifecycle.ts, src/execution-service.ts, src/path-mapper.ts, tests/unit/devcontainer-adapter.test.ts, tests/unit/execution-service.test.ts, tests/unit/path-mapper.test.ts], depends_on: [1, 2, 3, 4] }
   - { n: 6, title: "Pi extension integration and dual execution interfaces", files: [extensions/index.ts, src/tools.ts, src/tool-output.ts, src/commands.ts, src/bash-router.ts, tests/unit/bash-router.test.ts, tests/unit/tools.test.ts, tests/unit/commands.test.ts, tests/unit/user-bash.test.ts, tests/unit/tool-output.test.ts], depends_on: [1, 2, 3, 4, 5] }
   - { n: 7, title: "Package quality gates and real multi-workspace integration", files: [tests/fixtures/project-a/.devcontainer/devcontainer.json, tests/fixtures/project-b/.devcontainer/devcontainer.json, tests/integration/devcontainer-manager.integration.test.ts, tests/e2e/multi-workspace.e2e.test.ts, tests/package-smoke.test.ts, scripts/verify-package.mjs, scripts/smoke-pi-package.mjs, .github/workflows/ci.yml, .github/workflows/integration.yml, .github/workflows/release.yml], depends_on: [1, 2, 3, 4, 5, 6] }
   - { n: 8, title: "Operator-facing documentation and release contract", files: [README.md, docs/installation.md, docs/configuration.md, docs/security.md, docs/compatibility.md, examples/pi-devcontainer-manager.settings.json, CHANGELOG.md, LICENSE], depends_on: [1, 2, 3, 4, 5, 6, 7] }
-last_updated: 2026-09-07T12:30:00+0800
+last_updated: 2026-09-07T14:45:00+0800
 last_updated_by: geebytes
 last_updated_note: "Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
 ---
@@ -1331,7 +1331,6 @@ describe("RuntimeError", () => {
   });
 });
 ```
-
 #### 5. tests/unit/capabilities.test.ts (NEW)
 **File**: `tests/unit/capabilities.test.ts`
 **Changes**: Capability suite with fake runner: platform fails-closed, executable-missing, daemon-unreachable, ok, daemon-not-probed-when-executable-absent.
@@ -3895,7 +3894,7 @@ export class NodeDockerLifecycleAdapter implements DockerLifecycleAdapter {
 
 #### 3. src/execution-service.ts (NEW)
 **File**: `src/execution-service.ts`
-**Changes**: Shared orchestration: freeze policy BEFORE target resolution (denial → `policy-denied` with zero adapter invocations), `bind()` context, `buildChildEnvironment` filtering, audit write (fingerprint-only by default, `targetId` on exec/up/stop, never raw values), typed result + confirmation-required surfacing, timeout/cancellation/`shellForm` output shape, optional `autoSelect` hook invoked before `bind()` only when the target store is `none` (empty-selection auto-default, wired by the extension).
+**Changes**: Shared orchestration: freeze policy BEFORE target resolution (denial → `policy-denied` with zero adapter invocations), `bind()` context, `buildChildEnvironment` filtering, audit write (fingerprint-only by default, `targetId` on exec/up/stop, never raw values), typed result + confirmation-required surfacing, timeout/cancellation/`shellForm` output shape, optional `autoSelect` hook invoked before `bind()` only when the target store is `none`, and optional `resolveContainerWorkspace` hook that maps the presented workspaceKey from host to in-container path.
 
 ```ts
 /**
@@ -4009,6 +4008,14 @@ export interface ExecutionServiceOptions {
    * fail-closed `no-candidate` behavior.
    */
   readonly autoSelect?: (workspace: string) => Promise<void>;
+  /**
+   * Optional resolver that maps a HOST workspace path to its in-container
+   * path (from the workspace's devcontainer.json workspaceFolder/workspaceMount).
+   * Used ONLY for presentation (the workspaceKey the agent sees); the Dev
+   * Containers CLI still receives the host path, which it maps itself.
+   * Returns undefined when no mapping exists (host path is shown unchanged).
+   */
+  readonly resolveContainerWorkspace?: (hostWorkspace: string) => Promise<string | undefined>;
 }
 
 export class ExecutionService {
@@ -4063,9 +4070,15 @@ export class ExecutionService {
       throw error;
     }
 
+    // Present the workspace to the agent in container terms when a mapping
+    // exists (host path otherwise). CLI calls above used the host path.
+    const presentedWorkspace =
+      this.options.resolveContainerWorkspace !== undefined
+        ? (await this.options.resolveContainerWorkspace(ctx.workspaceKey)) ?? ctx.workspaceKey
+        : ctx.workspaceKey;
     const outcome: ExecOutcome = {
       operation: request.operation,
-      workspaceKey: ctx.workspaceKey,
+      workspaceKey: presentedWorkspace,
       candidateId: ctx.candidateId,
       candidateName: ctx.candidateName,
       exitCode: result.exitCode,
@@ -4214,6 +4227,122 @@ export class ExecutionService {
 /** Convenience for building the shell form of a routed bash command. */
 export function shellForm(cmd: string): { cmd: string; args: readonly string[] } {
   return { cmd: "/bin/sh", args: ["-lc", cmd] };
+}
+```
+
+#### 3b. src/path-mapper.ts (NEW)
+**File**: `src/path-mapper.ts`
+**Changes**: Host<->container path mapping from a devcontainer.json `workspaceMount` (source→target, `${localWorkspaceFolder}` expanded to the config dir) with `workspaceFolder` fallback. `hostToContainer` maps a host path to its in-container equivalent. Used only for presentation (the workspaceKey the agent sees); the Dev Containers CLI still receives host paths. No mapping (undefined) when the config declares neither — host paths stay unchanged, no guessing.
+
+```ts
+/**
+ * Host <-> container path mapping derived from a DevContainer configuration.
+ *
+ * A workspace's `.devcontainer.json` may declare where the host folder is
+ * mounted inside the container:
+ *
+ *   "workspaceFolder": "/app",
+ *   "workspaceMount": "source=${localWorkspaceFolder},target=/app,type=bind"
+ *
+ * `workspaceMount` is authoritative when present: its `source` (after
+ * `${localWorkspaceFolder}` expansion to the config's host directory) maps to
+ * its `target`. Otherwise we fall back to `workspaceFolder` with the host side
+ * assumed to be the config's own directory. When neither is declared there is
+ * no reliable mapping (the Dev Containers CLI default is not guessed) and the
+ * mapper reports none, so callers keep host paths unchanged.
+ *
+ * The CLI always receives HOST paths for `--workspace-folder` (it resolves the
+ * config on the host and maps internally); this mapper only changes how paths
+ * are *presented* to the agent (tool summaries, workspace keys) so the agent
+ * sees one consistent in-container view.
+ */
+import { isAbsolute } from "node:path";
+
+export interface PathMapping {
+  /** Host-side directory (absolute, real). */
+  readonly hostPath: string;
+  /** Container-side directory (absolute). */
+  readonly containerPath: string;
+}
+
+export interface ParsedMount {
+  source?: string;
+  target?: string;
+  type?: string;
+}
+
+/** Parse a devcontainer `workspaceMount` string ("source=...,target=...,type=bind"). */
+export function parseWorkspaceMount(mount: string | undefined): ParsedMount {
+  if (mount === undefined || mount.trim().length === 0) return {};
+  const parts: Record<string, string> = {};
+  for (const part of mount.split(",")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    const key = part.slice(0, eq);
+    const value = part.slice(eq + 1);
+    parts[key] = value;
+  }
+  const out: ParsedMount = {};
+  if (typeof parts.source === "string") out.source = parts.source;
+  if (typeof parts.target === "string") out.target = parts.target;
+  if (typeof parts.type === "string") out.type = parts.type;
+  return out;
+}
+
+/** Expand `${localWorkspaceFolder}` (and bare `$localWorkspaceFolder`) to the config host dir. */
+export function expandLocalWorkspaceFolder(value: string | undefined, localWorkspaceFolder: string): string | undefined {
+  if (value === undefined) return undefined;
+  return value
+    .replaceAll("${localWorkspaceFolder}", localWorkspaceFolder)
+    .replaceAll("$localWorkspaceFolder", localWorkspaceFolder);
+}
+
+/**
+ * Build a host<->container mapping from a devcontainer config location.
+ *
+ * @param configDir host directory that contains the devcontainer config (for
+ *   `.devcontainer/devcontainer.json` this is the parent of `.devcontainer`;
+ *   for `devcontainer.json`/`.devcontainer.json` it is their own directory)
+ * @param workspaceFolder the config's `workspaceFolder` (container side)
+ * @param workspaceMount the config's `workspaceMount` string, if any
+ * @returns a mapping when both sides are absolute and resolvable, else undefined
+ */
+export function buildPathMapping(
+  configDir: string,
+  workspaceFolder: string | undefined,
+  workspaceMount: string | undefined,
+): PathMapping | undefined {
+  // workspaceMount is authoritative when it names a bind source+target.
+  const mount = parseWorkspaceMount(workspaceMount);
+  if (mount.source !== undefined && mount.target !== undefined && mount.type === "bind") {
+    const host = expandLocalWorkspaceFolder(mount.source, configDir);
+    const container = mount.target;
+    if (host !== undefined && isAbsolute(host) && isAbsolute(container)) {
+      return { hostPath: host, containerPath: container };
+    }
+  }
+  // Fallback: workspaceFolder with host side = config dir.
+  if (workspaceFolder !== undefined && isAbsolute(workspaceFolder) && isAbsolute(configDir)) {
+    return { hostPath: configDir, containerPath: workspaceFolder };
+  }
+  return undefined;
+}
+
+/** Map a host path to its container equivalent under a mapping, if it falls under hostPath. */
+export function hostToContainer(path: string, mapping: PathMapping | undefined): string | undefined {
+  if (mapping === undefined) return undefined;
+  const host = normalize(mapping.hostPath);
+  const candidate = normalize(path);
+  if (candidate === host) return mapping.containerPath;
+  if (candidate.startsWith(`${host}/`)) {
+    return `${mapping.containerPath}${candidate.slice(host.length)}`;
+  }
+  return undefined;
+}
+
+function normalize(p: string): string {
+  // Paths here are already absolute; just trim a trailing slash for prefix math.
+  return p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p;
 }
 ```
 
@@ -4434,7 +4563,6 @@ describe("NodeDevcontainerAdapter.exec", () => {
     expect(result.truncated).toBe(true);
     expect(result.stdout.length).toBeGreaterThanOrEqual(0);
   });
-});
 });
 ```
 
@@ -4784,7 +4912,7 @@ Add the Pi extension factory composing every prior service, the TypeBox tool def
 
 #### 1. extensions/index.ts (NEW)
 **File**: `extensions/index.ts`
-**Changes**: Extension factory + lifecycle composition: config load, capability probe (advisory, result discarded), lazy runtime assembly, tool/command registration in `session_start` (tools carry real description/promptSnippet/promptGuidelines into the system prompt), replacement `bash` override (`createBashToolDefinition` with `exposeSessionEnvironment: false`), `user_bash` handler (receives the event; fail-closed: returns a full `{ result }` replacement when the runtime is not initialized; terse message for `!!`), `/devcontainer` command with an interactive verb picker for bare invocations, session_start selection recovery, custom-entry persistence, discovery refresh, audit writer construction, `autoSelect` hook, and `setupCli` wiring (global `npm install -g @devcontainers/cli`).
+**Changes**: Extension factory + lifecycle composition: config load, capability probe (advisory), lazy runtime assembly, tool/command registration in `session_start` (tools carry real description/promptSnippet/promptGuidelines), replacement `bash` override (`createBashToolDefinition` with `exposeSessionEnvironment: false`), `user_bash` handler (fail-closed `{ result }` when runtime uninitialized), `/devcontainer` command with interactive verb picker, session selection recovery, custom-entry persistence, discovery refresh, audit writer, `autoSelect` hook, `setupCli` wiring, and `resolveContainerWorkspace` wired to ExecutionService (reads the workspace devcontainer.json via `readWorkspaceMapping` to present in-container paths).
 
 ```ts
 /**
@@ -4819,6 +4947,7 @@ Add the Pi extension factory composing every prior service, the TypeBox tool def
  * casts that wire them into the Pi runtime.
  */
 import { homedir } from "node:os";
+import { readFileSync } from "node:fs";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -4834,7 +4963,8 @@ import { NodeCapabilityService } from "../src/runtime/capabilities.js";
 import { NodeDockerAdapter } from "../src/runtime/docker-adapter.js";
 import { NodeDevcontainerAdapter } from "../src/runtime/devcontainer-adapter.js";
 import { NodeDockerLifecycleAdapter } from "../src/runtime/docker-lifecycle.js";
-import { buildWorkspaceRegistry, nodeTraversal } from "../src/runtime/host-discovery.js";
+import { buildWorkspaceRegistry, nodeTraversal, workspacePathFor } from "../src/runtime/host-discovery.js";
+import { buildPathMapping, hostToContainer, type PathMapping } from "../src/path-mapper.js";
 import { TargetStore } from "../src/target-store.js";
 import { ExecutionService } from "../src/execution-service.js";
 import { createRoutedBashOperations, type BashOperationsLike } from "../src/bash-router.js";
@@ -4936,6 +5066,22 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
     await targetStore.select(selectionFor(match, match.containerId));
   };
 
+  /**
+   * Map a HOST workspace path to its in-container path (presentation only).
+   * Reads the workspace's devcontainer.json workspaceFolder/workspaceMount;
+   * returns undefined (host path unchanged) when the config is absent or
+   * declares no resolvable mapping.
+   */
+  const resolveContainerWorkspace = async (hostWorkspace: string): Promise<string | undefined> => {
+    const { entries } = await registry();
+    const key = canonicalWorkspaceKey(hostWorkspace);
+    const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
+    if (entry === undefined || entry.configPath.length === 0) return undefined;
+    const mapping = readWorkspaceMapping(entry.configPath);
+    if (mapping === undefined) return undefined;
+    return hostToContainer(entry.workspacePath, mapping) ?? undefined;
+  };
+
   const execution = new ExecutionService({
     config,
     targetStore,
@@ -4943,6 +5089,7 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
     dockerLifecycle,
     audit,
     autoSelect,
+    resolveContainerWorkspace,
   });
   const bashOperations = createRoutedBashOperations({
     execution,
@@ -5142,6 +5289,30 @@ function hostCommandIdentity(
   const fingerprint = commandFingerprint(parts);
   if (capture === "fingerprint-only") return { commandFingerprint: fingerprint };
   return { commandFingerprint: fingerprint, commandText: parts.join(" ") };
+}
+
+/**
+ * Read a workspace's devcontainer.json and derive a host<->container path
+ * mapping (workspaceMount preferred, workspaceFolder fallback). Returns
+ * undefined when the config is absent/unreadable or declares no mapping.
+ */
+function readWorkspaceMapping(configPath: string): PathMapping | undefined {
+  let raw: string;
+  try {
+    raw = readFileSync(configPath, "utf8");
+  } catch {
+    return undefined;
+  }
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return undefined;
+  }
+  const configDir = workspacePathFor(configPath);
+  const workspaceFolder = typeof parsed.workspaceFolder === "string" ? parsed.workspaceFolder : undefined;
+  const workspaceMount = typeof parsed.workspaceMount === "string" ? parsed.workspaceMount : undefined;
+  return buildPathMapping(configDir, workspaceFolder, workspaceMount);
 }
 
 /** Compose the effective config, always including the session cwd as a root. */
@@ -9515,5 +9686,42 @@ Changes:
 - Plan Phase 6 §1 (`extensions/index.ts`), Phase 7 §4 (`tests/e2e/...`), Phase 8 §1 (`README.md`) fences re-synced byte-for-byte.
 
 Verified: typecheck clean; 180 deterministic tests pass; real-Pi e2e passes; bare `/devcontainer` in print mode returns cleanly (no Unknown-verb error, no hang).
+
+No open questions. History preserved above.
+
+---
+
+## Follow-up (2026-09-07T14:45:00+0800)
+
+Feature: host<->container workspace path presentation.
+
+Problem: when a workspace's devcontainer.json mounts the host folder at a
+different in-container path (e.g. wisebythree mounts
+/data/work/ahaeureka/wisebythree at /app), commands routed into the container
+run with the in-container cwd (/app), but the tool summary presented the host
+workspace key — so the agent saw two different paths for the same files and
+could appear to "reach into /app from the host".
+
+Fix (per confirmed decisions: unify presentation; derive mapping from
+devcontainer.json, workspaceMount preferred, no guessing when absent):
+- New `src/path-mapper.ts`: parses `workspaceMount` (source→target, expanding
+  `${localWorkspaceFolder}` to the config dir), falls back to `workspaceFolder`
+  with the config dir as host side, and exposes `hostToContainer`. Returns no
+  mapping when the config declares neither — host paths stay unchanged.
+- `ExecutionService` gains an optional `resolveContainerWorkspace` hook; in
+  `exec()` the presented `workspaceKey` is mapped host→container. The Dev
+  Containers CLI still receives the HOST path (verified: passing the container
+  path breaks config resolution — the CLI maps internally).
+- `extensions/index.ts` wires `resolveContainerWorkspace` (reads the registry
+  entry's configPath via `readWorkspaceMapping`), and `src/` gains the mapper.
+
+Verified end-to-end on wisebythree: config mapping
+{hostPath:/data/work/ahaeureka/wisebythree, containerPath:/app} is derived from
+workspaceMount with no hardcoding; exec presents workspaceKey `/app` matching
+the container-side pwd.
+
+Files: `src/path-mapper.ts` + `tests/unit/path-mapper.test.ts` (NEW, added to
+Phase 5 `files:`), `src/execution-service.ts`, `extensions/index.ts`. Plan
+fences re-synced byte-for-byte.
 
 No open questions. History preserved above.
