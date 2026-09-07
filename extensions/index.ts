@@ -351,6 +351,13 @@ export default function (pi: ExtensionAPI): void {
     const audit = new JsonlAuditWriter(defaultAuditDirectory(), config.audit.retentionDays);
     runtime = composeRuntime(config, audit, ctx.cwd);
 
+    // Register the devcontainer tools now that the runtime exists, so each
+    // tool carries its real description/promptSnippet/promptGuidelines into the
+    // system prompt (the agent needs them to know when to use the tool).
+    // session_start refires on /reload and session switches; same-name
+    // re-registration replaces the prior definitions.
+    registerDevcontainerTools(pi, () => runtime);
+
     const recovered = restoreSelection(ctx);
     if (recovered !== undefined) {
       await runtime.targetStore.select({
@@ -365,11 +372,6 @@ export default function (pi: ExtensionAPI): void {
   pi.on("session_shutdown", async () => {
     runtime = undefined;
   });
-
-  // --- Tools -------------------------------------------------------------
-
-  registerDevcontainerTools(pi, () => runtime);
-
   // --- Commands ----------------------------------------------------------
 
   pi.registerCommand("devcontainer", {
@@ -465,27 +467,49 @@ export function resolveUserBash(
 
 
 function registerDevcontainerTools(pi: ExtensionAPI, getRuntime: () => Runtime | undefined): void {
-  pi.registerTool(resolveTool(
-    () => getRuntime()?.tools.exec,
-    "devcontainer_exec",
-    "Dev Container Exec",
-    "Execute an argv command inside the selected DevContainer. Requires a selected target.",
-    devcontainerExecParams,
-  ) as never);
-  pi.registerTool(resolveTool(
-    () => getRuntime()?.tools.status,
-    "devcontainer_status",
-    "Dev Container Status",
-    "Read-only summary of the current DevContainer selection and registry.",
-    devcontainerStatusParams,
-  ) as never);
-  pi.registerTool(resolveTool(
-    () => getRuntime()?.tools.hostExec,
-    "devcontainer_host_exec",
-    "Dev Container Host Exec (escape hatch)",
-    "Execute an argv command on the HOST (escape hatch). Policy-gated and audited.",
-    devcontainerHostExecParams,
-  ) as never);
+  registerNamedTool(pi, () => getRuntime()?.tools.exec, "devcontainer_exec", devcontainerExecParams);
+  registerNamedTool(pi, () => getRuntime()?.tools.status, "devcontainer_status", devcontainerStatusParams);
+  registerNamedTool(pi, () => getRuntime()?.tools.hostExec, "devcontainer_host_exec", devcontainerHostExecParams);
+}
+
+/**
+ * Register a tool whose static metadata (name/label/description/promptSnippet/
+ * promptGuidelines/parameters) is taken from the runtime tool definition, and
+ * whose `execute` resolves the current runtime at call time.
+ *
+ * The prompt metadata matters: Pi surfaces promptSnippet in the Available-tools
+ * section and appends promptGuidelines to the system-prompt Guidelines so the
+ * agent knows when to reach for this tool instead of plain bash. Dropping them
+ * (as an earlier wrapper did) hid the tools from the agent's judgment.
+ */
+function registerNamedTool<TParams extends import("typebox").TSchema>(
+  pi: ExtensionAPI,
+  getTool: () => ToolDefinitionLike<unknown> | undefined,
+  fallbackName: string,
+  params: TParams,
+): void {
+  const probe = getTool();
+  const name = probe?.name ?? fallbackName;
+  const definition: ToolDefinitionLike<TParams> = {
+    name: probe?.name ?? fallbackName,
+    label: probe?.label ?? name,
+    description: probe?.description ?? `(runtime not composed; ${fallbackName})`,
+    ...(probe?.promptSnippet !== undefined ? { promptSnippet: probe.promptSnippet } : {}),
+    ...(probe?.promptGuidelines !== undefined ? { promptGuidelines: probe.promptGuidelines } : {}),
+    parameters: params,
+    execute: async (toolCallId, toolParams, signal, onUpdate, ctx) => {
+      const tool = getTool();
+      if (tool === undefined) {
+        throw new RuntimeError({
+          kind: "unexpected",
+          message: `DevContainer runtime is not initialized for ${name}.`,
+          remedy: "Run /reload or restart pi.",
+        });
+      }
+      return tool.execute(toolCallId, toolParams as never, signal, onUpdate, ctx);
+    },
+  };
+  pi.registerTool(definition as never);
 }
 /** Register a tool whose execute resolves the current runtime at call time.
  * The TypeBox `parameters` schema is fixed at registration (Pi validates

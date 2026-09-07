@@ -18,7 +18,7 @@ phases:
   - { n: 6, title: "Pi extension integration and dual execution interfaces", files: [extensions/index.ts, src/tools.ts, src/tool-output.ts, src/commands.ts, src/bash-router.ts, tests/unit/bash-router.test.ts, tests/unit/tools.test.ts, tests/unit/commands.test.ts, tests/unit/user-bash.test.ts, tests/unit/tool-output.test.ts], depends_on: [1, 2, 3, 4, 5] }
   - { n: 7, title: "Package quality gates and real multi-workspace integration", files: [tests/fixtures/project-a/.devcontainer/devcontainer.json, tests/fixtures/project-b/.devcontainer/devcontainer.json, tests/integration/devcontainer-manager.integration.test.ts, tests/e2e/multi-workspace.e2e.test.ts, tests/package-smoke.test.ts, scripts/verify-package.mjs, scripts/smoke-pi-package.mjs, .github/workflows/ci.yml, .github/workflows/integration.yml, .github/workflows/release.yml], depends_on: [1, 2, 3, 4, 5, 6] }
   - { n: 8, title: "Operator-facing documentation and release contract", files: [README.md, docs/installation.md, docs/configuration.md, docs/security.md, docs/compatibility.md, examples/pi-devcontainer-manager.settings.json, CHANGELOG.md, LICENSE], depends_on: [1, 2, 3, 4, 5, 6, 7] }
-last_updated: 2026-09-07T10:45:00+0800
+last_updated: 2026-09-07T11:00:00+0800
 last_updated_by: geebytes
 last_updated_note: "Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
 ---
@@ -4785,7 +4785,7 @@ Add the Pi extension factory composing every prior service, the TypeBox tool def
 
 #### 1. extensions/index.ts (NEW)
 **File**: `extensions/index.ts`
-**Changes**: Extension factory + lifecycle composition: config load, capability probe (advisory, result discarded), lazy runtime assembly, tool/command registration, replacement `bash` override (`createBashToolDefinition` with `exposeSessionEnvironment: false`), `user_bash` handler (receives the event; fail-closed: returns a full `{ result }` replacement — never `undefined`/host fallback — when the runtime is not initialized; terse message for `!!`), session_start selection recovery, custom-entry persistence, discovery refresh, audit writer construction, and an `autoSelect` hook default-selecting the session-cwd workspace.
+**Changes**: Extension factory + lifecycle composition: config load, capability probe (advisory, result discarded), lazy runtime assembly, tool/command registration in `session_start` (tools carry real description/promptSnippet/promptGuidelines into the system prompt so the agent knows when to use them), replacement `bash` override (`createBashToolDefinition` with `exposeSessionEnvironment: false`), `user_bash` handler (receives the event; fail-closed: returns a full `{ result }` replacement — never `undefined`/host fallback — when the runtime is not initialized; terse message for `!!`), session_start selection recovery, custom-entry persistence, discovery refresh, audit writer construction, and an `autoSelect` hook default-selecting the session-cwd workspace.
 
 ```ts
 /**
@@ -5141,6 +5141,13 @@ export default function (pi: ExtensionAPI): void {
     const audit = new JsonlAuditWriter(defaultAuditDirectory(), config.audit.retentionDays);
     runtime = composeRuntime(config, audit, ctx.cwd);
 
+    // Register the devcontainer tools now that the runtime exists, so each
+    // tool carries its real description/promptSnippet/promptGuidelines into the
+    // system prompt (the agent needs them to know when to use the tool).
+    // session_start refires on /reload and session switches; same-name
+    // re-registration replaces the prior definitions.
+    registerDevcontainerTools(pi, () => runtime);
+
     const recovered = restoreSelection(ctx);
     if (recovered !== undefined) {
       await runtime.targetStore.select({
@@ -5155,11 +5162,6 @@ export default function (pi: ExtensionAPI): void {
   pi.on("session_shutdown", async () => {
     runtime = undefined;
   });
-
-  // --- Tools -------------------------------------------------------------
-
-  registerDevcontainerTools(pi, () => runtime);
-
   // --- Commands ----------------------------------------------------------
 
   pi.registerCommand("devcontainer", {
@@ -5255,27 +5257,49 @@ export function resolveUserBash(
 
 
 function registerDevcontainerTools(pi: ExtensionAPI, getRuntime: () => Runtime | undefined): void {
-  pi.registerTool(resolveTool(
-    () => getRuntime()?.tools.exec,
-    "devcontainer_exec",
-    "Dev Container Exec",
-    "Execute an argv command inside the selected DevContainer. Requires a selected target.",
-    devcontainerExecParams,
-  ) as never);
-  pi.registerTool(resolveTool(
-    () => getRuntime()?.tools.status,
-    "devcontainer_status",
-    "Dev Container Status",
-    "Read-only summary of the current DevContainer selection and registry.",
-    devcontainerStatusParams,
-  ) as never);
-  pi.registerTool(resolveTool(
-    () => getRuntime()?.tools.hostExec,
-    "devcontainer_host_exec",
-    "Dev Container Host Exec (escape hatch)",
-    "Execute an argv command on the HOST (escape hatch). Policy-gated and audited.",
-    devcontainerHostExecParams,
-  ) as never);
+  registerNamedTool(pi, () => getRuntime()?.tools.exec, "devcontainer_exec", devcontainerExecParams);
+  registerNamedTool(pi, () => getRuntime()?.tools.status, "devcontainer_status", devcontainerStatusParams);
+  registerNamedTool(pi, () => getRuntime()?.tools.hostExec, "devcontainer_host_exec", devcontainerHostExecParams);
+}
+
+/**
+ * Register a tool whose static metadata (name/label/description/promptSnippet/
+ * promptGuidelines/parameters) is taken from the runtime tool definition, and
+ * whose `execute` resolves the current runtime at call time.
+ *
+ * The prompt metadata matters: Pi surfaces promptSnippet in the Available-tools
+ * section and appends promptGuidelines to the system-prompt Guidelines so the
+ * agent knows when to reach for this tool instead of plain bash. Dropping them
+ * (as an earlier wrapper did) hid the tools from the agent's judgment.
+ */
+function registerNamedTool<TParams extends import("typebox").TSchema>(
+  pi: ExtensionAPI,
+  getTool: () => ToolDefinitionLike<unknown> | undefined,
+  fallbackName: string,
+  params: TParams,
+): void {
+  const probe = getTool();
+  const name = probe?.name ?? fallbackName;
+  const definition: ToolDefinitionLike<TParams> = {
+    name: probe?.name ?? fallbackName,
+    label: probe?.label ?? name,
+    description: probe?.description ?? `(runtime not composed; ${fallbackName})`,
+    ...(probe?.promptSnippet !== undefined ? { promptSnippet: probe.promptSnippet } : {}),
+    ...(probe?.promptGuidelines !== undefined ? { promptGuidelines: probe.promptGuidelines } : {}),
+    parameters: params,
+    execute: async (toolCallId, toolParams, signal, onUpdate, ctx) => {
+      const tool = getTool();
+      if (tool === undefined) {
+        throw new RuntimeError({
+          kind: "unexpected",
+          message: `DevContainer runtime is not initialized for ${name}.`,
+          remedy: "Run /reload or restart pi.",
+        });
+      }
+      return tool.execute(toolCallId, toolParams as never, signal, onUpdate, ctx);
+    },
+  };
+  pi.registerTool(definition as never);
 }
 /** Register a tool whose execute resolves the current runtime at call time.
  * The TypeBox `parameters` schema is fixed at registration (Pi validates
@@ -9192,5 +9216,19 @@ Extensions-doc conformance pass (pi.dev/docs/latest/extensions):
 3. Plan Phase 6 §1–§4 section headers + code fences rebuilt cleanly from shipped source (a recurring blind closer-search splice had dropped the §2 tools.ts / §4 bash-router.ts headers); all four fences now byte-identical to `extensions/index.ts`, `src/tools.ts`, `src/commands.ts`, `src/bash-router.ts`.
 
 Verified: typecheck clean, 175 deterministic tests pass (17 files), `npm run build` + verify chain pass, real-Pi e2e layer loads the extension.
+
+No open questions. History preserved above.
+
+---
+
+## Follow-up (2026-09-07T11:00:00+0800)
+
+Fix: devcontainer tools were registered at extension-factory time through a wrapper that (a) could not see the runtime (not yet composed) and (b) dropped `promptSnippet`/`promptGuidelines`, so the agent saw only bare descriptions and had weak signals for when to use `devcontainer_exec`/`devcontainer_status`/`devcontainer_host_exec` instead of plain bash.
+
+Changes in `extensions/index.ts`:
+- Tool registration moved from the factory body into `session_start` (after `composeRuntime`), so each tool is registered with its real `description`, `promptSnippet`, and `promptGuidelines` — the metadata Pi puts in the Available-tools section and system-prompt Guidelines. `session_start` refires on `/reload`/session switches and same-name re-registration replaces the prior definitions (per pi docs: registerTool works inside session_start and refreshes immediately).
+- Replaced `resolveTool` with `registerNamedTool`, which reads name/label/description/promptSnippet/promptGuidelines from the composed runtime tool and only falls back to literal values before the runtime exists.
+
+Verified: typecheck clean; 175 deterministic tests pass; `npm run build` + verify chain pass; real-Pi layer loads the extension and, after session_start, `pi.getAllTools()` shows the devcontainer tools with their guidelines (getAllTools omits promptSnippet by design, but the identical spread path carries it into registration). Plan Phase 6 §1 (`extensions/index.ts`) fence re-synced byte-for-byte; §1–§4 headers verified intact.
 
 No open questions. History preserved above.
