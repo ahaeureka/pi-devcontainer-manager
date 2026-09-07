@@ -15,12 +15,12 @@ phases:
   - { n: 3, title: "Docker discovery and session-safe target state", files: [src/workspace-path.ts, src/runtime/docker-adapter.ts, src/target-store.ts, src/selection-state.ts, tests/unit/docker-adapter.test.ts, tests/unit/target-store.test.ts, tests/unit/selection-state.test.ts], depends_on: [1, 2] }
   - { n: 4, title: "Host-side configuration discovery and workspace registry", files: [src/runtime/host-discovery.ts, tests/unit/host-discovery.test.ts], depends_on: [1, 2, 3] }
   - { n: 5, title: "Dev Containers and governed execution services", files: [src/runtime/devcontainer-adapter.ts, src/runtime/docker-lifecycle.ts, src/execution-service.ts, tests/unit/devcontainer-adapter.test.ts, tests/unit/execution-service.test.ts], depends_on: [1, 2, 3, 4] }
-  - { n: 6, title: "Pi extension integration and dual execution interfaces", files: [extensions/index.ts, src/tools.ts, src/commands.ts, src/bash-router.ts, tests/unit/bash-router.test.ts, tests/unit/tools.test.ts, tests/unit/commands.test.ts], depends_on: [1, 2, 3, 4, 5] }
+  - { n: 6, title: "Pi extension integration and dual execution interfaces", files: [extensions/index.ts, src/tools.ts, src/commands.ts, src/bash-router.ts, tests/unit/bash-router.test.ts, tests/unit/tools.test.ts, tests/unit/commands.test.ts, tests/unit/user-bash.test.ts], depends_on: [1, 2, 3, 4, 5] }
   - { n: 7, title: "Package quality gates and real multi-workspace integration", files: [tests/fixtures/project-a/.devcontainer/devcontainer.json, tests/fixtures/project-b/.devcontainer/devcontainer.json, tests/integration/devcontainer-manager.integration.test.ts, tests/e2e/multi-workspace.e2e.test.ts, tests/package-smoke.test.ts, scripts/verify-package.mjs, scripts/smoke-pi-package.mjs, .github/workflows/ci.yml, .github/workflows/integration.yml, .github/workflows/release.yml], depends_on: [1, 2, 3, 4, 5, 6] }
   - { n: 8, title: "Operator-facing documentation and release contract", files: [README.md, docs/installation.md, docs/configuration.md, docs/security.md, docs/compatibility.md, examples/pi-devcontainer-manager.settings.json, CHANGELOG.md, LICENSE], depends_on: [1, 2, 3, 4, 5, 6, 7] }
-last_updated: 2026-09-07T00:30:02+0800
+last_updated: 2026-09-07T10:00:00+0800
 last_updated_by: geebytes
-last_updated_note: "Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
+last_updated_note: "Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
 ---
 
 # pi-devcontainer-manager Implementation Plan
@@ -4785,7 +4785,7 @@ Add the Pi extension factory composing every prior service, the TypeBox tool def
 
 #### 1. extensions/index.ts (NEW)
 **File**: `extensions/index.ts`
-**Changes**: Extension factory + lifecycle composition: config load, capability probe (advisory, result discarded), lazy runtime assembly, tool/command registration, replacement `bash` override (`createBashToolDefinition` with `exposeSessionEnvironment: false`), `user_bash` handler, session_start selection recovery, custom-entry persistence (`applySelection` on running AND config-only), discovery refresh, audit writer construction, and an `autoSelect` hook wired to the execution service that default-selects the session-cwd workspace (empty selection only, exact-realpath match, config-only/stopped → `selected-stopped` so `exec` prompts `/devcontainer up`).
+**Changes**: Extension factory + lifecycle composition: config load, capability probe (advisory, result discarded), lazy runtime assembly, tool/command registration, replacement `bash` override (`createBashToolDefinition` with `exposeSessionEnvironment: false`), `user_bash` handler (fail-closed: returns a full `{ result }` replacement — never `undefined`/host fallback — when the runtime is not initialized), session_start selection recovery, custom-entry persistence (`applySelection` on running AND config-only), discovery refresh, audit writer construction, and an `autoSelect` hook wired to the execution service that default-selects the session-cwd workspace (empty selection only, exact-realpath match, config-only/stopped → `selected-stopped` so `exec` prompts `/devcontainer up`).
 
 ```ts
 /**
@@ -4824,6 +4824,7 @@ import type {
   ExtensionAPI,
   ExtensionContext,
   BashOperations,
+  UserBashEventResult,
 } from "@earendil-works/pi-coding-agent";
 import { createBashToolDefinition } from "@earendil-works/pi-coding-agent";
 
@@ -5205,11 +5206,35 @@ export default function (pi: ExtensionAPI): void {
     }),
   );
 
-  pi.on("user_bash", () => {
-    const rt = runtime;
-    if (rt === undefined) return undefined;
-    return { operations: rt.bashOperations as unknown as BashOperations };
-  });
+  pi.on("user_bash", () => resolveUserBash(runtime));
+}
+
+/**
+ * Decide the `user_bash` (`!`/`!!`) interception result.
+ *
+ * Fail-closed contract: when the DevContainer runtime is not initialized
+ * (session_start not yet run, or the reload window), returning `undefined`
+ * would let Pi fall back to executing `!`/`!!` on the HOST's local bash — the
+ * exact silent host fallback this extension forbids. Throwing from the handler
+ * is also unsafe: Pi's emitUserBash catches handler errors, logs them, and
+ * still falls through to local bash. The only hard stop is a full
+ * `{ result }` replacement, which Pi consumes directly and never routes to
+ * the host.
+ */
+export function resolveUserBash(
+  rt: Runtime | undefined,
+): UserBashEventResult {
+  if (rt === undefined) {
+    return {
+      result: {
+        output: "[devcontainer-manager] DevContainer runtime is not initialized. Run /reload or restart pi.",
+        exitCode: 1,
+        cancelled: false,
+        truncated: false,
+      },
+    };
+  }
+  return { operations: rt.bashOperations as unknown as BashOperations };
 }
 
 
@@ -5288,7 +5313,7 @@ function lazyBashOperations(getRuntime: () => Runtime | undefined): BashOperatio
 
 #### 2. src/tools.ts (NEW)
 **File**: `src/tools.ts`
-**Changes**: TypeBox schemas (`argv` minItems 1, optional `cwd`/`timeoutSeconds`); `devcontainer_exec` (nonzero exit → `RuntimeError {kind:"unexpected", exitCode}`; success `workspaceKey · shortId · exit N`), `devcontainer_host_exec` (policy gate, no spawn on denial), shared host runner render + timeout/signal forwarding, `devcontainer_status` read-only selection summary.
+**Changes**: TypeBox schemas (`argv` minItems 1, optional `cwd`/`timeoutSeconds`); `devcontainer_exec` (literal-argv request through the shared ExecutionService; nonzero container exit → typed error with output appended; success summary `workspaceKey · shortId · exit N`), `devcontainer_host_exec` (explicit host escape, policy gate before any spawn, shared host-runner render + timeout/signal forwarding), `devcontainer_status` read-only selection summary.
 
 ```ts
 /**
@@ -5530,6 +5555,7 @@ export function formatToolError(error: unknown): string {
 
 export { errorKindOf };
 ```
+
 
 #### 3. src/commands.ts (NEW)
 **File**: `src/commands.ts`
@@ -9076,5 +9102,22 @@ Feature request: "保留 list 的前提下默认选择项目目录下的 .devcon
 3. **Fail-closed when not running.** A config-only/never-started cwd project is selected via `selectionFor(entry, entry.containerId)` → `selected-stopped`, so the first `exec` raises `target-stopped` with "run /devcontainer up". The hook never auto-starts a container (the plan-review-deferred "up auto-selects" direction remains out of scope; this is the narrower empty-selection + exact-cwd variant).
 
 Code fences re-synced byte-for-byte with shipped source: `src/execution-service.ts`, `tests/unit/execution-service.test.ts` (13 tests, +3 auto-select), `extensions/index.ts`. Phase 5 service-SC bullet and Phase 6 manual item updated. Verified: typecheck clean, 163 deterministic tests pass, `npm run build` + `smoke-pi-package.mjs --no-model` pass, real-Pi e2e layer loads the extension, and a scratch composition probe confirmed `none → auto-select → selected-stopped → bind target-stopped`.
+
+No open questions. History preserved above.
+
+---
+
+## Follow-up (2026-09-07T10:00:00+0800)
+
+Security review fix (pi.dev extensions-conformance audit): the `user_bash` (`!`/`!!`) handler previously returned `undefined` when the DevContainer runtime was not initialized. Per pi's extension semantics that means "not intercepted", so Pi fell back to executing the command on the HOST's local bash — a silent host fallback that contradicts the extension's core "never falls back silently to the host" invariant and is inconsistent with the LLM `bash` tool, which throws in the same state. Throwing from a `user_bash` handler is also unsafe: Pi's `emitUserBash` catches handler errors, logs them, and still falls through to local bash.
+
+Fix: the handler now delegates to an exported pure `resolveUserBash(runtime)` that, when the runtime is undefined, returns a **full `{ result }` replacement** (exit code 1 + "runtime is not initialized. Run /reload or restart pi."). Pi consumes a returned `result` directly and never routes it to the host, so `!`/`!!` cannot execute on the host during the un-initialized window. When the runtime is ready it returns `{ operations }` as before (routed into the selected DevContainer).
+
+Changes:
+- `extensions/index.ts`: `user_bash` handler → `resolveUserBash(runtime)`; new exported `resolveUserBash` with the fail-closed contract documented.
+- `tests/unit/user-bash.test.ts` (NEW, added to Phase 6 `files:`): pins that an un-initialized runtime yields a failing `{ result }` with no `operations` (no host fallback) and a ready runtime yields the routed operations.
+- Plan Phase 6 §1 `extensions/index.ts` code fence re-synced byte-for-byte with shipped source.
+
+Verified: typecheck clean, 165 deterministic tests pass (163 + 2 user-bash), `npm run build` + verify chain pass, real-Pi e2e layer loads the extension.
 
 No open questions. History preserved above.

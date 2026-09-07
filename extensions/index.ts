@@ -34,6 +34,7 @@ import type {
   ExtensionAPI,
   ExtensionContext,
   BashOperations,
+  UserBashEventResult,
 } from "@earendil-works/pi-coding-agent";
 import { createBashToolDefinition } from "@earendil-works/pi-coding-agent";
 
@@ -415,11 +416,35 @@ export default function (pi: ExtensionAPI): void {
     }),
   );
 
-  pi.on("user_bash", () => {
-    const rt = runtime;
-    if (rt === undefined) return undefined;
-    return { operations: rt.bashOperations as unknown as BashOperations };
-  });
+  pi.on("user_bash", () => resolveUserBash(runtime));
+}
+
+/**
+ * Decide the `user_bash` (`!`/`!!`) interception result.
+ *
+ * Fail-closed contract: when the DevContainer runtime is not initialized
+ * (session_start not yet run, or the reload window), returning `undefined`
+ * would let Pi fall back to executing `!`/`!!` on the HOST's local bash — the
+ * exact silent host fallback this extension forbids. Throwing from the handler
+ * is also unsafe: Pi's emitUserBash catches handler errors, logs them, and
+ * still falls through to local bash. The only hard stop is a full
+ * `{ result }` replacement, which Pi consumes directly and never routes to
+ * the host.
+ */
+export function resolveUserBash(
+  rt: Runtime | undefined,
+): UserBashEventResult {
+  if (rt === undefined) {
+    return {
+      result: {
+        output: "[devcontainer-manager] DevContainer runtime is not initialized. Run /reload or restart pi.",
+        exitCode: 1,
+        cancelled: false,
+        truncated: false,
+      },
+    };
+  }
+  return { operations: rt.bashOperations as unknown as BashOperations };
 }
 
 
