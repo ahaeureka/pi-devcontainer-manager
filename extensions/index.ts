@@ -241,6 +241,57 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
     refreshRegistry: registry,
     logs: (container, options) => dockerLifecycle.logs(container.id, options),
     hostRunner,
+    setupCli: async (opts) => {
+      const startedAt = process.hrtime.bigint();
+      const stdoutChunks: Buffer[] = [];
+      const stderrChunks: Buffer[] = [];
+      const argv = ["npm", "install", "-g", "@devcontainers/cli"];
+      const runResult = await runner.exec(argv[0]!, [...argv.slice(1)], {
+        cwd: sessionWorkspace,
+        env: { ...env },
+        maxOutputBytes: config.maxOutputBytes,
+        timeoutMs: 300_000,
+        ...(opts?.signal !== undefined ? { signal: opts.signal } : {}),
+        onData: (chunk) => stdoutChunks.push(chunk),
+        onStderr: (chunk) => stderrChunks.push(chunk),
+      });
+      const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+      const exitCode = runResult.exitCode;
+      audit.write({
+        version: 1,
+        at: new Date().toISOString(),
+        operation: "setup",
+        initiator: "slash-command",
+        policyAuthorized: true,
+        ...(durationMs !== undefined ? { durationMs } : {}),
+        ...(exitCode !== undefined ? { exitCode } : {}),
+        outputTruncated: runResult.truncated,
+        commandCapture: config.audit.commandCapture,
+        ...hostCommandIdentity(argv, config.audit.commandCapture),
+      });
+      if (exitCode !== 0) {
+        const err = Buffer.concat(stderrChunks).toString("utf8").trim();
+        return { installed: false, version: undefined, error: err || `npm install exited ${exitCode}` };
+      }
+      // Verify the freshly installed CLI is resolvable on PATH.
+      const versionChunks: Buffer[] = [];
+      try {
+        const probe = await runner.exec(config.devcontainerPath, ["--version"], {
+          cwd: sessionWorkspace,
+          env: { ...env },
+          maxOutputBytes: 16 * 1024,
+          timeoutMs: 30_000,
+          onData: (chunk) => versionChunks.push(chunk),
+        });
+        if (probe.exitCode === 0) {
+          const version = Buffer.concat(versionChunks).toString("utf8").trim().split(/\s+/).pop();
+          return { installed: true, version: version || undefined };
+        }
+        return { installed: false, version: undefined, error: "npm install succeeded but `" + config.devcontainerPath + " --version` failed; check PATH." };
+      } catch (error) {
+        return { installed: false, version: undefined, error: `npm install succeeded but verifying the CLI failed: ${error instanceof Error ? error.message : String(error)}` };
+      }
+    },
   };
 
   const tools: Runtime["tools"] = {
@@ -375,7 +426,7 @@ export default function (pi: ExtensionAPI): void {
   // --- Commands ----------------------------------------------------------
 
   pi.registerCommand("devcontainer", {
-    description: "DevContainer management (list, use, status, up, build, stop, remove, logs, host-exec)",
+    description: "DevContainer management (list, use, status, up, build, stop, remove, logs, host-exec, setup)",
     handler: async (args, ctx) => {
       const rt = runtime;
       if (rt === undefined) {

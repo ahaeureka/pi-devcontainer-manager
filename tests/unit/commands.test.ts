@@ -349,3 +349,54 @@ describe("/devcontainer host-exec", () => {
     expect(hostRunner!.run).toHaveBeenCalledWith(["printf", "hello world"], undefined);
   });
 });
+
+describe("/devcontainer setup", () => {
+  it("confirms then installs the Dev Containers CLI globally", async () => {
+    const setupCli = vi.fn(async () => ({ installed: true, version: "1.2.3" }));
+    const { handlers } = makeServices({ setupCli } as never);
+    const ctx = makeCtx();
+    const result = await handlers["setup"]!("", ctx);
+    expect(ctx.ui.confirm).toHaveBeenCalledWith(
+      "Install Dev Containers CLI",
+      expect.stringContaining("npm install -g @devcontainers/cli"),
+      undefined,
+    );
+    expect(setupCli).toHaveBeenCalledTimes(1);
+    expect(result.text).toContain("Dev Containers CLI ready: 1.2.3");
+  });
+
+  it("refuses without interactive UI (hasUI=false)", async () => {
+    const setupCli = vi.fn();
+    const { handlers } = makeServices({ setupCli } as never);
+    const ctx = makeCtx({ hasUI: false });
+    const result = await handlers["setup"]!("", ctx);
+    expect(result.text).toContain("[confirmation-required]");
+    expect(setupCli).not.toHaveBeenCalled();
+  });
+
+  it("cancels when the operator declines confirmation", async () => {
+    const setupCli = vi.fn();
+    const { handlers } = makeServices({ setupCli } as never);
+    const ctx = makeCtx();
+    ctx.ui.confirm.mockResolvedValueOnce(false);
+    const result = await handlers["setup"]!("", ctx);
+    expect(result.text).toBe("setup cancelled.");
+    expect(setupCli).not.toHaveBeenCalled();
+  });
+
+  it("reports install failure with the npm error", async () => {
+    const setupCli = vi.fn(async () => ({ installed: false, version: undefined, error: "EACCES permission denied" }));
+    const { handlers } = makeServices({ setupCli } as never);
+    const ctx = makeCtx();
+    const result = await handlers["setup"]!("", ctx);
+    expect(result.text).toContain("[setup-failed]");
+    expect(result.text).toContain("EACCES permission denied");
+  });
+
+  it("reports when setup is not wired", async () => {
+    const { handlers } = makeServices();
+    const ctx = makeCtx();
+    const result = await handlers["setup"]!("", ctx);
+    expect(result.text).toContain("[unexpected]");
+  });
+});

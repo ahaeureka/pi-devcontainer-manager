@@ -18,7 +18,7 @@ phases:
   - { n: 6, title: "Pi extension integration and dual execution interfaces", files: [extensions/index.ts, src/tools.ts, src/tool-output.ts, src/commands.ts, src/bash-router.ts, tests/unit/bash-router.test.ts, tests/unit/tools.test.ts, tests/unit/commands.test.ts, tests/unit/user-bash.test.ts, tests/unit/tool-output.test.ts], depends_on: [1, 2, 3, 4, 5] }
   - { n: 7, title: "Package quality gates and real multi-workspace integration", files: [tests/fixtures/project-a/.devcontainer/devcontainer.json, tests/fixtures/project-b/.devcontainer/devcontainer.json, tests/integration/devcontainer-manager.integration.test.ts, tests/e2e/multi-workspace.e2e.test.ts, tests/package-smoke.test.ts, scripts/verify-package.mjs, scripts/smoke-pi-package.mjs, .github/workflows/ci.yml, .github/workflows/integration.yml, .github/workflows/release.yml], depends_on: [1, 2, 3, 4, 5, 6] }
   - { n: 8, title: "Operator-facing documentation and release contract", files: [README.md, docs/installation.md, docs/configuration.md, docs/security.md, docs/compatibility.md, examples/pi-devcontainer-manager.settings.json, CHANGELOG.md, LICENSE], depends_on: [1, 2, 3, 4, 5, 6, 7] }
-last_updated: 2026-09-07T11:20:00+0800
+last_updated: 2026-09-07T11:40:00+0800
 last_updated_by: geebytes
 last_updated_note: "Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
 ---
@@ -156,7 +156,7 @@ Establish the loadable ESM package contract (manifest + strict NodeNext build), 
 
 #### 3. src/types.ts (NEW)
 **File**: `src/types.ts`
-**Changes**: Shared immutable contracts: `CONFIG_VERSION`, route/capture/operation/initiator/container-state/config-kind unions, discovery/audit/destructive/host-execution/manager/effective config shapes, `PolicyInput`, `OperationPolicySnapshot` (four-value `denialReason`), `AuditRecord` (no environment values).
+**Changes**: Shared immutable contracts: `CONFIG_VERSION`, route/capture/operation/initiator/container-state/config-kind unions (OperationKind includes `setup` for the Dev Containers CLI install operation), discovery/audit/destructive/host-execution/manager/effective config shapes, `PolicyInput`, `OperationPolicySnapshot` (four-value `denialReason`), `AuditRecord` (no environment values).
 
 ```ts
 export const CONFIG_VERSION = 1 as const;
@@ -165,7 +165,7 @@ export type RouteMode = "container-required" | "container-preferred" | "host-onl
 export type CommandCaptureMode = "none" | "fingerprint-only" | "redacted-text";
 export type OperationKind =
   | "discover" | "status" | "logs" | "up" | "build"
-  | "container-exec" | "routed-bash" | "user-bash" | "host-exec" | "stop" | "remove";
+  | "container-exec" | "routed-bash" | "user-bash" | "host-exec" | "stop" | "remove" | "setup";
 export type Initiator = "tool" | "slash-command" | "routed-bash" | "user-bash" | "host-escape";
 export type ContainerState = "running" | "exited" | "created" | "paused" | "unknown";
 
@@ -277,7 +277,6 @@ export interface AuditRecord {
   readonly commandText?: string;
   readonly errorSummary?: string;
 }
-
 ```
 
 #### 4. src/config.ts (NEW)
@@ -5031,6 +5030,57 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
     refreshRegistry: registry,
     logs: (container, options) => dockerLifecycle.logs(container.id, options),
     hostRunner,
+    setupCli: async (opts) => {
+      const startedAt = process.hrtime.bigint();
+      const stdoutChunks: Buffer[] = [];
+      const stderrChunks: Buffer[] = [];
+      const argv = ["npm", "install", "-g", "@devcontainers/cli"];
+      const runResult = await runner.exec(argv[0]!, [...argv.slice(1)], {
+        cwd: sessionWorkspace,
+        env: { ...env },
+        maxOutputBytes: config.maxOutputBytes,
+        timeoutMs: 300_000,
+        ...(opts?.signal !== undefined ? { signal: opts.signal } : {}),
+        onData: (chunk) => stdoutChunks.push(chunk),
+        onStderr: (chunk) => stderrChunks.push(chunk),
+      });
+      const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+      const exitCode = runResult.exitCode;
+      audit.write({
+        version: 1,
+        at: new Date().toISOString(),
+        operation: "setup",
+        initiator: "slash-command",
+        policyAuthorized: true,
+        ...(durationMs !== undefined ? { durationMs } : {}),
+        ...(exitCode !== undefined ? { exitCode } : {}),
+        outputTruncated: runResult.truncated,
+        commandCapture: config.audit.commandCapture,
+        ...hostCommandIdentity(argv, config.audit.commandCapture),
+      });
+      if (exitCode !== 0) {
+        const err = Buffer.concat(stderrChunks).toString("utf8").trim();
+        return { installed: false, version: undefined, error: err || `npm install exited ${exitCode}` };
+      }
+      // Verify the freshly installed CLI is resolvable on PATH.
+      const versionChunks: Buffer[] = [];
+      try {
+        const probe = await runner.exec(config.devcontainerPath, ["--version"], {
+          cwd: sessionWorkspace,
+          env: { ...env },
+          maxOutputBytes: 16 * 1024,
+          timeoutMs: 30_000,
+          onData: (chunk) => versionChunks.push(chunk),
+        });
+        if (probe.exitCode === 0) {
+          const version = Buffer.concat(versionChunks).toString("utf8").trim().split(/\s+/).pop();
+          return { installed: true, version: version || undefined };
+        }
+        return { installed: false, version: undefined, error: "npm install succeeded but `" + config.devcontainerPath + " --version` failed; check PATH." };
+      } catch (error) {
+        return { installed: false, version: undefined, error: `npm install succeeded but verifying the CLI failed: ${error instanceof Error ? error.message : String(error)}` };
+      }
+    },
   };
 
   const tools: Runtime["tools"] = {
@@ -5165,7 +5215,7 @@ export default function (pi: ExtensionAPI): void {
   // --- Commands ----------------------------------------------------------
 
   pi.registerCommand("devcontainer", {
-    description: "DevContainer management (list, use, status, up, build, stop, remove, logs, host-exec)",
+    description: "DevContainer management (list, use, status, up, build, stop, remove, logs, host-exec, setup)",
     handler: async (args, ctx) => {
       const rt = runtime;
       if (rt === undefined) {
@@ -5615,7 +5665,7 @@ export { errorKindOf };
 
 #### 3. src/commands.ts (NEW)
 **File**: `src/commands.ts`
-**Changes**: Namespaced `/devcontainer` command UX: `parseArgv` quoted argv, `list`/`use`/`status`/`up`/`build`/`stop`/`remove`/`logs`/`host-exec` verbs, confirmation token generated only AFTER `ui.confirm` acceptance, `hasUI` guard refusing destructive actions in non-interactive modes, `confirmation-required` surfaced, `logs --tail` default 100, denied host-exec → `[policy-denied]`.
+**Changes**: Namespaced `/devcontainer` command UX: `parseArgv` quoted argv, `list`/`use`/`status`/`up`/`build`/`stop`/`remove`/`logs`/`host-exec`/`setup` verbs, confirmation token generated only AFTER `ui.confirm` acceptance, `hasUI` guard refusing destructive actions in non-interactive modes, `confirmation-required` surfaced, `logs --tail` default 100, denied host-exec → `[policy-denied]`, `setup` (ui-confirmed global `npm install -g @devcontainers/cli` via the wired `setupCli` capability).
 
 ```ts
 /**
@@ -5684,6 +5734,17 @@ export interface CommandServices {
   };
   /** Per-action confirmation token generator (defaults to crypto). */
   readonly generateToken?: () => string;
+  /**
+   * Install (or upgrade) the Dev Containers CLI globally via npm. Dedicated
+   * setup capability: fixed npm argv, always user-confirmed in the handler,
+   * audited under operation "setup" — independent of the host-exec policy
+   * (which gates arbitrary host escape).
+   */
+  readonly setupCli?: (opts: { signal?: AbortSignal }) => Promise<{
+    installed: boolean;
+    version: string | undefined;
+    error?: string;
+  }>;
 }
 
 export interface CommandResult {
@@ -5851,6 +5912,30 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     try {
       const result = await services.logs(container, { tail, ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}) });
       return { text: result.output.length > 0 ? result.output : `(no log output, exit ${result.exitCode})` };
+    } catch (error) {
+      return { text: describeError(error) };
+    }
+  };
+
+  handlers["setup"] = async (_args, ctx) => {
+    if (services.setupCli === undefined) {
+      return { text: "[unexpected] Dev Containers CLI setup is not wired in this environment." };
+    }
+    if (!ctx.hasUI) {
+      return { text: "[confirmation-required] /devcontainer setup installs a global npm package and needs an interactive confirmation; not available in this mode." };
+    }
+    const confirmed = await ctx.ui.confirm(
+      "Install Dev Containers CLI",
+      "This runs \"npm install -g @devcontainers/cli\" (installs or upgrades the CLI globally on the HOST). Continue?",
+      ctx.signal !== undefined ? { signal: ctx.signal } : undefined,
+    );
+    if (!confirmed) return { text: "setup cancelled." };
+    try {
+      const result = await services.setupCli({ ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}) });
+      if (!result.installed) {
+        return { text: `[setup-failed] ${result.error ?? "unknown error"}` };
+      }
+      return { text: `Dev Containers CLI ready: ${result.version ?? "(version unknown)"}. Run /devcontainer list to start.` };
     } catch (error) {
       return { text: describeError(error) };
     }
@@ -9275,5 +9360,30 @@ Fix: real-Docker suite robustness. Two issues surfaced during full regression af
 2. **Stale-fixture-container flakiness in the discovery test.** A container left by any prior/interrupted run (whose `devcontainer.local_folder` points into `tests/fixtures`) flips the discovery assertion from `discoveredFrom: "host-config"` to `"both"`. Both composed suites now run a `beforeAll` that removes any container whose `devcontainer.local_folder` starts with the fixtures root, so discovery always starts from a clean no-container state regardless of prior residue. Verified: integration then e2e run back-to-back (no manual cleanup between) both pass 5/5.
 
 Plan Phase 7 §3 (integration test) and §4 (e2e test) code fences re-synced byte-for-byte with shipped source; surrounding section headers verified intact.
+
+No open questions. History preserved above.
+
+---
+
+## Follow-up (2026-09-07T11:40:00+0800)
+
+Feature: `/devcontainer setup` — one-command global install (or upgrade) of the Dev Containers CLI.
+
+Motivation: the extension requires a `devcontainer` executable on PATH (or an absolute `devcontainerPath`); operators previously had to install it manually. `setup` makes the CLI installable from inside Pi, like a native command.
+
+Behavior (per confirmed decisions):
+- Runs `npm install -g @devcontainers/cli` (NO pinned version — installs latest, so it also upgrades an existing install).
+- Requires an interactive confirmation (`ctx.ui.confirm` with a `hasUI` guard) before any global npm install; declining cancels.
+- On success verifies the freshly installed CLI with `devcontainer --version` and reports the version.
+- Audited as a dedicated operation `"setup"` (added to `OperationKind`), with command fingerprint under the same capture policy — independent of the `host-exec` policy (which gates arbitrary host escape, not package provisioning).
+
+Changes:
+- `src/types.ts`: `OperationKind` gains `"setup"`.
+- `src/commands.ts`: `CommandServices` gains an optional `setupCli` capability; new `handlers["setup"]` (confirm → call → report ready/`[setup-failed]`/cancelled; refuses without UI or when not wired).
+- `extensions/index.ts`: wires `setupCli` — fixed-argv `npm install -g @devcontainers/cli` via the runner (timeout/signal, bounded output) with an audit record under `"setup"`, then `devcontainer --version` verification; `/devcontainer` command description lists `setup`.
+- `tests/unit/commands.test.ts`: +5 tests (confirm→install, hasUI refusal, cancel, failure reporting, not-wired).
+- Plan Phase 1 §3 (`src/types.ts`), Phase 6 §1 (`extensions/index.ts`), Phase 6 §3 (`src/commands.ts`) Changes descriptions updated; code fences re-synced byte-for-byte.
+
+Verified: typecheck clean; 180 deterministic tests pass (17 files); `npm run build` + verify chain pass; real-Pi e2e layer loads the extension. The repo's own devDependency pin (`@devcontainers/cli@0.88.0`, CI/package-smoke) is unchanged — it pins the *test baseline*; setup installs the *user-facing* latest.
 
 No open questions. History preserved above.

@@ -64,6 +64,17 @@ export interface CommandServices {
   };
   /** Per-action confirmation token generator (defaults to crypto). */
   readonly generateToken?: () => string;
+  /**
+   * Install (or upgrade) the Dev Containers CLI globally via npm. Dedicated
+   * setup capability: fixed npm argv, always user-confirmed in the handler,
+   * audited under operation "setup" — independent of the host-exec policy
+   * (which gates arbitrary host escape).
+   */
+  readonly setupCli?: (opts: { signal?: AbortSignal }) => Promise<{
+    installed: boolean;
+    version: string | undefined;
+    error?: string;
+  }>;
 }
 
 export interface CommandResult {
@@ -231,6 +242,30 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     try {
       const result = await services.logs(container, { tail, ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}) });
       return { text: result.output.length > 0 ? result.output : `(no log output, exit ${result.exitCode})` };
+    } catch (error) {
+      return { text: describeError(error) };
+    }
+  };
+
+  handlers["setup"] = async (_args, ctx) => {
+    if (services.setupCli === undefined) {
+      return { text: "[unexpected] Dev Containers CLI setup is not wired in this environment." };
+    }
+    if (!ctx.hasUI) {
+      return { text: "[confirmation-required] /devcontainer setup installs a global npm package and needs an interactive confirmation; not available in this mode." };
+    }
+    const confirmed = await ctx.ui.confirm(
+      "Install Dev Containers CLI",
+      "This runs \"npm install -g @devcontainers/cli\" (installs or upgrades the CLI globally on the HOST). Continue?",
+      ctx.signal !== undefined ? { signal: ctx.signal } : undefined,
+    );
+    if (!confirmed) return { text: "setup cancelled." };
+    try {
+      const result = await services.setupCli({ ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}) });
+      if (!result.installed) {
+        return { text: `[setup-failed] ${result.error ?? "unknown error"}` };
+      }
+      return { text: `Dev Containers CLI ready: ${result.version ?? "(version unknown)"}. Run /devcontainer list to start.` };
     } catch (error) {
       return { text: describeError(error) };
     }
