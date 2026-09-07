@@ -23,6 +23,7 @@ import { Type, type Static } from "typebox";
 import { RuntimeError, errorKindOf } from "./errors.js";
 import type { ExecutionService, ExecRequest } from "./execution-service.js";
 import { executeWithTimeout } from "./bash-router.js";
+import { formatToolOutput } from "./tool-output.js";
 /** argv form accepted by `devcontainer_exec`. */
 export const DEV_CONTAINER_EXEC_TOOL = "devcontainer_exec";
 export const DEV_CONTAINER_STATUS_TOOL = "devcontainer_status";
@@ -98,7 +99,7 @@ export function createDevcontainerExecTool(options: ToolOptions): ToolDefinition
     description:
       "Execute an argv command inside the currently selected DevContainer target. " +
       "Literal argv only; use the bash tool for shell pipelines inside the container. " +
-      "Returns the container-side exit code and captured stdout/stderr.",
+      "Returns the container-side exit code and captured stdout/stderr. Output is truncated to the last 2000 lines or 50KB (whichever first); if truncated, the full output is saved to a temp file whose path is reported so it can be read in full.",
     promptSnippet: "Execute an argv command in the selected DevContainer",
     promptGuidelines: [
       `Use ${DEV_CONTAINER_EXEC_TOOL} when the user asks to run a command in their selected DevContainer.`,
@@ -128,19 +129,29 @@ export function createDevcontainerExecTool(options: ToolOptions): ToolDefinition
       if (outcome.exitCode !== 0 && outcome.exitCode !== null) {
         const output =
           outcome.stdout.length > 0 ? outcome.stdout : outcome.stderr.length > 0 ? outcome.stderr : "(no output)";
-        throw new RuntimeError({
+        const errFormatted = formatToolOutput(output === "(no output)" ? "" : output);
+        const errText = output === "(no output)"
+          ? `Command exited with code ${outcome.exitCode}: ${summary}`.trimEnd()
+          : `Command exited with code ${outcome.exitCode}: ${summary}\n${errFormatted.text}`.trimEnd();
+        const err = new RuntimeError({
           kind: "unexpected",
-          message: `Command exited with code ${outcome.exitCode}: ${summary}\n${output}`.trimEnd(),
+          message: errText,
           exitCode: outcome.exitCode,
           signal: outcome.signal,
           remedy: "The container-side command failed; inspect its output above.",
         });
+        void errFormatted.fullOutputPath; // the path is already embedded in errText's truncation notice
+        throw err;
       }
       const captured =
         outcome.stdout.length > 0 ? outcome.stdout : outcome.stderr.length > 0 ? outcome.stderr : "";
-      const text = captured.length > 0 ? `${summary}\n${captured}` : summary;
+      // Present output the way Pi's bash tool does: keep the tail within
+      // 50KB / 2000 lines, persist the full output to a temp file when
+      // truncated, and tell the LLM where the full copy lives so it never
+      // reasons from a silently partial view.
+      const formatted = formatToolOutput(captured, { prefix: summary });
       return {
-        content: [{ type: "text", text }],
+        content: [{ type: "text", text: formatted.text }],
         details: {
           operation: outcome.operation,
           workspaceKey: outcome.workspaceKey,
@@ -149,7 +160,8 @@ export function createDevcontainerExecTool(options: ToolOptions): ToolDefinition
           exitCode: outcome.exitCode,
           signal: outcome.signal,
           durationMs: outcome.durationMs,
-          truncated: outcome.truncated,
+          truncated: outcome.truncated || formatted.truncated,
+          ...(formatted.fullOutputPath !== undefined ? { fullOutputPath: formatted.fullOutputPath } : {}),
           policyAuthorized: outcome.policyAuthorized,
         },
       };
@@ -191,7 +203,7 @@ export function createDevcontainerHostExecTool(options: ToolOptions): ToolDefini
     label: "Dev Container Host Exec (escape hatch)",
     description:
       "EXPLICIT HOST ESCAPE HATCH: execute an argv command on the HOST machine, NOT inside any DevContainer. " +
-      "Requires hostExecution.allow policy. Prefer devcontainer_exec or the routed bash tool for container work.",
+      "Requires hostExecution.allow policy. Prefer devcontainer_exec or the routed bash tool for container work. Output is truncated to the last 2000 lines or 50KB (whichever first); if truncated, the full output is saved to a temp file whose path is reported so it can be read in full.",
     promptSnippet: "Execute an argv command on the HOST (escape hatch)",
     promptGuidelines: [
       `${DEV_CONTAINER_HOST_EXEC_TOOL} runs on the HOST, not in the container; use it only for host administration.`,
@@ -211,14 +223,19 @@ export function createDevcontainerHostExecTool(options: ToolOptions): ToolDefini
         ...(params.timeoutSeconds !== undefined ? { timeoutMs: Math.round(params.timeoutSeconds * 1000) } : {}),
         ...(signal !== undefined ? { signal } : {}),
       });
-      const text =
+      const rawText =
         result.stdout.length > 0 ? result.stdout : result.stderr.length > 0 ? result.stderr : `(no output, exit ${result.exitCode})`;
+      // Same presentation as devcontainer_exec / Pi's bash tool: tail within
+      // 50KB/2000 lines, full output persisted to a temp file when truncated.
+      const formatted = formatToolOutput(rawText === `(no output, exit ${result.exitCode})` ? "" : rawText);
+      const text = rawText === `(no output, exit ${result.exitCode})` ? rawText : formatted.text;
       return {
         content: [{ type: "text", text }],
         details: {
           exitCode: result.exitCode,
           signal: result.signal,
-          truncated: result.truncated,
+          truncated: result.truncated || formatted.truncated,
+          ...(formatted.fullOutputPath !== undefined ? { fullOutputPath: formatted.fullOutputPath } : {}),
           host: true,
         },
       };

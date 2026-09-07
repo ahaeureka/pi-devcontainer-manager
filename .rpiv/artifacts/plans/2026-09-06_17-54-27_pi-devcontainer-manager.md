@@ -15,10 +15,10 @@ phases:
   - { n: 3, title: "Docker discovery and session-safe target state", files: [src/workspace-path.ts, src/runtime/docker-adapter.ts, src/target-store.ts, src/selection-state.ts, tests/unit/docker-adapter.test.ts, tests/unit/target-store.test.ts, tests/unit/selection-state.test.ts], depends_on: [1, 2] }
   - { n: 4, title: "Host-side configuration discovery and workspace registry", files: [src/runtime/host-discovery.ts, tests/unit/host-discovery.test.ts], depends_on: [1, 2, 3] }
   - { n: 5, title: "Dev Containers and governed execution services", files: [src/runtime/devcontainer-adapter.ts, src/runtime/docker-lifecycle.ts, src/execution-service.ts, tests/unit/devcontainer-adapter.test.ts, tests/unit/execution-service.test.ts], depends_on: [1, 2, 3, 4] }
-  - { n: 6, title: "Pi extension integration and dual execution interfaces", files: [extensions/index.ts, src/tools.ts, src/commands.ts, src/bash-router.ts, tests/unit/bash-router.test.ts, tests/unit/tools.test.ts, tests/unit/commands.test.ts, tests/unit/user-bash.test.ts], depends_on: [1, 2, 3, 4, 5] }
+  - { n: 6, title: "Pi extension integration and dual execution interfaces", files: [extensions/index.ts, src/tools.ts, src/tool-output.ts, src/commands.ts, src/bash-router.ts, tests/unit/bash-router.test.ts, tests/unit/tools.test.ts, tests/unit/commands.test.ts, tests/unit/user-bash.test.ts, tests/unit/tool-output.test.ts], depends_on: [1, 2, 3, 4, 5] }
   - { n: 7, title: "Package quality gates and real multi-workspace integration", files: [tests/fixtures/project-a/.devcontainer/devcontainer.json, tests/fixtures/project-b/.devcontainer/devcontainer.json, tests/integration/devcontainer-manager.integration.test.ts, tests/e2e/multi-workspace.e2e.test.ts, tests/package-smoke.test.ts, scripts/verify-package.mjs, scripts/smoke-pi-package.mjs, .github/workflows/ci.yml, .github/workflows/integration.yml, .github/workflows/release.yml], depends_on: [1, 2, 3, 4, 5, 6] }
   - { n: 8, title: "Operator-facing documentation and release contract", files: [README.md, docs/installation.md, docs/configuration.md, docs/security.md, docs/compatibility.md, examples/pi-devcontainer-manager.settings.json, CHANGELOG.md, LICENSE], depends_on: [1, 2, 3, 4, 5, 6, 7] }
-last_updated: 2026-09-07T10:00:00+0800
+last_updated: 2026-09-07T10:30:00+0800
 last_updated_by: geebytes
 last_updated_note: "Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
 ---
@@ -5313,7 +5313,7 @@ function lazyBashOperations(getRuntime: () => Runtime | undefined): BashOperatio
 
 #### 2. src/tools.ts (NEW)
 **File**: `src/tools.ts`
-**Changes**: TypeBox schemas (`argv` minItems 1, optional `cwd`/`timeoutSeconds`); `devcontainer_exec` (literal-argv request through the shared ExecutionService; nonzero container exit → typed error with output appended; success summary `workspaceKey · shortId · exit N`), `devcontainer_host_exec` (explicit host escape, policy gate before any spawn, shared host-runner render + timeout/signal forwarding), `devcontainer_status` read-only selection summary.
+**Changes**: TypeBox schemas (`argv` minItems 1, optional `cwd`/`timeoutSeconds`); `devcontainer_exec` (literal-argv request through the shared ExecutionService; nonzero container exit → typed error with output appended; success summary `workspaceKey · shortId · exit N`), `devcontainer_host_exec` (explicit host escape, policy gate before any spawn, shared host-runner render + timeout/signal forwarding), `devcontainer_status` read-only selection summary. Both exec tools present captured output through `formatToolOutput` (`src/tool-output.ts`) exactly like Pi's bash tool: keep the tail within 2000 lines / 50KB (whichever first), persist the full output to a system temp file when truncated, and append a `[Showing lines X-Y of N ... Full output: <path>]` notice so the LLM never reasons from a silently partial view.
 
 ```ts
 /**
@@ -5341,6 +5341,7 @@ import { Type, type Static } from "typebox";
 import { RuntimeError, errorKindOf } from "./errors.js";
 import type { ExecutionService, ExecRequest } from "./execution-service.js";
 import { executeWithTimeout } from "./bash-router.js";
+import { formatToolOutput } from "./tool-output.js";
 /** argv form accepted by `devcontainer_exec`. */
 export const DEV_CONTAINER_EXEC_TOOL = "devcontainer_exec";
 export const DEV_CONTAINER_STATUS_TOOL = "devcontainer_status";
@@ -5416,7 +5417,7 @@ export function createDevcontainerExecTool(options: ToolOptions): ToolDefinition
     description:
       "Execute an argv command inside the currently selected DevContainer target. " +
       "Literal argv only; use the bash tool for shell pipelines inside the container. " +
-      "Returns the container-side exit code and captured stdout/stderr.",
+      "Returns the container-side exit code and captured stdout/stderr. Output is truncated to the last 2000 lines or 50KB (whichever first); if truncated, the full output is saved to a temp file whose path is reported so it can be read in full.",
     promptSnippet: "Execute an argv command in the selected DevContainer",
     promptGuidelines: [
       `Use ${DEV_CONTAINER_EXEC_TOOL} when the user asks to run a command in their selected DevContainer.`,
@@ -5446,19 +5447,29 @@ export function createDevcontainerExecTool(options: ToolOptions): ToolDefinition
       if (outcome.exitCode !== 0 && outcome.exitCode !== null) {
         const output =
           outcome.stdout.length > 0 ? outcome.stdout : outcome.stderr.length > 0 ? outcome.stderr : "(no output)";
-        throw new RuntimeError({
+        const errFormatted = formatToolOutput(output === "(no output)" ? "" : output);
+        const errText = output === "(no output)"
+          ? `Command exited with code ${outcome.exitCode}: ${summary}`.trimEnd()
+          : `Command exited with code ${outcome.exitCode}: ${summary}\n${errFormatted.text}`.trimEnd();
+        const err = new RuntimeError({
           kind: "unexpected",
-          message: `Command exited with code ${outcome.exitCode}: ${summary}\n${output}`.trimEnd(),
+          message: errText,
           exitCode: outcome.exitCode,
           signal: outcome.signal,
           remedy: "The container-side command failed; inspect its output above.",
         });
+        void errFormatted.fullOutputPath; // the path is already embedded in errText's truncation notice
+        throw err;
       }
       const captured =
         outcome.stdout.length > 0 ? outcome.stdout : outcome.stderr.length > 0 ? outcome.stderr : "";
-      const text = captured.length > 0 ? `${summary}\n${captured}` : summary;
+      // Present output the way Pi's bash tool does: keep the tail within
+      // 50KB / 2000 lines, persist the full output to a temp file when
+      // truncated, and tell the LLM where the full copy lives so it never
+      // reasons from a silently partial view.
+      const formatted = formatToolOutput(captured, { prefix: summary });
       return {
-        content: [{ type: "text", text }],
+        content: [{ type: "text", text: formatted.text }],
         details: {
           operation: outcome.operation,
           workspaceKey: outcome.workspaceKey,
@@ -5467,7 +5478,8 @@ export function createDevcontainerExecTool(options: ToolOptions): ToolDefinition
           exitCode: outcome.exitCode,
           signal: outcome.signal,
           durationMs: outcome.durationMs,
-          truncated: outcome.truncated,
+          truncated: outcome.truncated || formatted.truncated,
+          ...(formatted.fullOutputPath !== undefined ? { fullOutputPath: formatted.fullOutputPath } : {}),
           policyAuthorized: outcome.policyAuthorized,
         },
       };
@@ -5509,7 +5521,7 @@ export function createDevcontainerHostExecTool(options: ToolOptions): ToolDefini
     label: "Dev Container Host Exec (escape hatch)",
     description:
       "EXPLICIT HOST ESCAPE HATCH: execute an argv command on the HOST machine, NOT inside any DevContainer. " +
-      "Requires hostExecution.allow policy. Prefer devcontainer_exec or the routed bash tool for container work.",
+      "Requires hostExecution.allow policy. Prefer devcontainer_exec or the routed bash tool for container work. Output is truncated to the last 2000 lines or 50KB (whichever first); if truncated, the full output is saved to a temp file whose path is reported so it can be read in full.",
     promptSnippet: "Execute an argv command on the HOST (escape hatch)",
     promptGuidelines: [
       `${DEV_CONTAINER_HOST_EXEC_TOOL} runs on the HOST, not in the container; use it only for host administration.`,
@@ -5529,14 +5541,19 @@ export function createDevcontainerHostExecTool(options: ToolOptions): ToolDefini
         ...(params.timeoutSeconds !== undefined ? { timeoutMs: Math.round(params.timeoutSeconds * 1000) } : {}),
         ...(signal !== undefined ? { signal } : {}),
       });
-      const text =
+      const rawText =
         result.stdout.length > 0 ? result.stdout : result.stderr.length > 0 ? result.stderr : `(no output, exit ${result.exitCode})`;
+      // Same presentation as devcontainer_exec / Pi's bash tool: tail within
+      // 50KB/2000 lines, full output persisted to a temp file when truncated.
+      const formatted = formatToolOutput(rawText === `(no output, exit ${result.exitCode})` ? "" : rawText);
+      const text = rawText === `(no output, exit ${result.exitCode})` ? rawText : formatted.text;
       return {
         content: [{ type: "text", text }],
         details: {
           exitCode: result.exitCode,
           signal: result.signal,
-          truncated: result.truncated,
+          truncated: result.truncated || formatted.truncated,
+          ...(formatted.fullOutputPath !== undefined ? { fullOutputPath: formatted.fullOutputPath } : {}),
           host: true,
         },
       };
@@ -5555,7 +5572,6 @@ export function formatToolError(error: unknown): string {
 
 export { errorKindOf };
 ```
-
 
 #### 3. src/commands.ts (NEW)
 **File**: `src/commands.ts`
@@ -9119,5 +9135,22 @@ Changes:
 - Plan Phase 6 §1 `extensions/index.ts` code fence re-synced byte-for-byte with shipped source.
 
 Verified: typecheck clean, 165 deterministic tests pass (163 + 2 user-bash), `npm run build` + verify chain pass, real-Pi e2e layer loads the extension.
+
+No open questions. History preserved above.
+
+---
+
+## Follow-up (2026-09-07T10:30:00+0800)
+
+Output-visibility alignment (pi.dev extensions audit): `devcontainer_exec` and `devcontainer_host_exec` previously placed the full captured output in the tool `content` with no line cap and no truncation notice — unlike Pi's own bash tool, which truncates to 2000 lines / 50KB (whichever first), persists the full output to a temp file, and tells the LLM exactly what was dropped and where the full copy lives.
+
+Fix: new Pi-dependency-free `src/tool-output.ts` reproduces Pi's bash output contract (`formatToolOutput`): keep the tail within 2000 lines / 50KB, persist the full output to a system temp file when truncated, and append `[Showing lines X-Y of N ... Full output: <path>]` so the LLM never reasons from a silently partial view and can `read` the reported path for the dropped head. Both exec tools route their captured stdout/stderr through it (success path and the nonzero-exit throw), expose `fullOutputPath` in `details`, and their `description`s now document the 2000-line / 50KB truncation (per Pi's "document the truncation limits in your tool's description"). Routed bash (`!`/`!!` and the LLM bash tool) already inherits Pi's bash pipeline via `createBashToolDefinition`, so it was already compliant.
+
+Files:
+- `src/tool-output.ts` (NEW — added to Phase 6 `files:`), `tests/unit/tool-output.test.ts` (NEW — added to Phase 6 `files:`).
+- `src/tools.ts` rewired through `formatToolOutput`; `tests/unit/tools.test.ts` re-verified (13 pass).
+- Plan Phase 6 §2 (`src/tools.ts`) fence re-synced byte-for-byte; the §3 (`src/commands.ts`) header/fence lost in an earlier splice was reconstructed and byte-verified; all fences balanced.
+
+Verified: typecheck clean, 172 deterministic tests pass (17 files), `npm run build` + verify chain pass, real-Pi e2e layer loads the extension, and an end-to-end probe confirmed 100-line output with `maxLines: 5` yields the tail `out-95..out-99` plus `[Showing lines 96-100 of 100 ... Full output: /tmp/...]` with the full file readable.
 
 No open questions. History preserved above.
