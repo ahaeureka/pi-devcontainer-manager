@@ -61,6 +61,12 @@ npm install -g pi-devcontainer-manager   # or: pi install ./pi-devcontainer-mana
 devcontainer_exec { "argv": ["npm", "test"] }   # run in the selected container
 ```
 
+
+> **Developing this extension locally?** Symlink this checkout into Pi's
+> auto-discovery extensions folder (`${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions`)
+> and `npm run build` — no `settings.json` edit needed, and the extension loads
+> in every project. See
+> [docs/installation.md](docs/installation.md#local-development-install-auto-discovery-symlink).
 See [docs/installation.md](docs/installation.md),
 [docs/configuration.md](docs/configuration.md),
 [docs/security.md](docs/security.md), and

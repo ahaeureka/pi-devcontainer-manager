@@ -18,7 +18,7 @@ phases:
   - { n: 6, title: "Pi extension integration and dual execution interfaces", files: [extensions/index.ts, src/tools.ts, src/tool-output.ts, src/commands.ts, src/bash-router.ts, tests/unit/bash-router.test.ts, tests/unit/tools.test.ts, tests/unit/commands.test.ts, tests/unit/user-bash.test.ts, tests/unit/tool-output.test.ts], depends_on: [1, 2, 3, 4, 5] }
   - { n: 7, title: "Package quality gates and real multi-workspace integration", files: [tests/fixtures/project-a/.devcontainer/devcontainer.json, tests/fixtures/project-b/.devcontainer/devcontainer.json, tests/integration/devcontainer-manager.integration.test.ts, tests/e2e/multi-workspace.e2e.test.ts, tests/package-smoke.test.ts, scripts/verify-package.mjs, scripts/smoke-pi-package.mjs, .github/workflows/ci.yml, .github/workflows/integration.yml, .github/workflows/release.yml], depends_on: [1, 2, 3, 4, 5, 6] }
   - { n: 8, title: "Operator-facing documentation and release contract", files: [README.md, docs/installation.md, docs/configuration.md, docs/security.md, docs/compatibility.md, examples/pi-devcontainer-manager.settings.json, CHANGELOG.md, LICENSE], depends_on: [1, 2, 3, 4, 5, 6, 7] }
-last_updated: 2026-09-07T11:40:00+0800
+last_updated: 2026-09-07T12:00:00+0800
 last_updated_by: geebytes
 last_updated_note: "Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
 ---
@@ -8498,6 +8498,12 @@ npm install -g pi-devcontainer-manager   # or: pi install ./pi-devcontainer-mana
 devcontainer_exec { "argv": ["npm", "test"] }   # run in the selected container
 ```
 
+
+> **Developing this extension locally?** Symlink this checkout into Pi's
+> auto-discovery extensions folder (`${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions`)
+> and `npm run build` — no `settings.json` edit needed, and the extension loads
+> in every project. See
+> [docs/installation.md](docs/installation.md#local-development-install-auto-discovery-symlink).
 See [docs/installation.md](docs/installation.md),
 [docs/configuration.md](docs/configuration.md),
 [docs/security.md](docs/security.md), and
@@ -8531,6 +8537,7 @@ A complete example settings file (with every default shown) lives at
 MIT — see [LICENSE](LICENSE). Changes are recorded in
 [CHANGELOG.md](CHANGELOG.md).
 ````
+
 
 
 #### 2. docs/installation.md (NEW)
@@ -8600,6 +8607,44 @@ declares its Pi entry point in the manifest:
 Peer requirements `@earendil-works/pi-coding-agent` and `typebox` are satisfied
 by the Pi installation that loads the extension.
 
+### Local development install (auto-discovery symlink)
+
+For developing the extension against a local checkout, symlink the package
+directory into Pi's auto-discovery extensions folder. Pi discovers any
+directory there whose `package.json` declares a `pi.extensions` entry — no
+manual `packages` entry in `settings.json` is needed.
+
+Find Pi's extension directory first (it follows `PI_CODING_AGENT_DIR` when set):
+
+```bash
+# Default: ~/.pi/agent/extensions/
+# When PI_CODING_AGENT_DIR is set (e.g. /data/work/pi):  $PI_CODING_AGENT_DIR/extensions/
+echo "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/extensions"
+
+# Symlink the local checkout into it
+ln -sfn /absolute/path/to/pi-devcontainer-manager \
+  "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/extensions/pi-devcontainer-manager"
+```
+
+Then build the compiled entrypoint (`dist/extensions/index.js`, which the
+manifest points at) and reload:
+
+```bash
+cd /absolute/path/to/pi-devcontainer-manager
+npm run build
+# in Pi: /reload
+```
+
+The extension is now available in **every** project Pi starts — no per-project
+or global `settings.json` edit. Iterate by editing `src/`, running `npm run
+build`, and `/reload`.
+
+To stop using it, remove the symlink:
+
+```bash
+rm "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/extensions/pi-devcontainer-manager"
+```
+
 ## Load the extension in Pi
 
 Start Pi inside a workspace you want to manage:
@@ -8651,6 +8696,7 @@ by uninstall:
 Delete these deliberately if you want to remove all host state. Containers you
 started with `up` remain running and are managed by Docker as usual.
 ````
+
 
 #### 3. docs/configuration.md (NEW)
 **File**: `docs/configuration.md`
@@ -9385,5 +9431,21 @@ Changes:
 - Plan Phase 1 §3 (`src/types.ts`), Phase 6 §1 (`extensions/index.ts`), Phase 6 §3 (`src/commands.ts`) Changes descriptions updated; code fences re-synced byte-for-byte.
 
 Verified: typecheck clean; 180 deterministic tests pass (17 files); `npm run build` + verify chain pass; real-Pi e2e layer loads the extension. The repo's own devDependency pin (`@devcontainers/cli@0.88.0`, CI/package-smoke) is unchanged — it pins the *test baseline*; setup installs the *user-facing* latest.
+
+No open questions. History preserved above.
+
+---
+
+## Follow-up (2026-09-07T12:00:00+0800)
+
+Docs: local development install via auto-discovery symlink.
+
+Verified on this host (`PI_CODING_AGENT_DIR=/data/work/pi`): symlinking the package directory into Pi's auto-discovery extensions folder (`$PI_CODING_AGENT_DIR/extensions/`) loads the extension in every project with **no `settings.json` packages entry** — the manual entry added earlier was removed and the extension still loaded (its tools visible from another project's `pi` run). Pi discovers a directory there when its `package.json` declares a `pi.extensions` manifest.
+
+Documented in:
+- `docs/installation.md`: new "Local development install (auto-discovery symlink)" section — find the extensions dir (respects `PI_CODING_AGENT_DIR`), symlink, `npm run build`, `/reload`, iterate, remove-symlink to uninstall.
+- `README.md`: "Developing this extension locally?" note under Quick start linking to that section.
+
+Plan Phase 8 §1 (`README.md`) and §2 (`docs/installation.md`) code fences re-synced byte-for-byte; links resolve; fences balanced.
 
 No open questions. History preserved above.

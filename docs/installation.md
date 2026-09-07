@@ -60,6 +60,44 @@ declares its Pi entry point in the manifest:
 Peer requirements `@earendil-works/pi-coding-agent` and `typebox` are satisfied
 by the Pi installation that loads the extension.
 
+### Local development install (auto-discovery symlink)
+
+For developing the extension against a local checkout, symlink the package
+directory into Pi's auto-discovery extensions folder. Pi discovers any
+directory there whose `package.json` declares a `pi.extensions` entry — no
+manual `packages` entry in `settings.json` is needed.
+
+Find Pi's extension directory first (it follows `PI_CODING_AGENT_DIR` when set):
+
+```bash
+# Default: ~/.pi/agent/extensions/
+# When PI_CODING_AGENT_DIR is set (e.g. /data/work/pi):  $PI_CODING_AGENT_DIR/extensions/
+echo "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/extensions"
+
+# Symlink the local checkout into it
+ln -sfn /absolute/path/to/pi-devcontainer-manager \
+  "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/extensions/pi-devcontainer-manager"
+```
+
+Then build the compiled entrypoint (`dist/extensions/index.js`, which the
+manifest points at) and reload:
+
+```bash
+cd /absolute/path/to/pi-devcontainer-manager
+npm run build
+# in Pi: /reload
+```
+
+The extension is now available in **every** project Pi starts — no per-project
+or global `settings.json` edit. Iterate by editing `src/`, running `npm run
+build`, and `/reload`.
+
+To stop using it, remove the symlink:
+
+```bash
+rm "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/extensions/pi-devcontainer-manager"
+```
+
 ## Load the extension in Pi
 
 Start Pi inside a workspace you want to manage:
