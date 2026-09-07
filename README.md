@@ -76,6 +76,7 @@ See [docs/installation.md](docs/installation.md),
 
 | Kind | Name | Notes |
 |---|---|---|
+| Slash command | `/devcontainer` | Interactive verb picker (or usage when no UI) |
 | Slash command | `/devcontainer list` | Discover + render registry |
 | Slash command | `/devcontainer status` | Same status block |
 | Slash command | `/devcontainer use [path]` | Select; persists into session |

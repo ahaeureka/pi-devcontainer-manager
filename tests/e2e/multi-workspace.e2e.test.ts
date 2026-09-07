@@ -271,6 +271,8 @@ piSuite("multi-workspace e2e (real Pi runtime)", () => {
         "-p", "--no-session", "--offline",
         "--mode", "json",
         "--extension", ext,
+        "-ne", // disable extension discovery: a locally-installed copy of this package
+        // (auto-discovery symlink) would otherwise conflict with the explicit --extension.
         "--no-skills", "--no-themes", "--no-context-files",
         "--approve",
         "--tools", "devcontainer_status",

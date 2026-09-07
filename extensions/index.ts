@@ -433,28 +433,35 @@ export default function (pi: ExtensionAPI): void {
         ctx.ui.notify("DevContainer runtime not initialized; run /reload or restart pi.", "error");
         return;
       }
-      const spaceIndex = args.indexOf(" ");
-      const verb = (spaceIndex === -1 ? args : args.slice(0, spaceIndex)).trim().toLowerCase();
-      const rest = spaceIndex === -1 ? "" : args.slice(spaceIndex + 1).trim();
-      const handler = rt.commandHandlers[verb];
-      if (handler === undefined) {
-        ctx.ui.notify(`Unknown /devcontainer verb: ${verb}.`, "error");
-        return;
-      }
-      const cmdCtx: CommandContextLike = {
-        cwd: ctx.cwd,
-        hasUI: ctx.hasUI,
-        ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
-        ui: {
-          select: (title, options, opts) => ctx.ui.select(title, options, opts),
-          confirm: (title, message, opts) => ctx.ui.confirm(title, message, opts),
-          notify: (message, type) => ctx.ui.notify(message, type),
-        },
-        persistSelection: (record) => persistSelection(pi, record),
-        restoreSelection: () => restoreSelection(ctx),
+      const run = async (verbArg: string): Promise<void> => {
+        const spaceIndex = verbArg.indexOf(" ");
+        const verb = (spaceIndex === -1 ? verbArg : verbArg.slice(0, spaceIndex)).trim().toLowerCase();
+        const rest = spaceIndex === -1 ? "" : verbArg.slice(spaceIndex + 1).trim();
+        if (verb.length === 0) {
+          await showVerbPicker(ctx, run);
+          return;
+        }
+        const handler = rt!.commandHandlers[verb];
+        if (handler === undefined) {
+          ctx.ui.notify(`Unknown /devcontainer verb: ${verb}. Run /devcontainer to list verbs.`, "error");
+          return;
+        }
+        const cmdCtx: CommandContextLike = {
+          cwd: ctx.cwd,
+          hasUI: ctx.hasUI,
+          ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+          ui: {
+            select: (title, options, opts) => ctx.ui.select(title, options, opts),
+            confirm: (title, message, opts) => ctx.ui.confirm(title, message, opts),
+            notify: (message, type) => ctx.ui.notify(message, type),
+          },
+          persistSelection: (record) => persistSelection(pi, record),
+          restoreSelection: () => restoreSelection(ctx),
+        };
+        const result = await handler(rest, cmdCtx);
+        ctx.ui.notify(result.text, "info");
       };
-      const result = await handler(rest, cmdCtx);
-      ctx.ui.notify(result.text, "info");
+      await run(args);
     },
   });
 
@@ -514,6 +521,41 @@ export function resolveUserBash(
   // selected-container operations.
   void event;
   return { operations: rt.bashOperations as unknown as BashOperations };
+}
+
+/**
+ * Interactive `/devcontainer` verb picker for a bare invocation (no verb).
+ * Lets the user choose a verb from a list; the chosen verb is then dispatched
+ * through the same handler. When no UI is available, falls back to a one-line
+ * usage notice.
+ */
+async function showVerbPicker(
+  ctx: ExtensionContext,
+  run: (verbArg: string) => Promise<void>,
+): Promise<void> {
+  if (!ctx.hasUI) {
+    ctx.ui.notify("DevContainer management: list, status, use, up, build, stop, remove, logs, host-exec, setup. Try /devcontainer <verb>.", "info");
+    return;
+  }
+  const choice = await ctx.ui.select(
+    "DevContainer command",
+    [
+      "list - show registry + selection",
+      "status - show current selection",
+      "use [path] - select a target",
+      "up [path] - start a container",
+      "build [path] - build a container",
+      "stop - stop selected container (confirmed)",
+      "remove - delete selected container (confirmed)",
+      "logs [--tail N] - container logs",
+      "host-exec <argv...> - HOST escape hatch (policy-gated)",
+      "setup - install/upgrade the Dev Containers CLI",
+    ],
+    ctx.signal !== undefined ? { signal: ctx.signal } : undefined,
+  );
+  if (choice === undefined) return;
+  const picked = choice.split(" ")[0]!.toLowerCase();
+  await run(picked);
 }
 
 

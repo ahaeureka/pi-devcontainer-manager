@@ -18,7 +18,7 @@ phases:
   - { n: 6, title: "Pi extension integration and dual execution interfaces", files: [extensions/index.ts, src/tools.ts, src/tool-output.ts, src/commands.ts, src/bash-router.ts, tests/unit/bash-router.test.ts, tests/unit/tools.test.ts, tests/unit/commands.test.ts, tests/unit/user-bash.test.ts, tests/unit/tool-output.test.ts], depends_on: [1, 2, 3, 4, 5] }
   - { n: 7, title: "Package quality gates and real multi-workspace integration", files: [tests/fixtures/project-a/.devcontainer/devcontainer.json, tests/fixtures/project-b/.devcontainer/devcontainer.json, tests/integration/devcontainer-manager.integration.test.ts, tests/e2e/multi-workspace.e2e.test.ts, tests/package-smoke.test.ts, scripts/verify-package.mjs, scripts/smoke-pi-package.mjs, .github/workflows/ci.yml, .github/workflows/integration.yml, .github/workflows/release.yml], depends_on: [1, 2, 3, 4, 5, 6] }
   - { n: 8, title: "Operator-facing documentation and release contract", files: [README.md, docs/installation.md, docs/configuration.md, docs/security.md, docs/compatibility.md, examples/pi-devcontainer-manager.settings.json, CHANGELOG.md, LICENSE], depends_on: [1, 2, 3, 4, 5, 6, 7] }
-last_updated: 2026-09-07T12:00:00+0800
+last_updated: 2026-09-07T12:30:00+0800
 last_updated_by: geebytes
 last_updated_note: "Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
 ---
@@ -4784,7 +4784,7 @@ Add the Pi extension factory composing every prior service, the TypeBox tool def
 
 #### 1. extensions/index.ts (NEW)
 **File**: `extensions/index.ts`
-**Changes**: Extension factory + lifecycle composition: config load, capability probe (advisory, result discarded), lazy runtime assembly, tool/command registration in `session_start` (tools carry real description/promptSnippet/promptGuidelines into the system prompt so the agent knows when to use them), replacement `bash` override (`createBashToolDefinition` with `exposeSessionEnvironment: false`), `user_bash` handler (receives the event; fail-closed: returns a full `{ result }` replacement — never `undefined`/host fallback — when the runtime is not initialized; terse message for `!!`), session_start selection recovery, custom-entry persistence, discovery refresh, audit writer construction, and an `autoSelect` hook default-selecting the session-cwd workspace.
+**Changes**: Extension factory + lifecycle composition: config load, capability probe (advisory, result discarded), lazy runtime assembly, tool/command registration in `session_start` (tools carry real description/promptSnippet/promptGuidelines into the system prompt), replacement `bash` override (`createBashToolDefinition` with `exposeSessionEnvironment: false`), `user_bash` handler (receives the event; fail-closed: returns a full `{ result }` replacement when the runtime is not initialized; terse message for `!!`), `/devcontainer` command with an interactive verb picker for bare invocations, session_start selection recovery, custom-entry persistence, discovery refresh, audit writer construction, `autoSelect` hook, and `setupCli` wiring (global `npm install -g @devcontainers/cli`).
 
 ```ts
 /**
@@ -5222,28 +5222,35 @@ export default function (pi: ExtensionAPI): void {
         ctx.ui.notify("DevContainer runtime not initialized; run /reload or restart pi.", "error");
         return;
       }
-      const spaceIndex = args.indexOf(" ");
-      const verb = (spaceIndex === -1 ? args : args.slice(0, spaceIndex)).trim().toLowerCase();
-      const rest = spaceIndex === -1 ? "" : args.slice(spaceIndex + 1).trim();
-      const handler = rt.commandHandlers[verb];
-      if (handler === undefined) {
-        ctx.ui.notify(`Unknown /devcontainer verb: ${verb}.`, "error");
-        return;
-      }
-      const cmdCtx: CommandContextLike = {
-        cwd: ctx.cwd,
-        hasUI: ctx.hasUI,
-        ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
-        ui: {
-          select: (title, options, opts) => ctx.ui.select(title, options, opts),
-          confirm: (title, message, opts) => ctx.ui.confirm(title, message, opts),
-          notify: (message, type) => ctx.ui.notify(message, type),
-        },
-        persistSelection: (record) => persistSelection(pi, record),
-        restoreSelection: () => restoreSelection(ctx),
+      const run = async (verbArg: string): Promise<void> => {
+        const spaceIndex = verbArg.indexOf(" ");
+        const verb = (spaceIndex === -1 ? verbArg : verbArg.slice(0, spaceIndex)).trim().toLowerCase();
+        const rest = spaceIndex === -1 ? "" : verbArg.slice(spaceIndex + 1).trim();
+        if (verb.length === 0) {
+          await showVerbPicker(ctx, run);
+          return;
+        }
+        const handler = rt!.commandHandlers[verb];
+        if (handler === undefined) {
+          ctx.ui.notify(`Unknown /devcontainer verb: ${verb}. Run /devcontainer to list verbs.`, "error");
+          return;
+        }
+        const cmdCtx: CommandContextLike = {
+          cwd: ctx.cwd,
+          hasUI: ctx.hasUI,
+          ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+          ui: {
+            select: (title, options, opts) => ctx.ui.select(title, options, opts),
+            confirm: (title, message, opts) => ctx.ui.confirm(title, message, opts),
+            notify: (message, type) => ctx.ui.notify(message, type),
+          },
+          persistSelection: (record) => persistSelection(pi, record),
+          restoreSelection: () => restoreSelection(ctx),
+        };
+        const result = await handler(rest, cmdCtx);
+        ctx.ui.notify(result.text, "info");
       };
-      const result = await handler(rest, cmdCtx);
-      ctx.ui.notify(result.text, "info");
+      await run(args);
     },
   });
 
@@ -5303,6 +5310,41 @@ export function resolveUserBash(
   // selected-container operations.
   void event;
   return { operations: rt.bashOperations as unknown as BashOperations };
+}
+
+/**
+ * Interactive `/devcontainer` verb picker for a bare invocation (no verb).
+ * Lets the user choose a verb from a list; the chosen verb is then dispatched
+ * through the same handler. When no UI is available, falls back to a one-line
+ * usage notice.
+ */
+async function showVerbPicker(
+  ctx: ExtensionContext,
+  run: (verbArg: string) => Promise<void>,
+): Promise<void> {
+  if (!ctx.hasUI) {
+    ctx.ui.notify("DevContainer management: list, status, use, up, build, stop, remove, logs, host-exec, setup. Try /devcontainer <verb>.", "info");
+    return;
+  }
+  const choice = await ctx.ui.select(
+    "DevContainer command",
+    [
+      "list - show registry + selection",
+      "status - show current selection",
+      "use [path] - select a target",
+      "up [path] - start a container",
+      "build [path] - build a container",
+      "stop - stop selected container (confirmed)",
+      "remove - delete selected container (confirmed)",
+      "logs [--tail N] - container logs",
+      "host-exec <argv...> - HOST escape hatch (policy-gated)",
+      "setup - install/upgrade the Dev Containers CLI",
+    ],
+    ctx.signal !== undefined ? { signal: ctx.signal } : undefined,
+  );
+  if (choice === undefined) return;
+  const picked = choice.split(" ")[0]!.toLowerCase();
+  await run(picked);
 }
 
 
@@ -7386,7 +7428,7 @@ if (!dockerOk || !cliOk) {
 
 #### 4. tests/e2e/multi-workspace.e2e.test.ts (NEW)
 **File**: `tests/e2e/multi-workspace.e2e.test.ts`
-**Changes**: Composed-runtime e2e proving the End-State transcript: config-only before start, `use project-b` + exec fails closed `target-stopped`, up A then A→exec→B→exec routing, no-selection → `no-candidate` and ambiguous → `ambiguous-candidate`; real-Pi layer boots `pi -p --no-session --offline --mode json --extension <abs extensions/index.ts>` and asserts load + model turn.
+**Changes**: Composed-runtime e2e proving the End-State transcript: config-only before start, `use project-b` + exec fails closed `target-stopped`, up A then A→exec→B→exec routing, no-selection → `no-candidate` and ambiguous → `ambiguous-candidate`; real-Pi layer boots `pi -p --no-session --offline --mode json --extension <abs extensions/index.ts> -ne` (extension discovery disabled so a locally-installed copy cannot conflict) and asserts load + model turn.
 
 ```ts
 /**
@@ -7662,6 +7704,8 @@ piSuite("multi-workspace e2e (real Pi runtime)", () => {
         "-p", "--no-session", "--offline",
         "--mode", "json",
         "--extension", ext,
+        "-ne", // disable extension discovery: a locally-installed copy of this package
+        // (auto-discovery symlink) would otherwise conflict with the explicit --extension.
         "--no-skills", "--no-themes", "--no-context-files",
         "--approve",
         "--tools", "devcontainer_status",
@@ -8513,6 +8557,7 @@ See [docs/installation.md](docs/installation.md),
 
 | Kind | Name | Notes |
 |---|---|---|
+| Slash command | `/devcontainer` | Interactive verb picker (or usage when no UI) |
 | Slash command | `/devcontainer list` | Discover + render registry |
 | Slash command | `/devcontainer status` | Same status block |
 | Slash command | `/devcontainer use [path]` | Select; persists into session |
@@ -9447,5 +9492,28 @@ Documented in:
 - `README.md`: "Developing this extension locally?" note under Quick start linking to that section.
 
 Plan Phase 8 §1 (`README.md`) and §2 (`docs/installation.md`) code fences re-synced byte-for-byte; links resolve; fences balanced.
+
+No open questions. History preserved above.
+
+---
+
+## Follow-up (2026-09-07T12:30:00+0800)
+
+Fix: friendly handling of a bare `/devcontainer` (no verb). Previously it split an empty arg into verb `""` and reported `Unknown /devcontainer verb: .`
+
+Now:
+- Interactive (TUI/RPC): a bare `/devcontainer` opens an **interactive verb picker** (`ctx.ui.select`) listing all verbs with one-line descriptions; picking one dispatches it through the same handler (which then may prompt for arguments).
+- No-UI modes (print/json): shows a one-line usage notice listing the verbs (notify is a no-op there, so nothing errors and the command returns cleanly).
+- Unknown verbs now hint "Run /devcontainer to list verbs."
+
+Also hardened the real-Pi e2e layer: it now passes `-ne` (disable extension discovery) so a locally-installed copy of this package (e.g. the auto-discovery symlink) cannot conflict with the explicit `--extension` under test (`Tool "bash" conflicts with ...`).
+
+Changes:
+- `extensions/index.ts`: command handler refactored to an inner `run(verbArg)`; bare invocation delegates to a new `showVerbPicker(ctx, run)` helper.
+- `tests/e2e/multi-workspace.e2e.test.ts`: add `-ne` to the real-Pi spawn argv.
+- `README.md`: surface table gains a `/devcontainer` row (interactive verb picker).
+- Plan Phase 6 §1 (`extensions/index.ts`), Phase 7 §4 (`tests/e2e/...`), Phase 8 §1 (`README.md`) fences re-synced byte-for-byte.
+
+Verified: typecheck clean; 180 deterministic tests pass; real-Pi e2e passes; bare `/devcontainer` in print mode returns cleanly (no Unknown-verb error, no hang).
 
 No open questions. History preserved above.
