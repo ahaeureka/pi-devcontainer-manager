@@ -103,6 +103,26 @@ export function hostToContainer(path: string, mapping: PathMapping | undefined):
   return undefined;
 }
 
+/**
+ * Return the first argv element that refers to a CONTAINER-only path (the
+ * workspace's container path or a path beneath it), or undefined.
+ *
+ * Used as a structured guard on the explicit HOST surface: host execution of
+ * literal argv involves no shell parsing, so this check is reliable — unlike
+ * any classifier over shell text. It catches the common mis-route of running a
+ * container path on the host (where it does not exist).
+ */
+export function findContainerPath(argv: readonly string[], containerPath: string): string | undefined {
+  const base = normalize(containerPath);
+  if (base.length === 0) return undefined;
+  for (const token of argv) {
+    if (typeof token !== "string" || !token.startsWith("/")) continue;
+    const candidate = normalize(token);
+    if (candidate === base || candidate.startsWith(`${base}/`)) return token;
+  }
+  return undefined;
+}
+
 function normalize(p: string): string {
   // Paths here are already absolute; just trim a trailing slash for prefix math.
   return p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p;

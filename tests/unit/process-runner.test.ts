@@ -110,6 +110,38 @@ describe("NodeProcessRunner", () => {
     expect(Buffer.concat(chunks).toString("utf8")).toBe("boom");
   });
 
+  it("bounds stderr at maxOutputBytes and reports truncated", async () => {
+    const chunks: Buffer[] = [];
+    const result = await runner.exec("node", ["-e", "process.stderr.write('y'.repeat(100))"], {
+      cwd: process.cwd(),
+      env: { PATH: process.env.PATH ?? "" },
+      maxOutputBytes: 10,
+      onStderr: (chunk) => chunks.push(chunk),
+    });
+    expect(result.exitCode).toBe(0);
+    expect(result.truncated).toBe(true);
+    expect(Buffer.concat(chunks).length).toBeLessThanOrEqual(10);
+  });
+
+  it("bounds stdout and stderr independently", async () => {
+    const out: Buffer[] = [];
+    const err: Buffer[] = [];
+    const result = await runner.exec(
+      "node",
+      ["-e", "process.stdout.write('a'.repeat(50)); process.stderr.write('b'.repeat(50))"],
+      {
+        cwd: process.cwd(),
+        env: { PATH: process.env.PATH ?? "" },
+        maxOutputBytes: 10,
+        onData: (chunk) => out.push(chunk),
+        onStderr: (chunk) => err.push(chunk),
+      },
+    );
+    expect(result.truncated).toBe(true);
+    expect(Buffer.concat(out).length).toBeLessThanOrEqual(10);
+    expect(Buffer.concat(err).length).toBeLessThanOrEqual(10);
+  });
+
   it("reports child termination with null exit code and the signal", async () => {
     let child: SpawnedChild | undefined;
     const promise = runner.exec("node", ["-e", "setTimeout(() => {}, 5000)"], {

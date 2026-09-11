@@ -319,6 +319,7 @@ describe("buildWorkspaceRegistry", () => {
         discoveredFrom: "both",
         containerId: "aa11",
         containerState: "running",
+        containerCandidates: [{ id: "aa11", state: "running" }],
       },
     ]);
     expect(result.configOnly).toEqual([]);
@@ -372,9 +373,38 @@ describe("buildWorkspaceRegistry", () => {
         discoveredFrom: "both",
         containerId: "c1",
         containerState: "running",
+        containerCandidates: [{ id: "c1", state: "running" }],
       },
     ]);
     expect(result.configOnly).toEqual([]);
+  });
+
+  it("flags ambiguity when more than one container for a workspace is running", () => {
+    const fs = fsTree();
+    addFile(fs, "/work/a/.devcontainer/devcontainer.json");
+    const docker = [
+      dockerCandidate({ id: "aa11", workspaceKey: "/work/a", state: "running" }),
+      dockerCandidate({ id: "aa12", workspaceKey: "/work/a", state: "running" }),
+    ];
+    const result = registry(fs, docker);
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]?.ambiguous).toBe(true);
+    expect(result.entries[0]?.containerCandidates).toEqual([
+      { id: "aa11", state: "running" },
+      { id: "aa12", state: "running" },
+    ]);
+  });
+
+  it("does not flag ambiguity when only one container is running", () => {
+    const fs = fsTree();
+    addFile(fs, "/work/a/.devcontainer/devcontainer.json");
+    const docker = [
+      dockerCandidate({ id: "aa11", workspaceKey: "/work/a", state: "running" }),
+      dockerCandidate({ id: "aa12", workspaceKey: "/work/a", state: "exited" }),
+    ];
+    const result = registry(fs, docker);
+    expect(result.entries[0]?.ambiguous).toBeUndefined();
+    expect(result.entries[0]?.containerCandidates).toHaveLength(2);
   });
 
   it("collapses duplicate Docker labels into a single entry without duplication", () => {

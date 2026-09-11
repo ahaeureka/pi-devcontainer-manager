@@ -35,15 +35,17 @@ untrusted/less-privileged project config can never *expand* a global grant:
 | `discovery.excludedDirectories` | `project ∩ global` |
 | `audit.retentionDays` | `min(project, global)` |
 | `audit.commandCapture` | lower of the two in `none < fingerprint-only < redacted-text` |
-| `audit.enabled` | project `false` wins; else global `false`; else default `true` (merge only — not yet gating in v1) |
+| `audit.enabled` | project `false` wins; else global `false`; else default `true`. When `false` the runtime accepts records but persists nothing. |
 | `destructive.allowStop/allowRemove` | `true` only when **both** global and project grant it |
 | `hostExecution.allow` | `true` only when **both** grant it |
 
 `audit.directory` is merged global-only into the effective config (a project
-config cannot relocate the audit directory). The v1 runtime always writes to
-the platform default (see below); `directory` is carried for future override.
-`dockerPath`/`devcontainerPath`/`routeMode` prefer project over global
-when both set (these do not raise privilege, so project wins).
+config cannot relocate the audit directory) and **is honored** by the runtime;
+when unset, the platform default is used. `audit.enabled: false` accepts
+records but persists nothing.
+`dockerPath`/`devcontainerPath`/`routeMode` prefer project over global when
+both set (these do not raise privilege, so project wins). In v1 `routeMode`
+must be `"container-required"`; the other values are rejected at load.
 
 ## Reference
 
@@ -73,11 +75,12 @@ when both set (these do not raise privilege, so project wins).
 | Mode | Behavior |
 |---|---|
 | `container-required` | Execution requires a running selected target. With no explicit selection, the session-cwd workspace is auto-selected as the default when it has a DevContainer configuration; if still no target resolves (no config, ambiguous, stale/stopped, denied) the route returns `no-candidate` / `ambiguous-candidate` / `target-stopped` / `policy-denied`. **Never** executes on the host. |
-| `container-preferred` | Container when possible; reserved for future host fallback semantics. |
-| `host-only` | Reserved for future host-only operation. |
+| `container-preferred` | **Not implemented** — setting it is rejected at load so a mode that silently does nothing cannot be configured. |
+| `host-only` | **Not implemented** — rejected at load. |
 
-In v1 the implemented, tested, and default mode is `container-required`. The
-only host execution surface is the explicit, policy-gated, audited
+In v1 the implemented, tested, and default mode is `container-required`; the
+other two values are accepted by the type but rejected by validation. The only
+host execution surface is the explicit, policy-gated, audited
 `devcontainer_host_exec` tool and `/devcontainer host-exec` command
 (`hostExecution.allow`).
 
@@ -132,9 +135,10 @@ tools; use `devcontainer_exec` (container-side `cat`/`find`) to reach them.
 ### `maxOutputBytes`
 
 - Type: `number` · Default: `51200` (`50 * 1024`)
-- Positive finite number. Output captured per operation is bounded; overflow
-  sets the `truncated` flag while child streams keep draining (no pipe
-  deadlock).
+- Positive finite number. Each output stream (stdout and stderr) is bounded
+  independently, so a command that floods stderr cannot exhaust the extension
+  process; overflow sets the `truncated` flag while the streams keep draining
+  (no pipe deadlock). Captured memory is therefore at most 2× this value.
 
 ### `discovery`
 

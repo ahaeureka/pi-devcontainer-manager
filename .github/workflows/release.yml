@@ -66,11 +66,14 @@ jobs:
 
   publish:
     name: publish to npm
-    needs: [verify]
+    # The packed-tarball runtime smoke gates publishing whenever provider
+    # secrets are configured. When that job is SKIPPED (no PI_PROVIDER secret)
+    # publishing still proceeds, so secret-less dry runs are not blocked.
+    needs: [verify, smoke-pi]
     runs-on: ubuntu-latest
     # github.event.inputs.* arrives as the STRING "true"/"false"; compare
     # explicitly so a real (non-dry-run) dispatch actually publishes.
-    if: ${{ github.event.inputs.dry_run == 'false' }}
+    if: ${{ github.event.inputs.dry_run == 'false' && (needs.smoke-pi.result == 'success' || needs.smoke-pi.result == 'skipped') }}
     steps:
       - uses: actions/checkout@v4
         with:

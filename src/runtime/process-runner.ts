@@ -27,6 +27,30 @@ export interface ProcessRunner {
 const DEFAULT_MAX_OUTPUT_BYTES = 50 * 1024;
 
 export type SpawnedChild = ChildProcessByStdio<null, import("node:stream").Readable, import("node:stream").Readable>;
+
+/**
+ * Kill the child AND its descendant processes.
+ *
+ * Children are spawned as their own process group (`detached: true` on POSIX),
+ * so a shell/CLI that forks background work cannot outlive a timeout or
+ * cancellation. Without a process group, `child.kill()` only signals the
+ * immediate process and descendants keep running while the operation is
+ * already reported as cancelled. Windows has no process-group signalling via
+ * negative pid; fall back to a direct kill there.
+ */
+export function killProcessTree(child: SpawnedChild): void {
+  const pid = child.pid;
+  if (pid !== undefined && process.platform !== "win32") {
+    try {
+      process.kill(-pid, "SIGKILL");
+      return;
+    } catch {
+      /* group already gone or not permitted; fall through to direct kill */
+    }
+  }
+  child.kill("SIGKILL");
+}
+
 export class NodeProcessRunner implements ProcessRunner {
   public async exec(
     file: string,
@@ -45,6 +69,8 @@ export class NodeProcessRunner implements ProcessRunner {
         env: { ...options.env },
         shell: false,
         stdio: ["ignore", "pipe", "pipe"],
+        // Own process group so timeout/cancel can terminate descendants too.
+        detached: process.platform !== "win32",
       });
     } catch (error) {
       throw toSpawnError(file, error);
@@ -53,7 +79,11 @@ export class NodeProcessRunner implements ProcessRunner {
     options.onSpawn?.(child);
 
     return await new Promise<ProcessResult>((resolve, reject) => {
+      // Bounded output: each stream is independently capped at `maxOutput`, so
+      // captured memory is at most 2x the configured limit and NEITHER stream
+      // can exhaust the extension process. `truncated` reflects either stream.
       let stdoutBytes = 0;
+      let stderrBytes = 0;
       let truncated = false;
       let timer: NodeJS.Timeout | undefined;
       let settled = false;
@@ -81,33 +111,47 @@ export class NodeProcessRunner implements ProcessRunner {
       });
 
       child.stdout.on("data", (chunk: Buffer) => {
-        if (stdoutBytes < maxOutput) {
-          const remaining = maxOutput - stdoutBytes;
-          if (chunk.length > remaining) {
-            stdout(chunk.subarray(0, remaining));
-            stdoutBytes = maxOutput;
-            truncated = true;
-          } else {
-            stdout(chunk);
-            stdoutBytes += chunk.length;
-          }
-        } else {
+        if (stdoutBytes >= maxOutput) {
           truncated = true;
+          return;
+        }
+        const remaining = maxOutput - stdoutBytes;
+        if (chunk.length > remaining) {
+          stdout(chunk.subarray(0, remaining));
+          stdoutBytes = maxOutput;
+          truncated = true;
+        } else {
+          stdout(chunk);
+          stdoutBytes += chunk.length;
         }
       });
 
-      child.stderr.on("data", (chunk: Buffer) => stderr(chunk));
+      child.stderr.on("data", (chunk: Buffer) => {
+        if (stderrBytes >= maxOutput) {
+          truncated = true;
+          return;
+        }
+        const remaining = maxOutput - stderrBytes;
+        if (chunk.length > remaining) {
+          stderr(chunk.subarray(0, remaining));
+          stderrBytes = maxOutput;
+          truncated = true;
+        } else {
+          stderr(chunk);
+          stderrBytes += chunk.length;
+        }
+      });
 
       const onAbort = () => {
         if (settled) return;
         cleanup();
-        child.kill("SIGKILL");
+        killProcessTree(child);
         fail(new RuntimeError({ kind: "cancelled", message: "Process cancelled" }));
       };
 
       if (options.signal !== undefined) {
         if (options.signal.aborted) {
-          child.kill("SIGKILL");
+          killProcessTree(child);
           fail(new RuntimeError({ kind: "cancelled", message: "Process cancelled" }));
           return;
         }
@@ -117,7 +161,7 @@ export class NodeProcessRunner implements ProcessRunner {
       if (options.timeoutMs !== undefined) {
         timer = setTimeout(() => {
           if (settled) return;
-          child.kill("SIGKILL");
+          killProcessTree(child);
           fail(new RuntimeError({ kind: "timeout", message: `Process timed out after ${options.timeoutMs}ms` }));
         }, options.timeoutMs);
       }

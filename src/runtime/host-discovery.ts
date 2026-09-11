@@ -276,11 +276,19 @@ export function buildWorkspaceRegistry(input: DiscoveryInput): RegistryResult {
     }
     const first = dockerList[0];
     if (first === undefined) continue;
+    // Expose EVERY candidate and fail closed when more than one is running,
+    // so Docker result order never silently decides the target.
+    const candidates = dockerList
+      .filter((c) => c.id !== "")
+      .map((c) => ({ id: c.id, state: mapContainerState(c.state) ?? ("unknown" as const) }));
+    const runningCount = candidates.filter((c) => c.state === "running").length;
     entries.push({
       ...hostEntry,
       discoveredFrom: "both",
       ...(first.id !== "" ? { containerId: first.id } : {}),
       ...containerStateField(first.state),
+      containerCandidates: candidates,
+      ...(runningCount > 1 ? { ambiguous: true } : {}),
     });
   }
 

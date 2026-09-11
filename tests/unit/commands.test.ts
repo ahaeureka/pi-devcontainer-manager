@@ -82,6 +82,7 @@ function makeServices(overrides: Partial<CommandServices> = {}): CommandServices
       up: vi.fn(async (): Promise<UpBuildOutcome> => ({ operation: "up", workspaceKey: "/ws/project-a", candidateId: "up123", remoteUser: "vscode", policyAuthorized: true })),
       build: vi.fn(async (): Promise<UpBuildOutcome> => ({ operation: "build", workspaceKey: "/ws/project-a", imageName: "img:tag", policyAuthorized: true })),
       lifecycle: vi.fn(async (): Promise<LifecycleServiceResult> => ({ status: "done", action: "stop", containerId: "abc123456789" })),
+      logs: vi.fn(async () => ({ exitCode: 0, output: "log-line", truncated: false })),
     } as unknown as ExecutionService,
     registry: vi.fn(async () => ({ entries: [entry], diagnostics: [] })),
     refreshRegistry: vi.fn(async () => ({ entries: [entry], diagnostics: [] })),
@@ -298,18 +299,21 @@ describe("/devcontainer stop + remove", () => {
 
 describe("/devcontainer logs", () => {
   it("resolves the current selection and returns bounded log output", async () => {
-    const { handlers, logs } = makeServices();
+    const { handlers, execution } = makeServices();
     const ctx = makeCtx();
     const result = await handlers["logs"]!("", ctx);
-    expect(logs).toHaveBeenCalledWith(container, { tail: 100 });
+    // Logs now go through the shared execution service (policy + audit).
+    expect(execution.logs).toHaveBeenCalledWith(
+      expect.objectContaining({ initiator: "slash-command", containerId: "abc123456789", tail: 100 }),
+    );
     expect(result.text).toBe("log-line");
   });
 
   it("parses --tail", async () => {
-    const { handlers, logs } = makeServices();
+    const { handlers, execution } = makeServices();
     const ctx = makeCtx();
     await handlers["logs"]!("--tail 25", ctx);
-    expect(logs).toHaveBeenCalledWith(container, { tail: 25 });
+    expect(execution.logs).toHaveBeenCalledWith(expect.objectContaining({ tail: 25 }));
   });
 
   it("returns a typed message when no target is resolvable", async () => {

@@ -37,4 +37,14 @@ describe("compileConfig", () => {
     expect(() => compileConfig({ discovery: { maxDepth: 0 } })).toThrow("maxDepth");
     expect(() => compileConfig({ audit: { commandCapture: "plaintext" as never } })).toThrow("commandCapture");
   });
+
+  it("rejects mistyped nested configuration instead of failing later", () => {
+    expect(() => compileConfig({ discovery: { excludedDirectories: "node_modules" as never } })).toThrow("excludedDirectories");
+    expect(() => compileConfig({ dockerPath: "" })).toThrow("dockerPath");
+    expect(() => compileConfig({ devcontainerPath: 42 as never })).toThrow("devcontainerPath");
+    expect(() => compileConfig({ audit: { enabled: "yes" as never } })).toThrow("audit.enabled");
+    expect(() => compileConfig({ audit: { directory: "" } })).toThrow("audit.directory");
+    expect(() => compileConfig({ destructive: { allowStop: "yes" as never } })).toThrow("destructive.allowStop");
+    expect(() => compileConfig({ hostExecution: { allow: "yes" as never } })).toThrow("hostExecution.allow");
+  });
 });

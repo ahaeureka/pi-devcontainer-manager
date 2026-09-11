@@ -16,9 +16,14 @@ export function defaultAuditDirectory(platform: NodeJS.Platform = process.platfo
 }
 
 export class JsonlAuditWriter implements AuditWriter {
-  public constructor(private readonly directory: string, private readonly retentionDays = 90) {}
-
+  public constructor(
+    private readonly directory: string,
+    private readonly retentionDays = 90,
+    /** When false, records are accepted but never persisted (audit disabled). */
+    private readonly enabled = true,
+  ) {}
   write(record: AuditRecord): void {
+    if (!this.enabled) return;
     mkdirSync(this.directory, { recursive: true, mode: 0o700 });
     const file = join(this.directory, `${record.at.slice(0, 10)}.jsonl`);
     const safe = {
@@ -35,6 +40,7 @@ export class JsonlAuditWriter implements AuditWriter {
   }
 
   prune(now: Date): void {
+    if (!this.enabled) return;
     if (!existsSync(this.directory)) return;
     const cutoff = now.getTime() - this.retentionDays * 24 * 60 * 60 * 1000;
     for (const entry of readdirSync(this.directory, { withFileTypes: true })) {

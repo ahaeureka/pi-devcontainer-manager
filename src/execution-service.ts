@@ -142,6 +142,28 @@ export class ExecutionService {
       await this.options.autoSelect?.(request.workspace);
     }
     const ctx = this.options.targetStore.bind();
+    // Target/workspace integrity: the Dev Containers CLI would receive
+    // `--workspace-folder <request.workspace>` while the container id comes from
+    // the bound target. If those disagree, policy was evaluated for one
+    // workspace while execution targets another's container. Require the request
+    // workspace to be the bound target workspace (or a path below it), and always
+    // send the TARGET workspace to the CLI so authorization scope, target, and
+    // audit agree.
+    const requestKey = canonicalWorkspaceKey(request.workspace);
+    const targetKey = canonicalWorkspaceKey(ctx.workspaceKey);
+    const withinTarget = requestKey === targetKey || requestKey.startsWith(targetKey === "/" ? "/" : `${targetKey}/`);
+    if (!withinTarget) {
+      this.audit(snapshot, undefined, request, {
+        exitCode: null,
+        outputTruncated: false,
+        errorSummary: "request-workspace-mismatch",
+      });
+      throw new RuntimeError({
+        kind: "policy-denied",
+        message: `Requested workspace ${request.workspace} is not the selected target workspace ${ctx.workspaceKey}.`,
+        remedy: "Run /devcontainer use for the target, or run the command from the target workspace.",
+      });
+    }
     const environment = buildChildEnvironment(
       request.environment,
       snapshot.effectiveConfig.environmentAllowlist,
@@ -151,7 +173,7 @@ export class ExecutionService {
     let result: ExecResult;
     try {
       result = await this.options.devcontainer.exec(
-        request.workspace,
+        ctx.workspaceKey,
         ctx.candidateId,
         request.cmd,
         request.args,
@@ -205,10 +227,21 @@ export class ExecutionService {
       initiator: request.initiator,
       workspace: request.workspace,
     });
-    const result = await this.options.devcontainer.up(request.workspace, {
-      ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
-      ...(request.signal !== undefined ? { signal: request.signal } : {}),
-    });
+    let result: Awaited<ReturnType<DevcontainerAdapter["up"]>>;
+    try {
+      result = await this.options.devcontainer.up(request.workspace, {
+        ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
+        ...(request.signal !== undefined ? { signal: request.signal } : {}),
+      });
+    } catch (error) {
+      this.audit(snapshot, undefined, request, {
+        durationMs: Date.now() - startedAt,
+        exitCode: null,
+        outputTruncated: false,
+        errorSummary: this.asAuditError(error).message,
+      });
+      throw error;
+    }
     this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false }, result.containerId);
     return {
       operation: "up",
@@ -227,12 +260,23 @@ export class ExecutionService {
       initiator: request.initiator,
       workspace: request.workspace,
     });
-    const result = await this.options.devcontainer.build(request.workspace, {
-      ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
-      ...(request.noCache === true ? { noCache: true } : {}),
-      ...(request.imageName !== undefined ? { imageName: request.imageName } : {}),
-      ...(request.signal !== undefined ? { signal: request.signal } : {}),
-    });
+    let result: Awaited<ReturnType<DevcontainerAdapter["build"]>>;
+    try {
+      result = await this.options.devcontainer.build(request.workspace, {
+        ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
+        ...(request.noCache === true ? { noCache: true } : {}),
+        ...(request.imageName !== undefined ? { imageName: request.imageName } : {}),
+        ...(request.signal !== undefined ? { signal: request.signal } : {}),
+      });
+    } catch (error) {
+      this.audit(snapshot, undefined, request, {
+        durationMs: Date.now() - startedAt,
+        exitCode: null,
+        outputTruncated: false,
+        errorSummary: this.asAuditError(error).message,
+      });
+      throw error;
+    }
     this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false });
     return {
       operation: "build",
@@ -248,14 +292,27 @@ export class ExecutionService {
       initiator: request.initiator,
       workspace: request.workspace,
     });
-    const result = await this.options.dockerLifecycle[request.operation](
-      request.container,
-      request.confirmation,
-    );
+    const startedAt = Date.now();
+    let result: LifecycleServiceResult;
+    try {
+      result = await this.options.dockerLifecycle[request.operation](
+        request.container,
+        request.confirmation,
+      );
+    } catch (error) {
+      this.audit(snapshot, undefined, request, {
+        durationMs: Date.now() - startedAt,
+        exitCode: null,
+        outputTruncated: false,
+        errorSummary: this.asAuditError(error).message,
+      }, request.container.id);
+      throw error;
+    }
     if (result.status === "done") {
-      this.audit(snapshot, undefined, request, { exitCode: 0, outputTruncated: false }, request.container.id);
+      this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false }, request.container.id);
     } else {
       this.audit(snapshot, undefined, request, {
+        durationMs: Date.now() - startedAt,
         exitCode: null,
         outputTruncated: false,
         errorSummary: "confirmation required",
@@ -264,11 +321,70 @@ export class ExecutionService {
     return result;
   }
 
-  /** Frozen policy gate before target resolution or spawn. */
+  /**
+   * Bounded container logs, routed through the shared service so the read is
+   * policy-checked and audited like every other operation (it previously
+   * bypassed both).
+   */
+  public async logs(request: {
+    initiator: Initiator;
+    workspace: string;
+    containerId: string;
+    tail?: number;
+    signal?: AbortSignal;
+  }): Promise<{ exitCode: number | null; output: string; truncated: boolean }> {
+    const snapshot = this.authorize({
+      operation: "logs",
+      initiator: request.initiator,
+      workspace: request.workspace,
+    });
+    const startedAt = Date.now();
+    let result: Awaited<ReturnType<DockerLifecycleAdapter["logs"]>>;
+    try {
+      result = await this.options.dockerLifecycle.logs(request.containerId, {
+        ...(request.tail !== undefined ? { tail: request.tail } : {}),
+        ...(request.signal !== undefined ? { signal: request.signal } : {}),
+      });
+    } catch (error) {
+      this.audit(snapshot, undefined, { operation: "logs", initiator: request.initiator, workspace: request.workspace }, {
+        durationMs: Date.now() - startedAt,
+        exitCode: null,
+        outputTruncated: false,
+        errorSummary: this.asAuditError(error).message,
+      }, request.containerId);
+      throw error;
+    }
+    this.audit(snapshot, undefined, { operation: "logs", initiator: request.initiator, workspace: request.workspace }, {
+      durationMs: Date.now() - startedAt,
+      exitCode: result.exitCode,
+      outputTruncated: result.truncated,
+    }, request.containerId);
+    return result;
+  }
+
+  /**
+   * Frozen policy gate before target resolution or spawn.
+   *
+   * A DENIED attempt is itself an auditable event: policy probes (workspace,
+   * environment, destructive, host-exec) are recorded before the typed error is
+   * thrown, so denials are visible in the audit trail instead of silently
+   * absent. Denied environment VALUES are never recorded.
+   */
   private authorize(input: PolicyInput): OperationPolicySnapshot {
     const now = () => new Date(this.clock());
     const snapshot = evaluatePolicy(this.options.config, input, now);
     if (!snapshot.authorized) {
+      this.options.audit.write({
+        version: 1,
+        at: this.clock(),
+        operation: input.operation,
+        initiator: input.initiator,
+        ...(input.workspace !== undefined ? { workspace: input.workspace } : {}),
+        policyAuthorized: false,
+        ...(snapshot.denialReason !== undefined ? { policyDenialReason: snapshot.denialReason } : {}),
+        outputTruncated: false,
+        commandCapture: snapshot.effectiveConfig.audit.commandCapture,
+      });
       throw new RuntimeError({
         kind: "policy-denied",
         message: `Operation '${input.operation}' was denied: ${snapshot.denialReason ?? "policy"}.`,

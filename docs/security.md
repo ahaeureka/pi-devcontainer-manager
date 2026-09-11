@@ -51,6 +51,30 @@ execution service, which:
 5. writes one audit record and returns a structured result with **no
    environment values**.
 
+## Routing guards
+
+The extension does **not** classify shell text to decide the environment —
+shell operators, substitutions, and compound commands defeat any name/prefix
+rule (a former command-router experiment was removed for exactly this reason).
+Instead:
+
+- `bash`, `!`/`!!`, and `devcontainer_exec` are **always** the container;
+  `devcontainer_host_exec` and `/devcontainer host-exec` are the only host
+  surfaces, both policy-gated (`hostExecution.allow`) and audited.
+- Before each turn the agent receives the current target, the workspace's
+  host↔container mapping, and the surface rules, so it chooses explicitly.
+- `devcontainer_host_exec` **refuses** an argv that targets a container-only
+  path (a reliable check: literal argv carries no shell syntax).
+- While a target is selected, the built-in `powershell` tool — which Pi would
+  otherwise spawn on the host — is **blocked** through the `tool_call` hook
+  with a message pointing at the routed surfaces. (`tool_call` can block or
+  rewrite input; it cannot re-route, so no redirection is attempted.)
+- Workspace containment compares `realpath`, so a symlink beneath an allowed
+  root that points outside it is denied.
+- Container execution requires the request workspace to be the bound target
+  workspace (or a path below it), and the CLI always receives the bound target
+  workspace, so authorization scope, container id, and audit cannot disagree.
+
 ## File access model
 
 File access and command execution have different trust surfaces, and this
@@ -95,17 +119,20 @@ extension keeps them separate:
 
 ## Audit
 
-Every operation writes a host-local JSONL record. The effective config carries
-an `audit.enabled` flag (default **true**); the v1 runtime writes records
-unconditionally and the default retention is **90 days** with
-**`fingerprint-only` command capture**.
+Every operation writes a host-local JSONL record. `audit.enabled` (default
+**true**) is honored: when `false`, records are accepted but nothing is
+persisted. `audit.directory` (global-only) is honored when set; otherwise the
+platform default below is used. Default retention is **90 days** with
+**`fingerprint-only` command capture**. Denied attempts are audited too (a
+policy probe is visible, not silent), and adapter failures for
+`up`/`build`/`lifecycle`/`logs` record an `errorSummary` instead of vanishing.
+`/devcontainer logs` is now policy-checked and audited like every other
+operation.
 
 - Audit directory (mode `0700`, files `0600`):
   - Linux: `$XDG_STATE_HOME/pi-devcontainer-manager/audit`
     (default `~/.local/state/pi-devcontainer-manager/audit`)
   - macOS: `~/Library/Application Support/pi-devcontainer-manager/audit`
-- `audit.directory` is **global-only** in the effective config; the v1 runtime
-  writes to the platform default above (the override is not yet consumed).
 - Command identity is a SHA-256 **fingerprint** over argv by default, never
   plaintext. `redacted-text` mode stores the joined command with secret-looking
   patterns redacted (`key=[REDACTED]`); `none` stores no command identity.
@@ -122,7 +149,12 @@ unconditionally and the default retention is **90 days** with
 
 - All host and container processes are spawned with `shell: false`, a fixed
   executable, an argv array, a sanitized environment, cancellation, timeout, and
-  bounded stream accounting.
+- **Both** stdout and stderr are bounded by `maxOutputBytes` (each stream
+  independently), and overflow sets `truncated`; a stderr flood cannot exhaust
+  the extension process.
+- Children are spawned as their own process group, and timeout/cancellation
+  kills the **group**, so a shell that forks background work cannot outlive the
+  operation that was reported as cancelled.
 - Only read-only `docker ps --all` / `inspect` exist on the discovery adapter;
   the lifecycle adapter is the *sole* owner of `docker logs`, `stop`, and
   `rm -f`.

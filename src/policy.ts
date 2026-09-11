@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import type { EffectiveConfig, OperationPolicySnapshot, PolicyInput } from "./types.js";
@@ -40,13 +41,34 @@ export function evaluatePolicy(
   });
 }
 
+/**
+ * Filesystem-identity-aware workspace containment.
+ *
+ * Containment is checked on `realpath`-resolved paths, not lexical ones: a
+ * symlink created beneath an allowed root that points outside it must not pass
+ * (`/allowed/link -> /outside`). Paths that do not exist fall back to their
+ * resolved lexical form so configuration/selection flows for not-yet-created
+ * workspaces keep working; operations that require an existing workspace still
+ * fail closed downstream when the path cannot be resolved by the CLI.
+ */
 export function isWorkspaceAllowed(workspace: string, roots: readonly string[]): boolean {
   if (!isAbsolute(workspace) || roots.length === 0) return false;
-  const candidate = resolve(workspace);
+  const candidate = canonicalForPolicy(workspace);
+  const separator = process.platform === "win32" ? "\\" : "/";
   return roots.some((root) => {
-    const rel = relative(resolve(root), candidate);
-    return rel === "" || (!rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) && rel !== "..");
+    const base = canonicalForPolicy(root);
+    const rel = relative(base, candidate);
+    return rel === "" || (!rel.startsWith(`..${separator}`) && rel !== "..");
   });
+}
+
+/** realpath when the path exists, else the resolved lexical path. */
+function canonicalForPolicy(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
 }
 
 export function isEnvironmentAllowed(name: string, allowlist: readonly string[]): boolean {
@@ -75,6 +97,34 @@ export function commandFingerprint(parts: readonly string[]): string {
   return createHash("sha256").update(parts.join("\u0000"), "utf8").digest("hex");
 }
 
+/**
+ * Best-effort credential scrubbing for audit command text.
+ *
+ * This is deliberately conservative and layered, but it is NOT a guarantee:
+ * `audit.commandCapture` defaults to `fingerprint-only`, and plaintext capture
+ * should be treated as sensitive even after redaction. Covered here:
+ *  - `Bearer`/`Basic`/`Token` authentication schemes (header values)
+ *  - `key: value` / `key=value` for secret-looking names (quoted or bare)
+ *  - `--secret-flag value` / `--secret-flag=value`
+ *  - credentials embedded in URLs (`scheme://user:pass@host`)
+ */
+const SECRET_KEY = "(?:api[_-]?key|access[_-]?key|private[_-]?key|token|secret|password|passwd|credential|credentials|authorization|auth)";
+
 export function redactText(text: string): string {
-  return text.replace(/(api[_-]?key|token|secret|password|authorization)\s*[=:]\s*[^\s]+/gi, "$1=[REDACTED]");
+  let out = text;
+  // 1. Auth schemes: "Bearer <token>" / "Basic <b64>" / "Token <t>".
+  out = out.replace(/\b(Bearer|Basic|Token)\s+[A-Za-z0-9\-._~+/=]+/gi, "$1 [REDACTED]");
+  // 2. key: value / key=value (quoted or bare token).
+  out = out.replace(
+    new RegExp(`(${SECRET_KEY})(\\s*[=:]\\s*)("[^"]*"|'[^']*'|[^\\s"']+)`, "gi"),
+    "$1$2[REDACTED]",
+  );
+  // 3. --secret-flag value / --secret-flag=value.
+  out = out.replace(
+    new RegExp(`(--?${SECRET_KEY})(\\s*=\\s*|\\s+)("[^"]*"|'[^']*'|[^\\s"']+)`, "gi"),
+    "$1$2[REDACTED]",
+  );
+  // 4. Credentials embedded in URLs: scheme://user:pass@host.
+  out = out.replace(/(\w+:\/\/)[^/\s:@]+:[^/\s@]+@/g, "$1[REDACTED]@");
+  return out;
 }

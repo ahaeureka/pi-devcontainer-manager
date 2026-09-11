@@ -144,12 +144,13 @@ describe("NodeDevcontainerAdapter.exec", () => {
     ]);
   });
 
-  it("passes at most ONE --remote-env when multiple variables are requested (0.88.0 last-wins)", async () => {
+  it("forwards EVERY requested variable as a repeated --remote-env flag", async () => {
     const { runner, calls } = fakeRunner([{ ...ok(0), truncated: false }]);
     const adapter = makeAdapter(runner);
     await adapter.exec("/ws", "abc123", "echo", ["hi"], { remoteEnv: { A: "1", B: "2", C: "3" } });
-    const remoteEnvFlags = calls[0]!.args.filter((a) => a === "--remote-env");
-    expect(remoteEnvFlags).toHaveLength(1);
+    const argv = calls[0]!.args;
+    const envFlags = argv.reduce<string[]>((acc, token, index) => (token === "--remote-env" ? [...acc, argv[index + 1]!] : acc), []);
+    expect(envFlags).toEqual(["A=1", "B=2", "C=3"]);
   });
 
   it("carries the container-side exit code instead of throwing", async () => {

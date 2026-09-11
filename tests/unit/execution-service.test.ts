@@ -41,7 +41,7 @@ function makeConfig(overrides: Partial<EffectiveConfig> = {}): EffectiveConfig {
 
 function fakeTargetStore(snapshotStatus: string = "selected-valid"): { store: TargetStore; bound: ExecutionContext } {
   const ctx: ExecutionContext = {
-    workspaceKey: "ws-project-a",
+    workspaceKey: "/ws/project-a",
     candidateId: "abc123",
     candidateName: "project-a",
     boundAt: "2026-08-31T09:47:28.000Z",
@@ -189,6 +189,50 @@ describe("ExecutionService.exec", () => {
       service.lifecycle({ operation: "stop", initiator: "tool", workspace: "/ws/project-a", container, confirmation: undefined }),
     ).rejects.toMatchObject({ kind: "policy-denied" });
     expect(calls).toHaveLength(0);
+  });
+
+  it("audits a DENIED attempt before throwing", async () => {
+    const { adapter } = fakeDockerLifecycle();
+    const { service, audit } = makeService({ dockerLifecycle: adapter });
+    await expect(
+      service.lifecycle({ operation: "stop", initiator: "tool", workspace: "/ws/project-a", container, confirmation: undefined }),
+    ).rejects.toMatchObject({ kind: "policy-denied" });
+    const record = (audit.write as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0] as AuditRecord;
+    expect(record.policyAuthorized).toBe(false);
+    expect(record.policyDenialReason).toBe("destructive-operation-disabled");
+  });
+
+  it("denies a request whose workspace is not the bound target workspace", async () => {
+    const { adapter, calls } = fakeDevcontainer([execOk]);
+    const { service } = makeService({ devcontainer: adapter });
+    await expect(
+      service.exec({ operation: "container-exec", initiator: "tool", workspace: "/ws/other", cmd: "ls", args: [] }),
+    ).rejects.toMatchObject({ kind: "policy-denied" });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("sends the BOUND target workspace to the CLI, not the caller workspace", async () => {
+    const { adapter, calls } = fakeDevcontainer([execOk]);
+    const { service } = makeService({ devcontainer: adapter });
+    await service.exec({ operation: "container-exec", initiator: "tool", workspace: "/ws/project-a/sub", cmd: "ls", args: [] });
+    expect(calls[0]!.workspace).toBe("/ws/project-a");
+  });
+
+  it("audits an adapter failure for up instead of losing it", async () => {
+    const throwing: DevcontainerAdapter = {
+      up: vi.fn(async () => {
+        throw new RuntimeError({ kind: "daemon-unavailable", message: "no daemon" });
+      }),
+      build: vi.fn(),
+      exec: vi.fn(),
+    };
+    const { service, audit } = makeService({ devcontainer: throwing });
+    await expect(
+      service.up({ operation: "up", initiator: "slash-command", workspace: "/ws/project-a" }),
+    ).rejects.toMatchObject({ kind: "daemon-unavailable" });
+    const record = (audit.write as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0] as AuditRecord;
+    expect(record.operation).toBe("up");
+    expect(record.errorSummary).toBe("no daemon");
   });
 
   it("carries a nonzero container-side exit in the outcome (never throws)", async () => {

@@ -17,3 +17,5 @@ dist/
 
 # Project-local pi install state (machine-specific absolute paths)
 .pi/settings.json
+# Machine-local dev escape hatch (hostExecution.allow while developing this extension)
+.pi/pi-devcontainer-manager.json

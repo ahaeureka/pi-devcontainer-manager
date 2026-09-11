@@ -10,30 +10,26 @@
  *
  *   1. Require a real `pi` CLI on PATH (`command -v pi`).
  *   2. `npm pack` the package into a tarball (real, not --dry-run), then
- *      install it into a throwaway Pi package store via `pi install <tarball>`
- *      (local path install per packages.md) OR, when `--no-install` is given,
- *      load the extension entrypoint directly with `--extension`.
- *   3. Boot `pi -p --print --no-session --offline` with the extension loaded
- *      and ask the model to enumerate its tools; assert the extension's tool
- *      names and the same-name `bash` override registration are visible.
- *   4. Confirm the extension's slash command (`/devcontainer list`) and the
- *      `user_bash` route (`!...`) are registered by driving a status-only
- *      request.
+ *      install it into a throwaway Pi package store via `pi install <tarball>`.
+ *   3. Extract the SAME tarball and assert the PACKED dist registers the tool,
+ *      command, and `user_bash` surfaces (never the checkout's dist).
+ *   4. Boot `pi -p --print --no-session --offline` with PI_CODING_AGENT_DIR
+ *      pointed at the scratch store, so the model turn actually loads the
+ *      packed extension, and assert its tools resolve with no extension error.
  *
- * This script requires a real model provider/API key: the Pi CLI answers the
- * prompt through the configured provider. In CI the `integration` workflow
- * installs `@devcontainers/cli` + runs this against a configured provider, or
- * it skips the model-touching steps with a named reason when the provider is
- * not configured (`PI_PROVIDER`/`PI_MODEL` unset or `--offline` without keys).
+ * This script requires a real model provider/API key for step 4. In CI the
+ * release workflow installs the real Pi CLI and runs this against a configured
+ * provider; when the provider is not configured the model step is skipped with
+ * a named reason (but the packed-artifact checks still run).
  *
- * Exit code: 0 = smoke passed (or all model steps skipped by named reason),
+ * Exit code: 0 = smoke passed (or model step skipped by named reason),
  * 1 = a required step failed.
  *
  * Usage:
  *   node scripts/smoke-pi-package.mjs            # full: pack + install + model turn
- *   node scripts/smoke-pi-package.mjs --no-model # manifest/install checks only
+ *   node scripts/smoke-pi-package.mjs --no-model # manifest/packed-artifact checks only
  */
-import { execFileSync, execSync, spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve, dirname, join } from "node:path";
@@ -65,9 +61,6 @@ function providerConfigured() {
 const pi = piOnPath();
 if (pi === undefined) {
   if (noModel) {
-    // CI runs this in --no-model mode without a global pi install; the
-    // manifest + packed-tarball contract checks below still run and the
-    // model-touching install/probe steps are skipped by named reason.
     console.warn("[smoke-pi-package] pi CLI not on PATH; skipping install/probe steps (--no-model).");
   } else {
     fail("pi CLI not found on PATH; run: npm i -g @earendil-works/pi-coding-agent");
@@ -81,7 +74,10 @@ const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 log(manifest.pi?.extensions?.length === 1, `pi.extensions manifest present (${manifest.pi?.extensions?.[0] ?? "missing"})`);
 
 const tmp = mkdtempSync(join(tmpdir(), "pi-dcm-smoke-"));
+const extractDir = mkdtempSync(join(tmpdir(), "pi-dcm-extract-"));
+const installDir = mkdtempSync(join(tmpdir(), "pi-dcm-store-"));
 let tarball;
+let packedDist;
 try {
   // Real pack (not --dry-run) so `pi install` can consume it.
   const out = execFileSync("npm", ["pack", "--pack-destination", tmp], { cwd: root, encoding: "utf8", timeout: 120_000 });
@@ -91,17 +87,30 @@ try {
   fail(`npm pack failed: ${error instanceof Error ? error.message : String(error)}`);
 }
 
+// 1b. Extract the SAME tarball so every later assertion inspects the PACKED
+// artifact rather than the checkout's (possibly stale) dist/ directory.
+if (tarball !== undefined) {
+  try {
+    execFileSync("tar", ["-xzf", tarball, "-C", extractDir], { encoding: "utf8", timeout: 120_000 });
+    packedDist = join(extractDir, "package", "dist", "extensions", "index.js");
+    log(existsSync(packedDist), `packed tarball contains dist/extensions/index.js`);
+  } catch (error) {
+    fail(`extracting packed tarball failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 // 2. Install into a throwaway Pi package store (local path install).
-const installDir = mkdtempSync(join(tmpdir(), "pi-dcm-store-"));
 if (tarball !== undefined && pi !== undefined) {
   try {
-    // `pi install <tarball>` adds it to the user's settings — to keep this
-    // hermetic we install with --local-flag-equivalent by pointing settings
-    // via PI_CODING_AGENT_DIR to a scratch dir so nothing user-global changes.
-    const prevDir = process.env.PI_CODING_AGENT_DIR;
-    process.env.PI_CODING_AGENT_DIR = installDir;
-    execFileSync(pi, ["install", tarball, "--approve"], { cwd: root, encoding: "utf8", timeout: 120_000, stdio: ["ignore", "inherit", "inherit"] });
-    process.env.PI_CODING_AGENT_DIR = prevDir;
+    // Keep this hermetic: point PI_CODING_AGENT_DIR at a scratch dir so nothing
+    // user-global changes.
+    execFileSync(pi, ["install", tarball, "--approve"], {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 120_000,
+      stdio: ["ignore", "inherit", "inherit"],
+      env: { ...process.env, PI_CODING_AGENT_DIR: installDir },
+    });
     log(true, `pi install ${tarball} succeeded into scratch store`);
   } catch (error) {
     log(false, `pi install failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -110,9 +119,24 @@ if (tarball !== undefined && pi !== undefined) {
   console.warn("[smoke-pi-package] pi CLI not on PATH; skipping hermetic install step.");
 }
 
-// 3. Model-gated registration probe.
+// 3. Packed-artifact surface probe (no model needed): assert the PACKED dist
+//    registers the tools, the same-name bash override, the /devcontainer
+//    command, and the user_bash route.
+if (packedDist !== undefined && existsSync(packedDist)) {
+  const src = readFileSync(packedDist, "utf8");
+  log(src.includes("registerCommand") || src.includes("devcontainer"), "packed dist registers the /devcontainer command surface");
+  log(src.includes("user_bash"), "packed dist registers the user_bash route");
+  log(
+    src.includes("createBashToolDefinition") || src.includes("registerTool"),
+    "packed dist registers tools incl. same-name bash override",
+  );
+} else if (tarball !== undefined) {
+  fail("packed tarball is missing dist/extensions/index.js");
+}
+
+// 4. Model-gated registration probe against the INSTALLED packed extension.
 const modelConfigured = providerConfigured();
-if (!noModel && modelConfigured && tarball !== undefined) {
+if (!noModel && modelConfigured && tarball !== undefined && pi !== undefined) {
   try {
     const argv = [
       "-p", "--no-session", "--offline",
@@ -122,10 +146,16 @@ if (!noModel && modelConfigured && tarball !== undefined) {
       "--tools", "devcontainer_status,devcontainer_exec,devcontainer_host_exec",
       "Reply with exactly the tool names you can call, one per line.",
     ];
-    const result = spawnSync(pi, argv, { encoding: "utf8", timeout: 180_000 });
+    // PI_CODING_AGENT_DIR MUST point at the scratch store so the model turn
+    // loads the packed extension (not a user-global install).
+    const result = spawnSync(pi, argv, {
+      encoding: "utf8",
+      timeout: 180_000,
+      env: { ...process.env, PI_CODING_AGENT_DIR: installDir },
+    });
     const out = `${result.stdout}\n${result.stderr}`;
     const ok = result.status !== null && !out.includes("Extension error") && !out.includes("Unknown tool");
-    log(ok, "real Pi runtime loaded the extension (tools resolvable, no extension error)");
+    log(ok, "real Pi runtime loaded the PACKED extension (tools resolvable, no extension error)");
     if (!ok) {
       console.error(out.slice(0, 2000));
     }
@@ -136,20 +166,8 @@ if (!noModel && modelConfigured && tarball !== undefined) {
   console.warn("[smoke-pi-package] provider not configured (PI_PROVIDER/PI_MODEL unset); skipping model-touching probe.");
 }
 
-// 4. Slash command + user_bash registration are structural (no model needed):
-//    the extension entrypoint registers them at load; presence in the packed
-//    dist is the assertion, since a real command turn also needs a model.
-const distEntry = join(root, "dist", "extensions", "index.js");
-if (existsSync(distEntry)) {
-  const src = readFileSync(distEntry, "utf8");
-  log(src.includes("registerCommand") || src.includes("devcontainer"), "packed dist registers the /devcontainer command surface");
-  log(src.includes("user_bash"), "packed dist registers the user_bash route");
-  log(src.includes("createBashToolDefinition") || src.includes("registerTool"), "packed dist registers tools incl. same-name bash override");
-} else {
-  console.warn("[smoke-pi-package] dist not built (run `npm run build` first); skipping dist source probe.");
-}
-
 rmSync(tmp, { recursive: true, force: true });
+rmSync(extractDir, { recursive: true, force: true });
 rmSync(installDir, { recursive: true, force: true });
 
 if (failures.length > 0) {

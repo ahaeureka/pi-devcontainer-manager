@@ -163,6 +163,11 @@ function validateConfig(config: ManagerConfig, source: string): void {
   if (config.routeMode !== undefined && !ROUTE_MODES.has(config.routeMode)) {
     throw new Error(`${source} configuration has an invalid routeMode`);
   }
+  if (config.routeMode !== undefined && config.routeMode !== "container-required") {
+    throw new Error(
+      `${source} configuration routeMode '${config.routeMode}' is not implemented; only "container-required" is supported in v1`,
+    );
+  }
   for (const [name, value] of [["allowedWorkspaceRoots", config.allowedWorkspaceRoots], ["environmentAllowlist", config.environmentAllowlist]] as const) {
     if (value !== undefined && (!Array.isArray(value) || value.some((item) => typeof item !== "string" || item.length === 0))) {
       throw new Error(`${source} configuration ${name} must be a non-empty string array`);
@@ -181,6 +186,33 @@ function validateConfig(config: ManagerConfig, source: string): void {
   }
   if (config.audit?.commandCapture !== undefined && !CAPTURE_MODES.has(config.audit.commandCapture)) {
     throw new Error(`${source} configuration audit.commandCapture is invalid`);
+  }
+  if (config.audit?.enabled !== undefined && typeof config.audit.enabled !== "boolean") {
+    throw new Error(`${source} configuration audit.enabled must be a boolean`);
+  }
+  if (config.audit?.directory !== undefined && (typeof config.audit.directory !== "string" || config.audit.directory.length === 0)) {
+    throw new Error(`${source} configuration audit.directory must be a non-empty string`);
+  }
+  if (
+    config.discovery?.excludedDirectories !== undefined &&
+    (!Array.isArray(config.discovery.excludedDirectories) ||
+      config.discovery.excludedDirectories.some((item) => typeof item !== "string" || item.length === 0))
+  ) {
+    throw new Error(`${source} configuration discovery.excludedDirectories must be an array of non-empty strings`);
+  }
+  for (const [name, value] of [["dockerPath", config.dockerPath], ["devcontainerPath", config.devcontainerPath]] as const) {
+    if (value !== undefined && (typeof value !== "string" || value.length === 0)) {
+      throw new Error(`${source} configuration ${name} must be a non-empty string`);
+    }
+  }
+  for (const [name, value] of [
+    ["destructive.allowStop", config.destructive?.allowStop],
+    ["destructive.allowRemove", config.destructive?.allowRemove],
+    ["hostExecution.allow", config.hostExecution?.allow],
+  ] as const) {
+    if (value !== undefined && typeof value !== "boolean") {
+      throw new Error(`${source} configuration ${name} must be a boolean`);
+    }
   }
 }
 

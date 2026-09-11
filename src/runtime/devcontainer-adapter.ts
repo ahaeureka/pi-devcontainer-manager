@@ -15,9 +15,10 @@
  * - `build`-> `devcontainer build [--workspace-folder <ws>] [--docker-path <d>]`
  *   stdout JSON `{outcome, imageName}`; error outcome exits 1.
  * - `exec` -> `devcontainer exec --workspace-folder <ws> --container-id <id>
- *   [--remote-env N=V] -- <cmd> [args...]`; exit code is the container-side
- *   command's exit code; `--remote-env` is single-valued in 0.88.0
- *   (repeated flags collapse to the last), so at most one variable is passed.
+ *   [--remote-env N=V]... -- <cmd> [args...]`; exit code is the container-side
+ *   command's exit code; `--remote-env` may be repeated (yargs accumulates
+ *   duplicates into an array; the CLI normalizes a single value to a
+ *   one-element array), so EVERY allowlisted variable is forwarded.
  */
 import type { ProcessRunner, ProcessResult } from "./process-runner.js";
 import { RuntimeError } from "../errors.js";
@@ -135,10 +136,12 @@ export class NodeDevcontainerAdapter implements DevcontainerAdapter {
     const argv: string[] = ["exec", "--workspace-folder", workspace, "--container-id", containerId];
     if (options.dockerPath !== undefined) argv.push("--docker-path", options.dockerPath);
     const remoteEnv = options.remoteEnv ?? {};
-    // CLI 0.88.0: --remote-env is single-valued (repeated flags last-win).
-    const entries = Object.entries(remoteEnv);
-    if (entries.length >= 1) {
-      argv.push("--remote-env", `${entries[0]![0]}=${entries[0]![1]}`);
+    // CLI 0.88.0 accepts repeated `--remote-env name=value` flags: yargs
+    // accumulates duplicate flags into an array and the CLI normalizes a single
+    // value to a one-element array. Forward EVERY allowlisted variable; never
+    // silently drop all but the first.
+    for (const [name, value] of Object.entries(remoteEnv)) {
+      argv.push("--remote-env", `${name}=${value}`);
     }
     argv.push("--", cmd, ...args);
 

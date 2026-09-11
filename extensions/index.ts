@@ -47,7 +47,7 @@ import { NodeDockerAdapter } from "../src/runtime/docker-adapter.js";
 import { NodeDevcontainerAdapter } from "../src/runtime/devcontainer-adapter.js";
 import { NodeDockerLifecycleAdapter } from "../src/runtime/docker-lifecycle.js";
 import { buildWorkspaceRegistry, nodeTraversal, workspacePathFor } from "../src/runtime/host-discovery.js";
-import { buildPathMapping, hostToContainer, type PathMapping } from "../src/path-mapper.js";
+import { buildPathMapping, findContainerPath, hostToContainer, type PathMapping } from "../src/path-mapper.js";
 import { TargetStore } from "../src/target-store.js";
 import { ExecutionService } from "../src/execution-service.js";
 import { createRoutedBashOperations, type BashOperationsLike } from "../src/bash-router.js";
@@ -62,11 +62,13 @@ import {
   type ToolDefinitionLike,
 } from "../src/tools.js";
 import { createCommandHandlers, selectionFor, type CommandContextLike, type CommandServices } from "../src/commands.js";
+import { reconcileSelection } from "../src/commands.js";
 import { canonicalWorkspaceKey } from "../src/workspace-path.js";
 import { SELECTION_ENTRY_KIND, recoverLatestSelection, type SelectionRecord } from "../src/selection-state.js";
 import { evaluatePolicy, commandFingerprint } from "../src/policy.js";
 import type { EffectiveConfig } from "../src/types.js";
 import { RuntimeError } from "../src/errors.js";
+import { renderExecutionContext } from "../src/execution-context.js";
 
 /** Runtime composed once per session; re-composed on session reload. */
 interface Runtime {
@@ -81,6 +83,17 @@ interface Runtime {
     readonly hostExec: ToolDefinitionLike<unknown>;
   };
   readonly commandHandlers: ReturnType<typeof createCommandHandlers>;
+  /**
+   * Render the per-turn DevContainer execution-context block (host<->container
+   * mapping + surface guidance) appended to the system prompt, or undefined
+   * when there is no selected target/mapping to describe.
+   */
+  readonly executionContext: () => Promise<string | undefined>;
+  /**
+   * Re-resolve a persisted selection hint against the current registry and
+   * commit the result (used on session restore).
+   */
+  readonly reconcileSelection: (hint: { workspaceKey: string; candidateId?: string }) => Promise<void>;
 }
 
 function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessionWorkspace: string): Runtime {
@@ -147,7 +160,9 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
     const { entries } = await registry();
     const match = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === cwdKey);
     if (match === undefined) return;
-    await targetStore.select(selectionFor(match, match.containerId));
+    // Ambiguous (2+ running containers) must never be auto-picked by Docker
+    // order — selectionFor returns selected-ambiguous when no id is supplied.
+    await targetStore.select(selectionFor(match, match.ambiguous === true ? undefined : match.containerId));
   };
 
   /**
@@ -219,18 +234,78 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
           remedy: "Set hostExecution.allow=true in the global configuration to enable host escape.",
         });
       }
+      // Layer-3 guard: refuse host execution of an argv that targets a
+      // container-only path. Reliable because literal argv carries no shell
+      // syntax — this is the mis-route a text classifier could never catch
+      // safely. Covers BOTH devcontainer_host_exec and /devcontainer host-exec.
+      const selection = targetStore.snapshot();
+      if (selection.workspaceKey !== undefined) {
+        const { entries } = await registry();
+        const key = canonicalWorkspaceKey(selection.workspaceKey);
+        const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
+        const guardMapping =
+          entry !== undefined && entry.configPath.length > 0 ? readWorkspaceMapping(entry.configPath) : undefined;
+        const violation = guardMapping !== undefined ? findContainerPath(argv, guardMapping.containerPath) : undefined;
+        if (violation !== undefined) {
+          audit.write({
+            version: 1,
+            at: new Date().toISOString(),
+            operation: "host-exec",
+            initiator: "host-escape",
+            policyAuthorized: false,
+            policyDenialReason: "container-path-on-host",
+            outputTruncated: false,
+            commandCapture: config.audit.commandCapture,
+            ...hostCommandIdentity(argv, config.audit.commandCapture),
+          });
+          throw new RuntimeError({
+            kind: "policy-denied",
+            message: `Host command references container-only path ${violation}.`,
+            remedy: "Use devcontainer_exec or the bash tool for container paths; devcontainer_host_exec is for host paths.",
+          });
+        }
+      }
       const stdoutChunks: Buffer[] = [];
       const stderrChunks: Buffer[] = [];
       const startedAt = process.hrtime.bigint();
-      const result = await runner.exec(argv[0]!, [...argv.slice(1)], {
-        cwd: sessionWorkspace,
-        env: { ...env },
-        maxOutputBytes: config.maxOutputBytes,
-        onData: (chunk) => stdoutChunks.push(chunk),
-        onStderr: (chunk) => stderrChunks.push(chunk),
-        ...(options?.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
-        ...(options?.signal !== undefined ? { signal: options.signal } : {}),
-      });
+      // Host execution is bounded by the same configured ceiling as the
+      // container path: an omitted/zero timeout defaults to maxTimeoutSeconds
+      // and a requested one is clamped to it, so an allowed host command can
+      // never run unbounded or exceed the operator's configured maximum.
+      const ceilingMs = config.maxTimeoutSeconds * 1000;
+      const requestedMs =
+        options?.timeoutMs !== undefined && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
+          ? options.timeoutMs
+          : ceilingMs;
+      const timeoutMs = Math.max(1, Math.min(requestedMs, ceilingMs));
+      let result: Awaited<ReturnType<typeof runner.exec>>;
+      try {
+        result = await runner.exec(argv[0]!, [...argv.slice(1)], {
+          cwd: sessionWorkspace,
+          env: { ...env },
+          maxOutputBytes: config.maxOutputBytes,
+          onData: (chunk) => stdoutChunks.push(chunk),
+          onStderr: (chunk) => stderrChunks.push(chunk),
+          timeoutMs,
+          ...(options?.signal !== undefined ? { signal: options.signal } : {}),
+        });
+      } catch (error) {
+        // A failed/timed-out host run is auditable too (spawn errors and
+        // timeouts reject before the success record below).
+        audit.write({
+          version: 1,
+          at: new Date().toISOString(),
+          operation: "host-exec",
+          initiator: "host-escape",
+          policyAuthorized: true,
+          durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6,
+          outputTruncated: false,
+          commandCapture: config.audit.commandCapture,
+          ...hostCommandIdentity(argv, config.audit.commandCapture),
+          errorSummary: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
       audit.write({
         version: 1,
         at: new Date().toISOString(),
@@ -336,6 +411,30 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
     }) as ToolDefinitionLike<unknown>,
   };
 
+  /**
+   * Render the execution-context block from the CURRENT selection + the
+   * workspace's devcontainer.json mapping. Recomputed per turn so a selection
+   * change or `/devcontainer up` is reflected immediately.
+   */
+  const executionContext = async (): Promise<string | undefined> => {
+    const snapshot = targetStore.snapshot();
+    if (snapshot.workspaceKey === undefined && snapshot.candidateId === undefined) return undefined;
+    let mapping: PathMapping | undefined;
+    if (snapshot.workspaceKey !== undefined) {
+      const { entries } = await registry();
+      const key = canonicalWorkspaceKey(snapshot.workspaceKey);
+      const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
+      if (entry !== undefined && entry.configPath.length > 0) {
+        mapping = readWorkspaceMapping(entry.configPath);
+      }
+    }
+    return renderExecutionContext({
+      ...(snapshot.candidateId !== undefined ? { candidateId: snapshot.candidateId } : {}),
+      status: snapshot.status,
+      ...(mapping !== undefined ? { mapping } : {}),
+    });
+  };
+
   return {
     config,
     targetStore,
@@ -344,6 +443,12 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
     hostRunner,
     tools,
     commandHandlers: createCommandHandlers(commandServices),
+    executionContext,
+    // One shared implementation for session restore and /devcontainer up.
+    // No persistence here: a restored selection is already stored.
+    reconcileSelection: async (hint) => {
+      await reconcileSelection(commandServices, {}, hint);
+    },
   };
 }
 
@@ -389,7 +494,15 @@ function readWorkspaceMapping(configPath: string): PathMapping | undefined {
   }
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(raw) as Record<string, unknown>;
+    // DevContainer configs are JSON with Comments in practice. Strip block
+    // comments, line comments (not inside strings) and trailing commas before
+    // parsing, so a commented config still yields its workspace mapping.
+    parsed = JSON.parse(
+      raw
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|[^:"'\\])\/\/.*$/gm, "$1")
+        .replace(/,\s*([}\]])/g, "$1"),
+    ) as Record<string, unknown>;
   } catch {
     return undefined;
   }
@@ -443,7 +556,13 @@ export default function (pi: ExtensionAPI): void {
     const paths = defaultConfigPaths(ctx.cwd);
     const base = loadConfig(paths, { projectTrusted: ctx.isProjectTrusted() });
     const config = composeRuntimeConfig(ctx.cwd, base);
-    const audit = new JsonlAuditWriter(defaultAuditDirectory(), config.audit.retentionDays);
+    // Honor audit.enabled and audit.directory: the configured directory is used
+    // when set, and `enabled: false` accepts records but persists nothing.
+    const audit = new JsonlAuditWriter(
+      config.audit.directory ?? defaultAuditDirectory(),
+      config.audit.retentionDays,
+      config.audit.enabled,
+    );
     runtime = composeRuntime(config, audit, ctx.cwd);
 
     // Register the devcontainer tools now that the runtime exists, so each
@@ -455,17 +574,53 @@ export default function (pi: ExtensionAPI): void {
 
     const recovered = restoreSelection(ctx);
     if (recovered !== undefined) {
-      await runtime.targetStore.select({
-        status: "selected-missing",
+      // Re-resolve against the live registry instead of parking the selection in
+      // `selected-missing` forever: a still-running target becomes usable again
+      // without a manual re-`use`.
+      await runtime.reconcileSelection({
         workspaceKey: recovered.workspaceKey,
-        detail: "Selection restored from session; refresh to re-resolve the target.",
+        ...(recovered.candidateId !== undefined ? { candidateId: recovered.candidateId } : {}),
       });
-      ctx.ui.notify(`Restored DevContainer selection ${recovered.workspaceKey}. Run /devcontainer list to refresh.`, "info");
+      const restoredStatus = runtime.targetStore.snapshot().status;
+      ctx.ui.notify(`Restored DevContainer selection ${recovered.workspaceKey} (${restoredStatus}).`, "info");
     }
   });
 
   pi.on("session_shutdown", async () => {
     runtime = undefined;
+  });
+
+  // --- Execution-context injection ---------------------------------------
+  // Append the current workspace's host<->container mapping and the execution
+  // surface guidance to the system prompt each turn. This is how the agent gets
+  // the FACTS it needs to choose the right surface (container by default; host
+  // only via the explicit devcontainer_host_exec), instead of the extension
+  // guessing an environment from command text.
+  pi.on("before_agent_start", async (event) => {
+    const rt = runtime;
+    if (rt === undefined) return undefined;
+    const block = await rt.executionContext();
+    if (block === undefined) return undefined;
+    return { systemPrompt: `${event.systemPrompt}\n\n${block}` };
+  });
+
+  // --- Non-routable execution surfaces ------------------------------------
+  // Pi's `tool_call` hook can BLOCK (and mutate input) but cannot re-route.
+  // While a DevContainer target is selected, the built-in `powershell` tool
+  // would spawn on the HOST — an execution surface this extension otherwise
+  // governs. Block it and point the agent at the routed surfaces instead.
+  // (`bash` is NOT touched here: it is our own overridden, container-routed
+  // tool.)
+  pi.on("tool_call", (event) => {
+    if (event.toolName !== "powershell") return undefined;
+    const rt = runtime;
+    if (rt === undefined) return undefined;
+    if (rt.targetStore.snapshot().status === "none") return undefined;
+    return {
+      block: true,
+      reason:
+        "PowerShell is not routed into the DevContainer. Use the `bash` tool or devcontainer_exec for container work, or devcontainer_host_exec for explicit host administration.",
+    };
   });
   // --- Commands ----------------------------------------------------------
 

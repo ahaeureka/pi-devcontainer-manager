@@ -141,6 +141,16 @@ export function selectionFor(
   candidateId: string | undefined,
 ): TargetSelection {
   const state = entry.containerState ?? "exited";
+  // More than one running container for this workspace: Docker result order
+  // must never decide the target. Fail closed until an explicit id is given.
+  if (entry.ambiguous === true && candidateId === undefined) {
+    const ids = (entry.containerCandidates ?? []).map((c) => c.id).join(", ");
+    return {
+      status: "selected-ambiguous",
+      workspaceKey: entry.workspacePath,
+      detail: `Multiple running containers for ${entry.workspacePath}${ids.length > 0 ? `: ${ids}` : ""}. Select one explicitly.`,
+    };
+  }
   const candidate = candidateId !== undefined
     ? {
         id: candidateId,
@@ -158,11 +168,58 @@ export function selectionFor(
   };
 }
 
+/**
+ * Re-resolve a selection hint against the CURRENT registry.
+ *
+ * Used by session restore and `/devcontainer up` so a persisted or config-only
+ * selection actually becomes usable instead of staying `selected-missing` /
+ * `selected-stopped` forever. Matching is by canonical workspace key; a
+ * persisted candidate id informs the choice but never overrides the ambiguity
+ * check — several running containers still fail closed.
+ */
+export async function reconcileSelection(
+  services: Pick<CommandServices, "targetStore" | "registry">,
+  ctx: Pick<CommandContextLike, "persistSelection">,
+  hint: { workspaceKey: string; candidateId?: string },
+): Promise<TargetSelection> {
+  const { entries } = await services.registry();
+  const key = canonicalWorkspaceKey(hint.workspaceKey);
+  const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
+  if (entry === undefined) {
+    const missing: TargetSelection = {
+      status: "selected-missing",
+      workspaceKey: hint.workspaceKey,
+      detail: "Selection restored from session; target not found. Run /devcontainer list.",
+    };
+    await services.targetStore.select(missing);
+    return missing;
+  }
+  const usableId = hint.candidateId !== undefined && entry.ambiguous !== true ? hint.candidateId : undefined;
+  const selection = selectionFor(entry, usableId);
+  await services.targetStore.select(selection);
+  if (selection.workspaceKey !== undefined) {
+    ctx.persistSelection?.({
+      version: SELECTION_PAYLOAD_VERSION,
+      workspaceKey: selection.workspaceKey,
+      ...(selection.candidate?.id !== undefined ? { candidateId: selection.candidate.id } : {}),
+      selectedAt: new Date().toISOString(),
+    });
+  }
+  return selection;
+}
+
 /** Namespaced command handler surface. */
 export function createCommandHandlers(services: CommandServices): Record<string, (args: string, ctx: CommandContextLike) => Promise<CommandResult>> {
   const handlers: Record<string, (args: string, ctx: CommandContextLike) => Promise<CommandResult>> = {};
 
-  handlers["list"] = async (_args, _ctx) => {
+  handlers["list"] = async (_args, ctx) => {
+    // `list` is the command the extension tells operators to run to refresh;
+    // actually re-resolve a stale/missing selection here so it repairs the
+    // target instead of only printing the registry.
+    const stale = services.targetStore.snapshot();
+    if (stale.status === "selected-missing" && stale.workspaceKey !== undefined) {
+      await reconcileSelection(services, ctx, { workspaceKey: stale.workspaceKey });
+    }
     const { entries } = await services.registry();
     const snapshot = services.targetStore.snapshot();
     return { text: renderStatus(snapshot, entries, services.config) };
@@ -177,6 +234,15 @@ export function createCommandHandlers(services: CommandServices): Record<string,
   handlers["use"] = async (args, ctx) => {
     const { entries } = await services.registry();
     const wanted = args.trim();
+    // An explicit CONTAINER id selects that candidate of an ambiguous workspace
+    // (the only way to resolve 2+ running containers for one workspace).
+    if (wanted.length > 0) {
+      const byCandidate = entries.find((e) => (e.containerCandidates ?? []).some((c) => c.id === wanted));
+      if (byCandidate !== undefined) {
+        await applySelection(services, selectionFor(byCandidate, wanted), ctx);
+        return { text: `Selected \`${byCandidate.workspacePath}\` → container \`${wanted}\`.` };
+      }
+    }
     let candidates = entries;
     if (wanted.length > 0) {
       candidates = entries.filter((e) => e.workspacePath.includes(wanted));
@@ -187,18 +253,24 @@ export function createCommandHandlers(services: CommandServices): Record<string,
       }
     }
     if (candidates.length === 1) {
-      const entry = candidates[0]!;
-      await applySelection(services, selectionFor(entry, entry.containerId), ctx);
-      return { text: `Selected \`${entry.workspacePath}\` (${entry.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
+      const only = candidates[0]!;
+      if (only.ambiguous === true) {
+        const ids = (only.containerCandidates ?? []).map((c) => c.id);
+        return {
+          text: `[ambiguous-candidate] Multiple running containers for \`${only.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`,
+        };
+      }
+      await applySelection(services, selectionFor(only, only.containerId), ctx);
+      return { text: `Selected \`${only.workspacePath}\` (${only.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
     }
     const labels = candidates.map((e) => `${e.workspacePath} [${e.containerState ?? "config-only"}]`);
     const choice = await ctx.ui.select("Select DevContainer target", labels, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
     if (choice === undefined) return { text: "Selection cancelled." };
     const idx = labels.indexOf(choice);
     if (idx === -1) return { text: "[unexpected] Unknown selection." };
-    const entry = candidates[idx]!;
-    await applySelection(services, selectionFor(entry, entry.containerId), ctx);
-    return { text: `Selected \`${entry.workspacePath}\` (${entry.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
+    const picked = candidates[idx]!;
+    await applySelection(services, selectionFor(picked, picked.ambiguous === true ? undefined : picked.containerId), ctx);
+    return { text: `Selected \`${picked.workspacePath}\` (${picked.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
   };
 
   handlers["up"] = async (args, ctx) => {
@@ -210,7 +282,17 @@ export function createCommandHandlers(services: CommandServices): Record<string,
       return { text: describeError(error) };
     }
     const id = outcome.candidateId !== undefined ? `\`${outcome.candidateId}\`` : "(no container id)";
-    return { text: `Up: ${outcome.workspaceKey} → ${id}\n${outcome.remoteUser !== undefined ? `remote user: ${outcome.remoteUser}\n` : ""}${outcome.remoteWorkspaceFolder !== undefined ? `remote folder: ${outcome.remoteWorkspaceFolder}` : ""}` };
+    // A successful `up` must make the selection usable: re-resolve it against
+    // the refreshed registry so exec does not fail with target-stopped right
+    // after a successful start (config-only / previously-missing selections).
+    let reconciled = "";
+    try {
+      const selection = await reconcileSelection(services, ctx, { workspaceKey: workspace });
+      reconciled = `\nselection: ${selection.status}`;
+    } catch (error) {
+      reconciled = `\nselection: (reconcile failed: ${error instanceof Error ? error.message : String(error)})`;
+    }
+    return { text: `Up: ${outcome.workspaceKey} → ${id}${reconciled}\n${outcome.remoteUser !== undefined ? `remote user: ${outcome.remoteUser}\n` : ""}${outcome.remoteWorkspaceFolder !== undefined ? `remote folder: ${outcome.remoteWorkspaceFolder}` : ""}` };
   };
 
   handlers["build"] = async (args, ctx) => {
@@ -240,7 +322,15 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     }
     const tail = parseTail(args);
     try {
-      const result = await services.logs(container, { tail, ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}) });
+      // Route logs through the shared service: policy-checked and audited like
+      // every other operation (it previously bypassed both).
+      const result = await services.execution.logs({
+        initiator: "slash-command",
+        workspace: snapshot.workspaceKey ?? ctx.cwd,
+        containerId: container.id,
+        tail,
+        ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+      });
       return { text: result.output.length > 0 ? result.output : `(no log output, exit ${result.exitCode})` };
     } catch (error) {
       return { text: describeError(error) };

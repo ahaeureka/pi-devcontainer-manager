@@ -21,18 +21,26 @@ or persisted.
 - **Executes** through a shared, governed service — the `devcontainer_exec` tool,
   routed Pi `bash`, and `!`/`!!` all hit the same target validation, policy,
   environment filtering, audit, output accounting, cancellation, and timeout.
-- **Guides the agent's routing.** Each execution tool carries system-prompt
-  guidance stating where it runs (`bash`/`devcontainer_exec` = inside the
-  selected container, `devcontainer_host_exec` = host-only administration,
-  file tools = host), so container-environment work is not run on the host
-  and host administration is not routed into the container.
+- **Guides the agent's routing with facts, not guesses.** Before each turn the
+  extension appends the current target, the `workspaceFolder`/`workspaceMount`
+  host↔container mapping, and the execution-surface rules to the system prompt,
+  so the agent can tell which environment a path or task belongs to. `bash`,
+  `!`/`!!`, and `devcontainer_exec` are always the container;
+  `devcontainer_host_exec` is the explicit, policy-gated host surface; file
+  tools are host. The extension deliberately does **not** classify shell text
+  (shell operators defeat any name/prefix rule) — the choice is explicit.
+  It also refuses host execution of an argv that targets a container-only path,
+  and blocks the built-in `powershell` tool while a container is selected.
 - **Keeps file tools on the host.** `read`/`write`/`edit`/`grep`/`find`/`ls`
   always operate on the host filesystem — never routed into the container.
   A DevContainer's workspace is a bind mount, so host and container paths
   are the same files; only execution is environment-sensitive (toolchain,
   interpreter, dependencies, container-only mounts).
 - **Manages** lifecycle: `up`, `build`, `stop`, `remove` (stop/remove need a
-  policy grant **plus** a fresh per-action confirmation), and bounded `logs`.
+  policy grant **plus** a fresh per-action confirmation), and bounded `logs`
+  (now policy-checked and audited like every other operation). A successful
+  `up` re-resolves the selection, so a config-only target becomes usable
+  without a second `/devcontainer use`.
 - **Audits** every operation to a host-local JSONL file (fingerprint capture by
   default, 90-day retention).
 - **Never falls back silently** to the host: a `container-required` route returns

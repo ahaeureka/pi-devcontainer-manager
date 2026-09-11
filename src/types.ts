@@ -19,13 +19,28 @@ export interface DiscoveredProject {
   readonly configKind: DevcontainerConfigKind;
 }
 
+/** One discovered container for a workspace (identity + observed state). */
+export interface RegistryCandidate {
+  readonly id: string;
+  readonly state: ContainerState;
+}
+
 export interface RegistryEntry {
   readonly workspacePath: string;
   readonly configPath: string;
   readonly configKind: DevcontainerConfigKind;
   readonly discoveredFrom: "host-config" | "docker-label" | "both";
+  /** Primary candidate id (first discovered); see `containerCandidates`. */
   readonly containerId?: string;
   readonly containerState?: ContainerState;
+  /** ALL containers discovered for this workspace (never collapsed away). */
+  readonly containerCandidates?: readonly RegistryCandidate[];
+  /**
+   * True when MORE THAN ONE running container matches this workspace. Such a
+   * target must never be auto-selected by Docker result order; the operator
+   * picks an explicit candidate id.
+   */
+  readonly ambiguous?: boolean;
 }
 
 export interface DiscoveryConfig {
