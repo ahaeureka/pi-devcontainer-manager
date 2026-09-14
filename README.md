@@ -157,7 +157,7 @@ project-local `.pi/settings.json`. Manage it with `pi list`,
 `pi update npm:pi-devcontainer-manager`, and `pi remove npm:pi-devcontainer-manager`.
 
 Optional global configuration lives at
-`~/.pi/agent/extensions/pi-devcontainer-manager.json` — see
+`${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/pi-devcontainer-manager.json` — see
 [Configuration](#configuration) and [docs/configuration.md](docs/configuration.md).
 
 **Developing this extension locally?** Symlink this checkout into Pi's
@@ -247,7 +247,7 @@ optional; **defaults are restrictive**.
 
 | Scope | Path | Trusted? |
 |---|---|---|
-| Global | `~/.pi/agent/extensions/pi-devcontainer-manager.json` | always |
+| Global | `${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/pi-devcontainer-manager.json` | always |
 | Project | `<session-cwd>/.pi/pi-devcontainer-manager.json` | only when the project is trusted by Pi |
 
 Policy-relevant values merge **monotonically**: `allowedWorkspaceRoots` and

@@ -146,6 +146,23 @@ path (see [Configuration → `audit`](configuration.md#audit)). Retention
 shipped extension does not schedule pruning, so rotate the dated `.jsonl` files
 yourself if you need bounded disk usage.
 
+### My global configuration seems to be ignored
+
+Check the path first: the global config follows Pi's config directory —
+`${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/pi-devcontainer-manager.json`. If
+`PI_CODING_AGENT_DIR` is set (for example to `/data/work/pi`), a file under
+`~/.pi/agent/extensions/` is **not** read.
+
+The failure is quiet, because the defaults are restrictive: a grant in the wrong
+file does not error, it simply never applies — `/devcontainer host-exec` keeps
+returning `policy-denied`, `destructive.*` stays disabled, and so on. If an edit to
+the global file appears to do nothing, run `echo "$PI_CODING_AGENT_DIR"`, place the
+file accordingly, then `/reload`.
+
+Two other causes of the same symptom: the project file is ignored unless Pi reports
+the project trusted, and a `routeMode` other than `container-required` is rejected
+at load (which surfaces as an error, not a silent no-op).
+
 ### The extension does not load at all
 
 `npm install -g <package>` does **not** register a Pi extension. Use

@@ -28,9 +28,28 @@ export interface ConfigPaths {
   projectPath: string;
 }
 
-export function defaultConfigPaths(cwd: string): ConfigPaths {
+/**
+ * Pi's config directory. `PI_CODING_AGENT_DIR` overrides the default
+ * `~/.pi/agent` (Pi's `docs/environment-variables.md`), so a relocated agent
+ * directory must move this extension's configuration file with it — otherwise a
+ * config placed beside the extension auto-discovery folder is silently ignored
+ * and the restrictive defaults apply instead.
+ */
+export function defaultAgentDirectory(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  home: string = homedir(),
+): string {
+  const override = env.PI_CODING_AGENT_DIR;
+  return override !== undefined && override.length > 0 ? override : join(home, ".pi", "agent");
+}
+
+export function defaultConfigPaths(
+  cwd: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  home: string = homedir(),
+): ConfigPaths {
   return {
-    globalPath: join(homedir(), ".pi", "agent", "extensions", "pi-devcontainer-manager.json"),
+    globalPath: join(defaultAgentDirectory(env, home), "extensions", "pi-devcontainer-manager.json"),
     projectPath: join(cwd, ".pi", "pi-devcontainer-manager.json"),
   };
 }

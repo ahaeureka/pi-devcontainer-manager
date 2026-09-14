@@ -9,12 +9,18 @@ one *effective* configuration. All keys are optional; defaults are restrictive.
 
 | Scope | Path | Trusted? |
 |---|---|---|
-| Global | `~/.pi/agent/extensions/pi-devcontainer-manager.json` | Always |
+| Global | `${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/pi-devcontainer-manager.json` | Always |
 | Project | `<session-cwd>/.pi/pi-devcontainer-manager.json` | Only when the project is trusted by Pi |
 
 A file may be absent or `{}`. Global config is always applied. Project config is
 applied **only when Pi reports the project trusted**
 (`ctx.isProjectTrusted()`); an untrusted project's file is ignored entirely.
+
+The **global** path follows Pi's config directory: `PI_CODING_AGENT_DIR` when it is
+set, otherwise `~/.pi/agent` (Pi's `docs/environment-variables.md` documents the
+override). If you relocate the agent directory, the configuration file moves with
+it — a file left behind in `~/.pi/agent/extensions/` is then not read at all, and
+the restrictive defaults apply.
 
 The session cwd is **always** added as an allowed workspace root, in addition to
 `allowedWorkspaceRoots`.

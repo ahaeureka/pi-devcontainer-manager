@@ -164,7 +164,7 @@ by uninstall:
     `~/.local/state/pi-devcontainer-manager/audit`)
   - macOS: `~/Library/Application Support/pi-devcontainer-manager/audit`
 - **Global configuration** (if you created one):
-  `~/.pi/agent/extensions/pi-devcontainer-manager.json`
+  `${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/pi-devcontainer-manager.json`
 
 Delete these deliberately if you want to remove all host state. Containers you
 started with `up` remain running and are managed by Docker as usual.

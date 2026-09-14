@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compileConfig } from "../../src/config.js";
+import { compileConfig, defaultAgentDirectory, defaultConfigPaths } from "../../src/config.js";
 
 describe("compileConfig", () => {
   it("applies secure defaults", () => {
@@ -46,5 +46,27 @@ describe("compileConfig", () => {
     expect(() => compileConfig({ audit: { directory: "" } })).toThrow("audit.directory");
     expect(() => compileConfig({ destructive: { allowStop: "yes" as never } })).toThrow("destructive.allowStop");
     expect(() => compileConfig({ hostExecution: { allow: "yes" as never } })).toThrow("hostExecution.allow");
+  });
+});
+
+describe("defaultConfigPaths", () => {
+  it("follows Pi's config directory, honoring PI_CODING_AGENT_DIR", () => {
+    expect(defaultAgentDirectory({}, "/home/me")).toBe("/home/me/.pi/agent");
+    expect(defaultAgentDirectory({ PI_CODING_AGENT_DIR: "/data/work/pi" }, "/home/me")).toBe("/data/work/pi");
+    // An empty override is not a usable directory: keep the default.
+    expect(defaultAgentDirectory({ PI_CODING_AGENT_DIR: "" }, "/home/me")).toBe("/home/me/.pi/agent");
+  });
+
+  it("keeps the global config beside the extension auto-discovery folder", () => {
+    expect(defaultConfigPaths("/work/project-a", { PI_CODING_AGENT_DIR: "/data/work/pi" }, "/home/me")).toEqual({
+      globalPath: "/data/work/pi/extensions/pi-devcontainer-manager.json",
+      projectPath: "/work/project-a/.pi/pi-devcontainer-manager.json",
+    });
+  });
+
+  it("defaults to ~/.pi/agent when no override is set", () => {
+    expect(defaultConfigPaths("/work/project-a", {}, "/home/me").globalPath).toBe(
+      "/home/me/.pi/agent/extensions/pi-devcontainer-manager.json",
+    );
   });
 });

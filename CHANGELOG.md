@@ -54,6 +54,15 @@ macOS.
   model, the v1 compatibility matrix, and a typed-error troubleshooting guide,
   plus a documentation index and a contributing guide.
 
+### Fixed
+
+- The global configuration file now follows Pi's config directory
+  (`PI_CODING_AGENT_DIR`, default `~/.pi/agent`) instead of being hard-coded to
+  `~/.pi/agent/extensions/`. With a relocated agent directory the previous path
+  silently ignored the file and applied the restrictive defaults, so a misplaced
+  grant looked like a policy denial. `defaultConfigPaths` now takes injectable
+  `env`/`home` arguments (mirroring `defaultAuditDirectory`) and is unit-tested.
+
 ### Security
 
 - `bash` replacement registered with `exposeSessionEnvironment: false`; session

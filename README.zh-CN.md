@@ -108,7 +108,7 @@ pi install ./pi-devcontainer-manager-1.0.0.tgz
 `.pi/settings.json`。后续可用 `pi list`、`pi update npm:pi-devcontainer-manager`、
 `pi remove npm:pi-devcontainer-manager` 管理。
 
-可选的全局配置位于 `~/.pi/agent/extensions/pi-devcontainer-manager.json`，
+可选的全局配置位于 `${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/pi-devcontainer-manager.json`，
 详见[配置](#配置)与 [docs/configuration.md](docs/configuration.md)。
 
 **在本仓库本地开发扩展？** 把本目录软链到 Pi 的自动发现扩展目录
@@ -194,7 +194,7 @@ bash "pytest -q"
 
 | 作用域 | 路径 | 是否可信 |
 |---|---|---|
-| 全局 | `~/.pi/agent/extensions/pi-devcontainer-manager.json` | 始终应用 |
+| 全局 | `${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/pi-devcontainer-manager.json` | 始终应用 |
 | 项目 | `<session-cwd>/.pi/pi-devcontainer-manager.json` | 仅当 Pi 认为该项目可信时应用 |
 
 涉及策略的值是**单调合并**的：`allowedWorkspaceRoots` 与 `environmentAllowlist` 取交集，
