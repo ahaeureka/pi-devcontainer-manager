@@ -1,0 +1,7 @@
+{
+  "taskId": "activation-and-config-mechanism",
+  "decision": "not_applicable",
+  "reason": "This repository has no .llmwiki store (SCHEMA.md, index.md, log.md are all absent), so there is no authoritative wiki to capture into. Recording not_applicable rather than fabricating wiki content; the task's durable knowledge lives in openspec/changes/activation-and-config-mechanism/design.md, the CHANGELOG entry, and the acceptance docs shipped with the change.",
+  "candidateIds": [],
+  "updatedAt": "2026-09-14T14:06:20.414Z"
+}

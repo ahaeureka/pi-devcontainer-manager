@@ -1,0 +1,29 @@
+{
+  "protocolVersion": 1,
+  "taskId": "activation-and-config-mechanism",
+  "handoffId": "handoff-66bf75b2-09a",
+  "platform": "pi",
+  "role": "implementer",
+  "packetSha256": "83ab448b20c95c1cacd5c7b56bd6cc3b2b1f2b045855995b167896b350c1ebbe",
+  "acknowledgedAt": "2026-09-14T14:36:47.246Z",
+  "repository": {
+    "head": "132bd57ec57d35fe24179f78034129a92acf537a",
+    "branch": "feature/activation-and-config-mechanism",
+    "diffHash": "5c6d6c0ed51be857b0fc922d3ac5828d646644112727fd50420cce27baf5f61f",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-2aeb66f7-64c4-4684-8876-a0d108ac2de6",
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "docs",
+        "examples",
+        "extensions",
+        "src",
+        "tests"
+      ],
+      "hash": "5c6d6c0ed51be857b0fc922d3ac5828d646644112727fd50420cce27baf5f61f"
+    },
+    "worktreeRoot": "."
+  }
+}

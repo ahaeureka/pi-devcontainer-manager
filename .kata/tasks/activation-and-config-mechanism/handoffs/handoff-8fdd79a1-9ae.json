@@ -1,0 +1,94 @@
+{
+  "protocolVersion": 1,
+  "id": "handoff-8fdd79a1-9ae",
+  "taskId": "activation-and-config-mechanism",
+  "createdAt": "2026-09-14T11:31:31.295Z",
+  "from": {
+    "role": "designer"
+  },
+  "to": {
+    "role": "implementer"
+  },
+  "phase": "plan",
+  "repository": {
+    "head": "a44ee8b55a04827010d21cb4cd78131a818e043f",
+    "branch": "feature/activation-and-config-mechanism",
+    "diffHash": "64a2e0cac165f6ff0abc8ee5e9b06d479b0789ee6d2055f28528ebf10053cbcb",
+    "scope": {
+      "kind": "task_context",
+      "paths": [
+        ".kata/tasks/activation-and-config-mechanism/task.json",
+        ".kata/tasks/activation-and-config-mechanism/current-state.json"
+      ],
+      "hash": "64a2e0cac165f6ff0abc8ee5e9b06d479b0789ee6d2055f28528ebf10053cbcb"
+    },
+    "worktreeRoot": "."
+  },
+  "task": {
+    "id": "activation-and-config-mechanism",
+    "title": "Change activation-and-config-mechanism",
+    "phase": "intake",
+    "acceptance": [
+      {
+        "id": "AC-1",
+        "statement": "Implement the change successfully."
+      }
+    ],
+    "branch": "main",
+    "createdAt": "2026-09-14T11:27:24.890Z",
+    "updatedAt": "2026-09-14T11:27:24.890Z",
+    "workflowProfile": {
+      "version": 1,
+      "isolationMode": "git_flow",
+      "developmentMode": "tdd",
+      "reviewMode": "security",
+      "comet": {
+        "projectInit": "not_requested",
+        "openStatus": "acknowledged"
+      },
+      "gitFlow": {
+        "strategy": "manual",
+        "branch": "feature/activation-and-config-mechanism",
+        "baseBranch": "main",
+        "status": "active"
+      }
+    }
+  },
+  "context": {
+    "requiredReads": [
+      "AGENTS.md",
+      ".llmwiki/SCHEMA.md",
+      ".llmwiki/index.md",
+      ".llmwiki/log.md",
+      ".kata/tasks/activation-and-config-mechanism/task.json",
+      ".kata/tasks/activation-and-config-mechanism/current-state.json"
+    ],
+    "designRefs": [],
+    "sourceRefs": [
+      "AC-1"
+    ],
+    "authoritativeWiki": [],
+    "excludedWiki": [],
+    "evidencePaths": [],
+    "priorArtifacts": [
+      ".kata/tasks/activation-and-config-mechanism/review.json",
+      ".kata/tasks/activation-and-config-mechanism/judge.json",
+      ".kata/tasks/activation-and-config-mechanism/repair.json"
+    ]
+  },
+  "permissions": {
+    "allowedWrites": [
+      "src/",
+      "tests/",
+      "docs/"
+    ],
+    "guardInstructions": [
+      "Write only to src/, tests/, and task-owned .kata paths.",
+      "All acceptance criteria must have stable AC-[0-9]+ ids before implement.",
+      "Do not modify .kata/schemas/, docs/superpowers/rules/, or wiki/verified/.",
+      "Work on feature/activation-and-config-mechanism; do not start, finish, or switch Git Flow branches outside the recorded task action.",
+      "Use TDD: write a focused failing test, verify RED, implement the minimum, then verify GREEN."
+    ]
+  },
+  "nextAction": "Perform implementer work after verifying this handoff."
+}

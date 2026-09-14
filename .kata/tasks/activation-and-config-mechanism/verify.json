@@ -1,0 +1,20 @@
+{
+  "taskId": "activation-and-config-mechanism",
+  "result": "PASS",
+  "diffHash": "c84de5718e6e405af8745fc64c6503366085756f54fd0370857423d2f8c70316",
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4e7f542d-9ffe-42d1-9598-96dfdb9cc1c6",
+        "evidence-4e7f542d-9ffe-42d1-9598-96dfdb9cc1c6"
+      ]
+    }
+  ],
+  "evidenceIds": [
+    "evidence-4e7f542d-9ffe-42d1-9598-96dfdb9cc1c6",
+    "evidence-4e7f542d-9ffe-42d1-9598-96dfdb9cc1c6"
+  ],
+  "revisionId": "revision-8e6c0670-8d39-47d5-89d7-d7fdc4738853"
+}

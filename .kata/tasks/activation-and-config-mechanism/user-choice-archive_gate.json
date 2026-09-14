@@ -1,0 +1,8 @@
+{
+  "taskId": "activation-and-config-mechanism",
+  "boundary": "archive_gate",
+  "createdAt": "2026-09-14T14:51:33.965Z",
+  "choice": "continue_current",
+  "approvedAt": "2026-09-14T14:58:31.108Z",
+  "consumedAt": "2026-09-14T14:59:21.465Z"
+}

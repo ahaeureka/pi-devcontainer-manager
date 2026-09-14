@@ -1,0 +1,15 @@
+{
+  "id": "revision-2aeb66f7-64c4-4684-8876-a0d108ac2de6",
+  "taskId": "activation-and-config-mechanism",
+  "ownedPaths": [
+    "CHANGELOG.md",
+    "README.md",
+    "docs",
+    "examples",
+    "extensions",
+    "src",
+    "tests"
+  ],
+  "manifestHash": "5c6d6c0ed51be857b0fc922d3ac5828d646644112727fd50420cce27baf5f61f",
+  "createdAt": "2026-09-14T14:04:57.442Z"
+}
