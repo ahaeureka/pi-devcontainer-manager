@@ -1,5 +1,7 @@
 # Configuration
 
+> **Docs:** [Index](README.md) · [Installation](installation.md) · [Configuration](configuration.md) · [Security](security.md) · [Compatibility](compatibility.md) · [Troubleshooting](troubleshooting.md)
+
 The extension loads JSON configuration from two locations and merges them into
 one *effective* configuration. All keys are optional; defaults are restrictive.
 
@@ -65,7 +67,7 @@ must be `"container-required"`; the other values are rejected at load.
 
 - Type: `string` · Default: `"devcontainer"`
 - Executable used for `up`, `build`, and `exec` (resolved through `PATH`; see
-  `docs/installation.md` for how the pinned CLI is supplied).
+  [installation.md](installation.md) for how the pinned CLI is supplied).
 
 ### `routeMode`
 
@@ -79,10 +81,11 @@ must be `"container-required"`; the other values are rejected at load.
 | `host-only` | **Not implemented** — rejected at load. |
 
 In v1 the implemented, tested, and default mode is `container-required`; the
-other two values are accepted by the type but rejected by validation. The only
+other two values are accepted by the type but rejected by validation. The general
 host execution surface is the explicit, policy-gated, audited
 `devcontainer_host_exec` tool and `/devcontainer host-exec` command
-(`hostExecution.allow`).
+(`hostExecution.allow`); `/devcontainer setup` is the one other host-side
+operation and runs a single fixed command behind an interactive confirmation.
 
 ### What routes into the container vs what stays on the host
 
@@ -93,6 +96,7 @@ host execution surface is the explicit, policy-gated, audited
 | `devcontainer_exec` tool | Container (selected target) |
 | routed `bash` (`bash` tool, `!`/`!!`) | Container (selected target) |
 | `devcontainer_host_exec` tool / `/devcontainer host-exec` | Host (explicit, policy-gated) |
+| `/devcontainer setup` | Host (one fixed `npm install -g`, confirmation required) |
 | `read` / `write` / `edit` / `grep` / `find` / `ls` | **Always host** |
 
 Pi's file tools are deliberately never routed into the container. A
@@ -157,16 +161,21 @@ Discovery recognizes all three canonical forms:
 ### `audit`
 
 - Type: `object`
-- `enabled` — `boolean`, default `true`. The effective value merges as shown
-  in the table above. (The v1 runtime writes audit records unconditionally;
-  `enabled` is carried into the effective config for future gating.)
-- `directory` — `string`, global-only. Merged into the effective config; the
-  v1 runtime does not consume it and always writes to the platform default:
-  Linux `$XDG_STATE_HOME/pi-devcontainer-manager/audit` →
-  `~/Library/Application Support/pi-devcontainer-manager/audit`).
+- `enabled` — `boolean`, default `true`. Merged as shown in the table above and
+  **honored by the runtime**: the effective value is passed to `JsonlAuditWriter`,
+  and when it is `false` `write()` returns before creating the directory or
+  appending, so records are accepted but nothing is persisted.
+- `directory` — `string`, global-only (a project config cannot relocate the audit
+  directory). **Honored by the runtime** when set; when unset the platform default
+  below is used:
+  - Linux: `$XDG_STATE_HOME/pi-devcontainer-manager/audit`
+    (`~/.local/state/pi-devcontainer-manager/audit` when `XDG_STATE_HOME` is unset)
+  - macOS: `~/Library/Application Support/pi-devcontainer-manager/audit`
+  - Any other platform: `session_start` fails with `Unsupported audit platform`,
+    so the extension reports a startup error instead of guessing.
 - `retentionDays` — `number`, default `90`. Positive. The audit writer's
   `prune(now)` method removes `.jsonl` files older than this; the extension
-  does not schedule pruning itself (see `docs/security.md`).
+  does not schedule pruning itself (see [security.md](security.md)).
 - `commandCapture` — `"none" | "fingerprint-only" | "redacted-text"`, default
   `"fingerprint-only"`.
   - `none` — no command identity recorded.
@@ -193,6 +202,10 @@ Discovery recognizes all three canonical forms:
   denied by policy before any spawn. When `true`, host runs are audited under
   the same capture policy as every other operation (`operation: "host-exec"`,
   `initiator: "host-escape"`).
+- `hostExecution.allow` does **not** gate `/devcontainer setup`, which runs a
+  single fixed `npm install -g @devcontainers/cli` behind an interactive
+  confirmation — see
+  [Security → `/devcontainer setup`](security.md#devcontainer-setup).
 
 ## Validation failures
 
@@ -205,3 +218,12 @@ Invalid values reject the whole file with a named-field error (e.g. an invalid
 
 A complete example with every default shown is in
 [`examples/pi-devcontainer-manager.settings.json`](../examples/pi-devcontainer-manager.settings.json).
+`audit.directory` is intentionally absent there: it has no default value — the
+platform default above applies until you set it.
+
+## See also
+
+- [Installation](installation.md) — how the Dev Containers CLI is supplied
+- [Security](security.md) — the threat model and every policy gate
+- [Compatibility](compatibility.md) — supported platforms and failure modes
+- [Troubleshooting](troubleshooting.md) — what each typed error means

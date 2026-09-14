@@ -1,5 +1,7 @@
 # Installation
 
+> **Docs:** [Index](README.md) · [Installation](installation.md) · [Configuration](configuration.md) · [Security](security.md) · [Compatibility](compatibility.md) · [Troubleshooting](troubleshooting.md)
+
 This page covers installing and loading `pi-devcontainer-manager`, the host-side
 prerequisites, and the optional host state that uninstall leaves behind.
 
@@ -9,7 +11,7 @@ prerequisites, and the optional host state that uninstall leaves behind.
 |---|---|---|
 | Node.js | `>= 22.19.0` | Enforced by the package `engines` field |
 | Pi | a Pi CLI install | Extension tools/commands register at Pi startup |
-| Docker | Docker Engine or Docker Desktop | Linux or macOS only (see `docs/compatibility.md`) |
+| Docker | Docker Engine or Docker Desktop | Linux or macOS only (see [compatibility.md](compatibility.md)) |
 | Dev Containers CLI | `@devcontainers/cli@0.88.0` | Exact pin; see below |
 
 ### The Dev Containers CLI
@@ -24,8 +26,11 @@ integration workflow sets `DEVCONTAINER_CLI_PATH` to
 `node_modules/@devcontainers/cli/devcontainer.js` so the test harness and the
 extension use the exact pinned CLI. To use a specific CLI yourself:
 
-- set `devcontainerPath` in the global configuration to an absolute path, or
-- ensure a matching `devcontainer` executable is on `PATH`.
+- set `devcontainerPath` in the global configuration to an absolute path,
+- ensure a matching `devcontainer` executable is on `PATH`, or
+- run `/devcontainer setup` inside Pi: it asks for confirmation, then runs
+  `npm install -g @devcontainers/cli` on the host and verifies the resulting
+  `devcontainer --version` (see [Security → `/devcontainer setup`](security.md#devcontainer-setup)).
 
 > The Docker *client* used for discovery/inspection/logs/stop/remove is resolved
 > from `dockerPath` (default `"docker"`). Only Docker Engine/Desktop on
@@ -33,11 +38,26 @@ extension use the exact pinned CLI. To use a specific CLI yourself:
 
 ## Install the extension package
 
-### From the published package
+A Pi extension has to be **registered with Pi** to load. Installing the npm
+package globally (`npm install -g …`) puts files on disk but never registers the
+extension, so Pi will not load it — install it as a Pi package with `pi install`.
+
+### From npm (recommended)
 
 ```bash
-npm install -g pi-devcontainer-manager
+pi install npm:pi-devcontainer-manager
 ```
+
+### From the git repository
+
+```bash
+pi install git:github.com/ahaeureka/pi-devcontainer-manager
+```
+
+`pi install` records the package in Pi's user settings
+(`~/.pi/agent/settings.json`); add `-l` to record it in a project-local
+`.pi/settings.json` instead. Manage it afterwards with `pi list`,
+`pi update npm:pi-devcontainer-manager`, and `pi remove npm:pi-devcontainer-manager`.
 
 ### From a local tarball
 
@@ -108,7 +128,7 @@ pi
 
 On `session_start` the extension composes its runtime: it loads configuration
 and fires an advisory capability probe whose result is discarded (see
-`docs/compatibility.md`). The workspace registry is discovered lazily — on
+[compatibility.md](compatibility.md)). The workspace registry is discovered lazily — on
 the first `/devcontainer` command or tool call. You can verify it loaded with:
 
 ```
@@ -131,7 +151,7 @@ route: `container-required` · maxTimeout: 900s · maxOutput: 50KiB
 
 If Docker or the Dev Containers CLI is missing, discovery surfaces a typed
 `daemon-unavailable` / `authorization-denied` / `devcontainer-cli-failure`
-error (see `docs/compatibility.md`).
+error (see [compatibility.md](compatibility.md)).
 
 ## Uninstall
 

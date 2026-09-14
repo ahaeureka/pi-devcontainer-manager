@@ -1,5 +1,7 @@
 # Security model
 
+
+> **Docs:** [Index](README.md) · [Installation](installation.md) · [Configuration](configuration.md) · [Security](security.md) · [Compatibility](compatibility.md) · [Troubleshooting](troubleshooting.md)
 `pi-devcontainer-manager` keeps Pi and its credentials on the host and treats
 DevContainers as **explicitly selected, policy-checked command-execution
 targets**. This page documents the threat model, the controls, and the
@@ -18,11 +20,14 @@ operational defaults.
   `ambiguous-candidate`, `target-stopped`, `policy-denied`). The only host escape hatch
   is the visibly named `devcontainer_host_exec` tool and `/devcontainer
   host-exec` command, which pass a *separate* `hostExecution.allow` policy check
-  and write their own audit records.
+  and write their own audit records. The one other host-side operation is
+  `/devcontainer setup`, which runs a single fixed
+  `npm install -g @devcontainers/cli` behind an interactive confirmation — it
+  never executes caller-supplied argv, so it is not a general host escape.
 - **Default-deny policy.** Workspace roots, forwarded environment names,
   destructive actions, and host execution are all denied unless explicitly
   granted. Grants from an untrusted project config can never *expand* a global
-  grant (merge is monotonic — see `docs/configuration.md`).
+  grant (merge is monotonic — see [configuration.md](configuration.md)).
 - **Fresh validation before every action.** Selection intent is persisted as a
   stable workspace key + candidate discriminator, and each operation re-resolves
   the target and freezes an immutable policy snapshot before any spawn. A
@@ -116,7 +121,30 @@ extension keeps them separate:
 | `/devcontainer stop` | `destructive.allowStop = true` | Fresh per-action confirmation naming the exact action + container ID; noninteractive callers receive `confirmation-required` and can never bypass |
 | `/devcontainer remove` | `destructive.allowRemove = true` | Same confirmation contract |
 | `devcontainer_host_exec` / `/devcontainer host-exec` | `hostExecution.allow = true` | Audited with `operation: "host-exec"`, `initiator: "host-escape"` |
+| `/devcontainer setup` | **none** — not gated by `hostExecution.allow` | Interactive confirmation naming the exact command; fixed argv (`npm install -g @devcontainers/cli`), audited as `operation: "setup"`, 300 s timeout |
 
+### `/devcontainer setup`
+
+`/devcontainer setup` is a dedicated setup capability, not a general host
+escape. It exists because the Dev Containers CLI is a host prerequisite that
+users otherwise install by hand.
+
+- **What it runs**: exactly `npm install -g @devcontainers/cli`, with a fixed
+  executable and argv array, `shell: false`, a sanitized environment, a 300 s
+  timeout, and bounded output. The caller supplies no argv.
+- **Gate**: an interactive `ctx.ui.confirm` naming the command. A noninteractive
+  caller (print/JSON mode) gets `[confirmation-required]` and nothing runs.
+- **Not gated by `hostExecution.allow`**: that policy gates *arbitrary* host
+  argv, which `setup` cannot express. Denying host execution is therefore not
+  the same as denying `setup`.
+- **Audit**: one record with `operation: "setup"`, `initiator: "slash-command"`,
+  `policyAuthorized: true`, the command fingerprint/text under the same
+  `audit.commandCapture` policy, the exit code, duration, and truncation flag.
+- **Verification**: after a zero exit it probes `devcontainerPath --version`; a
+  non-resolvable CLI is reported as a setup failure with the reason.
+- **Bounded by policy?** No. If your threat model requires that no global npm
+  install may happen, do not run `/devcontainer setup`; install or pin the CLI
+  through your own package manager and set `devcontainerPath` instead.
 ## Audit
 
 Every operation writes a host-local JSONL record. `audit.enabled` (default

@@ -1,5 +1,7 @@
 # Compatibility
 
+> **Docs:** [Index](README.md) · [Installation](installation.md) · [Configuration](configuration.md) · [Security](security.md) · [Compatibility](compatibility.md) · [Troubleshooting](troubleshooting.md)
+
 The v1 support matrix is deliberately narrow: **Linux and macOS with Docker
 Engine or Docker Desktop**. Everything else fails closed rather than silently
 guessing.
@@ -10,6 +12,12 @@ guessing.
 |---|---|---|---|
 | Linux | Docker Engine / Desktop | `@devcontainers/cli@0.88.0` | Primary target; CI runs here |
 | macOS (darwin) | Docker Desktop | `@devcontainers/cli@0.88.0` | Audit path under `~/Library/Application Support/...` |
+
+The CLI can be installed with `/devcontainer setup`, which runs
+`npm install -g @devcontainers/cli` on the host after an interactive
+confirmation — so `npm` must be resolvable on PATH. Otherwise install the CLI
+yourself and point `devcontainerPath` at the executable. See
+[Security → `/devcontainer setup`](security.md#devcontainer-setup).
 
 At session start the extension fires an *advisory* capability probe (Docker
 and Dev Containers CLI executable presence, daemon reachability, versions).
