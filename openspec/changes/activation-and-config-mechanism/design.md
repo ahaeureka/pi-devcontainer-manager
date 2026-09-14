@@ -128,3 +128,20 @@ Documentation (AC-9) lands with each slice.
   be committed is a repository-policy decision for the owner.
 - This repository has no DevContainer of its own, so its own `bash` is dormant
   (AC-4) — the dogfood case for D3.
+
+## 7. Post-archive follow-ups (review findings and their disposition)
+
+The archived revision is `revision-8e6c0670` (verify PASS, review approved with 0
+blocking, judge PASS). These are the items that were left open and what happened to
+each. Code follow-ups landed on `fix/review-follow-ups`, so the reviewed revision stays
+exactly the reviewed revision.
+
+| Finding (severity) | Disposition |
+|---|---|
+| `dormantHostBash` hand-rolled a host shell (`spawn(..., { shell: true, env: process.env })`), diverging from Pi's built-in in shell choice and output accounting (minor) | **Fixed.** The dormant branch now delegates to Pi's own `createLocalBashOperations()`, so the surface is the built-in's (shell resolution, `getShellEnv()`, truncation). `lazyBashOperations` takes the local operations as an injectable parameter and `tests/unit/dormant-bash.test.ts` asserts the delegation, the engaged path, and the uncomposed-runtime hard stop. |
+| Dormancy wiring ("nothing is registered while dormant") had no test — it needs a live Pi runtime (note) | **Partially closed.** `surfacesFor(decision)` in `src/activation.ts` now owns the contract (one place the entrypoint consults for tools, the `bash` replacement, the execution-context block, and the always-available command surface) and is asserted in `tests/unit/dormant-bash.test.ts`. What remains untested is Pi's own honoring of a mid-session `registerTool`, which no test in this repository can isolate. |
+| `/devcontainer up` discovered the registry twice per invocation (note) | **Fixed.** `reconcileSelection` accepts the entries the caller already resolved, and the `up` handler passes them; `tests/unit/command-config-selection.test.ts` asserts exactly one discovery (RED verified by dropping the argument: the assertion fails with two). |
+| `missingAcceptanceMatrix` — the task store carried the placeholder `AC-1` while the real matrix lives in this document, so both verify runs reported `acceptanceResults: [{AC-1: PASS}]` (minor, governance) | **Recorded, not silently accepted.** This document is the authoritative matrix; the matrix above (AC-1..AC-10) is what the change was implemented and reviewed against. Syncing `task.json` after the archive would rewrite a sealed record, so it is left as a governance gap for the tool's owner. |
+| The design artifact sits outside the sealed revision scope (`workspaceDrift`) (note) | **Recorded.** A future task of this shape should pass this path as an owned path at seal time (`.kata` confirms `ownedPaths` at seal), so the authorizing artifact and the code it authorizes are versioned together. |
+| `scripts/smoke-pi-package.mjs` claims the packed dist "registers tools incl. same-name bash override" but asserts only that the packed JS text contains `createBashToolDefinition`/`registerTool` (note, found during follow-up) | **Recorded.** The packaging contract it checks is real; the log wording overstates it. Strengthening it means loading the packed dist and driving its factory with a stub `pi` — worth doing when the dormancy wiring needs a packaged-artifact gate. |
+| `tests/e2e` real-Pi case is named "registers the devcontainer tool surface" but asserts only that the extension did not crash and that a model turn started (note, found during follow-up) | **Fixed in part.** The capability gate was `command -v pi`, which is true on a CI runner that has the CLI but no credentials — that made `Integration` red on `main`. It now detects the missing provider at runtime and skips with the reason; the assertion wording remains softer than the name. |

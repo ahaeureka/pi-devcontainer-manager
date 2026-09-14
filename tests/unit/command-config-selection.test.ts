@@ -48,7 +48,7 @@ function namedOnlyEntry(): RegistryEntry {
 function makeServices(
   entries: RegistryEntry[],
   snapshot: Record<string, unknown> = {},
-): { services: CommandServices; up: Mock; build: Mock } {
+): { services: CommandServices; up: Mock; build: Mock; registry: Mock } {
   const up = vi.fn(async () => ({
     operation: "up",
     workspaceKey: "/ws/project-a",
@@ -61,6 +61,7 @@ function makeServices(
     imageName: "img:tag",
     policyAuthorized: true,
   }));
+  const registry = vi.fn(async () => ({ entries, diagnostics: [] }));
   const services = {
     config: compileConfig(),
     targetStore: {
@@ -75,11 +76,11 @@ function makeServices(
       clear: vi.fn(async () => {}),
     } as unknown as TargetStore,
     execution: { up, build } as never,
-    registry: async () => ({ entries, diagnostics: [] }),
+    registry,
     refreshRegistry: async () => ({ entries, diagnostics: [] }),
     logs: async () => ({ exitCode: 0, output: "", truncated: false }),
   } as unknown as CommandServices;
-  return { services, up, build };
+  return { services, up, build, registry };
 }
 
 function ctx(cwd = "/ws/project-a"): CommandContextLike {
@@ -160,5 +161,19 @@ describe("selectionFor only carries discovered configurations", () => {
   it("carries a path that is one of the workspace's candidates", () => {
     const selection = selectionFor(makeEntry(), "c1", NAMED_PATH);
     expect((selection.candidate as { configPath?: string } | undefined)?.configPath).toBe(NAMED_PATH);
+  });
+});
+
+/**
+ * Review finding (note) on revision-8e6c0670: resolving the target AND reconciling the
+ * selection both discovered the registry, so one `/devcontainer up` ran the host scan and
+ * `docker ps` twice. The resolved entries are now handed to the reconcile step.
+ */
+describe("/devcontainer up discovery cost", () => {
+  it("discovers the registry once per up", async () => {
+    const { services, registry } = makeServices([makeEntry()]);
+    const handlers = createCommandHandlers(services);
+    await handlers["up"]!("", ctx());
+    expect(registry).toHaveBeenCalledTimes(1);
   });
 });

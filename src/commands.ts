@@ -194,8 +194,14 @@ export async function reconcileSelection(
   services: Pick<CommandServices, "targetStore" | "registry">,
   ctx: Pick<CommandContextLike, "persistSelection">,
   hint: { workspaceKey: string; candidateId?: string },
+  /**
+   * Registry entries the caller already fetched. `/devcontainer up` resolves the target
+   * through the registry before starting, so discovering again here would run the host
+   * scan and `docker ps` twice for one command (review finding on revision-8e6c0670).
+   */
+  preloaded?: readonly RegistryEntry[],
 ): Promise<TargetSelection> {
-  const { entries } = await services.registry();
+  const entries = preloaded ?? (await services.registry()).entries;
   const key = canonicalWorkspaceKey(hint.workspaceKey);
   const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
   if (entry === undefined) {
@@ -384,7 +390,10 @@ export function createCommandHandlers(services: CommandServices): Record<string,
   const resolveUpBuildTarget = async (
     args: string,
     ctx: CommandContextLike,
-  ): Promise<{ ok: true; workspace: string; configPath?: string } | { ok: false; text: string }> => {
+  ): Promise<
+    | { ok: true; workspace: string; configPath?: string; entries: readonly RegistryEntry[] }
+    | { ok: false; text: string }
+  > => {
     const { selector, config } = parseUseArgs(args);
     const workspace = selector.length > 0 ? selector : ctx.cwd;
     const { entries } = await services.registry();
@@ -394,7 +403,7 @@ export function createCommandHandlers(services: CommandServices): Record<string,
       // Nothing discovered for this path: keep the CLI's own lookup and its own error,
       // unless a configuration was requested explicitly — then nothing can resolve it.
       return config === undefined
-        ? { ok: true, workspace }
+        ? { ok: true, workspace, entries }
         : {
             ok: false,
             text: `[no-candidate] No registry entry matches \`${workspace}\`.\nRun /devcontainer list to see available targets.`,
@@ -407,7 +416,12 @@ export function createCommandHandlers(services: CommandServices): Record<string,
       ...(snapshot.configPath !== undefined ? { selectedConfigPath: snapshot.configPath } : {}),
     });
     if (resolved.ok === false) return { ok: false, text: resolved.text };
-    return { ok: true, workspace, ...(resolved.configPath !== undefined ? { configPath: resolved.configPath } : {}) };
+    return {
+      ok: true,
+      workspace,
+      entries,
+      ...(resolved.configPath !== undefined ? { configPath: resolved.configPath } : {}),
+    };
   };
 
   handlers["up"] = async (args, ctx) => {
@@ -431,7 +445,7 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     // after a successful start (config-only / previously-missing selections).
     let reconciled = "";
     try {
-      const selection = await reconcileSelection(services, ctx, { workspaceKey: workspace });
+      const selection = await reconcileSelection(services, ctx, { workspaceKey: workspace }, target.entries);
       reconciled = `\nselection: ${selection.status}`;
     } catch (error) {
       reconciled = `\nselection: (reconcile failed: ${error instanceof Error ? error.message : String(error)})`;

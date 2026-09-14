@@ -31,17 +31,16 @@
  */
 import { homedir } from "node:os";
 import { readFileSync } from "node:fs";
-import { spawn } from "node:child_process";
 import type {
   ExtensionAPI,
   ExtensionContext,
   BashOperations,
   UserBashEventResult,
 } from "@earendil-works/pi-coding-agent";
-import { createBashToolDefinition } from "@earendil-works/pi-coding-agent";
+import { createBashToolDefinition, createLocalBashOperations } from "@earendil-works/pi-coding-agent";
 
 import { defaultConfigPaths, loadConfigWithDiagnostics } from "../src/config.js";
-import { decideActivation, type ActivationDecision } from "../src/activation.js";
+import { decideActivation, surfacesFor, type ActivationDecision } from "../src/activation.js";
 import { JsonlAuditWriter, defaultAuditDirectory } from "../src/audit.js";
 import { NodeProcessRunner } from "../src/runtime/process-runner.js";
 import { NodeCapabilityService } from "../src/runtime/capabilities.js";
@@ -616,10 +615,10 @@ export default function (pi: ExtensionAPI): void {
     // prompt (the agent needs them to know when to use the tool). session_start
     // refires on /reload and session switches; same-name re-registration replaces
     // the prior definitions.
-    if (decision.active) {
-      registerDevcontainerTools(pi, () => runtime);
-      registerBashReplacement(pi, () => runtime);
-    } else {
+    const surfaces = surfacesFor(decision);
+    if (surfaces.containerTools) registerDevcontainerTools(pi, () => runtime);
+    if (surfaces.bashReplacement) registerBashReplacement(pi, () => runtime);
+    if (!decision.active) {
       ctx.ui.notify(
         `DevContainer extension is dormant here (${decision.reason}): bash, !/!!, and the file tools are host surfaces. Run /devcontainer use|up to engage a container target.`,
         "info",
@@ -654,7 +653,7 @@ export default function (pi: ExtensionAPI): void {
   // guessing an environment from command text.
   pi.on("before_agent_start", async (event) => {
     const rt = runtime;
-    if (rt === undefined || !rt.activation.decision.active) return undefined;
+    if (rt === undefined || !surfacesFor(rt.activation.decision).executionContext) return undefined;
     const block = await rt.executionContext();
     if (block === undefined) return undefined;
     return { systemPrompt: `${event.systemPrompt}\n\n${block}` };
@@ -799,48 +798,6 @@ async function probeRunningContainer(rt: Runtime, workspace: string): Promise<bo
   }
 }
 
-/**
- * Host-local shell used while dormant, for the window in which `/devcontainer off`
- * disengaged a session whose routed `bash` tool is already registered.
- *
- * This is deliberately NOT the audited, policy-gated `devcontainer_host_exec`
- * surface: it is what Pi's built-in `bash` does when this extension is absent, so
- * dormancy can only restore the default, never widen host access.
- */
-function dormantHostBash(
-  command: string,
-  cwd: string,
-  maxOutputBytes: number,
-): Promise<{ output: string; exitCode: number; cancelled: boolean; truncated: boolean }> {
-  return new Promise((resolve) => {
-    const child = spawn(command, { shell: true, cwd, env: process.env });
-    const chunks: Buffer[] = [];
-    let bytes = 0;
-    let truncated = false;
-    const collect = (chunk: Buffer): void => {
-      const room = maxOutputBytes - bytes;
-      if (room <= 0) {
-        truncated = true;
-        return;
-      }
-      chunks.push(chunk.length <= room ? chunk : chunk.subarray(0, room));
-      bytes += Math.min(chunk.length, room);
-    };
-    child.stdout?.on("data", collect);
-    child.stderr?.on("data", collect);
-    child.on("error", (error: Error) => {
-      resolve({
-        output: `[devcontainer-manager] host shell failed: ${error.message}`,
-        exitCode: 1,
-        cancelled: false,
-        truncated: false,
-      });
-    });
-    child.on("close", (code: number | null) => {
-      resolve({ output: Buffer.concat(chunks).toString("utf8"), exitCode: code ?? 1, cancelled: false, truncated });
-    });
-  });
-}
 
 /**
  * Decide the `user_bash` (`!`/`!!`) interception result.
@@ -878,7 +835,7 @@ export function resolveUserBash(
       },
     };
   }
-  if (!rt.activation.decision.active) {
+  if (!surfacesFor(rt.activation.decision).bashReplacement) {
     // Dormant: this session's `!`/`!!` belong to the host. Returning undefined is
     // the correct answer HERE (unlike the unknown-runtime case above) — it is what
     // lets Pi run the command with its own local bash, which is the dormant
@@ -1006,8 +963,20 @@ function resolveTool<TParams extends import("typebox").TSchema>(
   return definition;
 }
 
-/** Lazy BashOperations wrapper resolving the current runtime at exec time. */
-function lazyBashOperations(getRuntime: () => Runtime | undefined): BashOperations {
+/**
+ * Lazy BashOperations wrapper resolving the current runtime at exec time.
+ *
+ * While engaged it delegates to the container-routed operations. While dormant it
+ * delegates to Pi's OWN local bash operations, so the surface is exactly the built-in
+ * one (shell resolution, environment, truncation, timeout) instead of a reimplementation
+ * — the previous hand-rolled `spawn` diverged from the built-in in shell choice and
+ * output accounting (review finding on revision-8e6c0670). `localBash` is injectable so
+ * the delegation itself is unit-tested.
+ */
+export function lazyBashOperations(
+  getRuntime: () => Runtime | undefined,
+  localBash: BashOperations = createLocalBashOperations(),
+): BashOperations {
   return {
     exec: async (command, cwd, options) => {
       const rt = getRuntime();
@@ -1018,11 +987,11 @@ function lazyBashOperations(getRuntime: () => Runtime | undefined): BashOperatio
           remedy: "Run /reload or restart pi.",
         });
       }
-      if (!rt.activation.decision.active) {
-        // `/devcontainer off` returned this session to dormancy after the routed
-        // tool was registered, so `bash` has to behave like the host shell it
-        // replaced until the next reload re-binds the built-in definition.
-        return dormantHostBash(command, cwd, rt.config.maxOutputBytes);
+      if (!surfacesFor(rt.activation.decision).bashReplacement) {
+        // `/devcontainer off` returned this session to dormancy after the routed tool was
+        // registered, so `bash` hands over to Pi's own local operations — the same
+        // behavior the built-in tool has when this extension is absent.
+        return localBash.exec(command, cwd, options);
       }
       return rt.bashOperations.exec(command, cwd, options);
     },

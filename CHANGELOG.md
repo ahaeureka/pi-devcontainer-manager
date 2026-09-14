@@ -82,6 +82,12 @@ macOS.
 
 ### Fixed
 
+- While dormant, the `bash` tool delegates to Pi's own local bash operations instead of a
+  hand-rolled host shell, so the surface matches the built-in exactly (shell resolution,
+  environment, truncation) and dormancy can only ever restore the default.
+- `/devcontainer up` no longer discovers the registry twice per invocation (the resolved
+  entries are handed to the selection reconcile step).
+
 - Discovery and the pinned CLI disagreed about which configuration forms exist: a
   legacy root `devcontainer.json` was listed as a first-class form but was invisible to
   `devcontainer up --workspace-folder`, so such a target could be selected and never
