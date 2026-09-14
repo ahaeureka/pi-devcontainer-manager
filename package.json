@@ -44,7 +44,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest --run",
     "test:unit": "vitest --run tests/unit",
-    "pack:check": "npm pack --dry-run"
+    "pack:check": "npm pack --dry-run",
+    "prepack": "npm run build",
+    "prepare": "npm run build"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
