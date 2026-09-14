@@ -66,6 +66,35 @@ without moving a pinned ref.
 `.pi/settings.json` instead. Manage it afterwards with `pi list`,
 `pi update npm:pi-devcontainer-manager`, and `pi remove npm:pi-devcontainer-manager`.
 
+### From a local checkout (in place)
+
+For using a checkout that lives on this machine: no publishing, no network, and the
+shortest iteration loop.
+
+```bash
+pi install /absolute/path/to/pi-devcontainer-manager
+# or a path relative to the settings file:
+#   pi install ../ahaeureka/pi-devcontainer-manager
+```
+
+Pi documents local paths as **added to settings without copying**, so the checkout you
+edit *is* the package Pi loads. Iterate by rebuilding and reloading:
+
+```bash
+cd /absolute/path/to/pi-devcontainer-manager
+npm run build          # dist/extensions/index.js is what the manifest points at
+# in Pi: /reload
+```
+
+Two things worth knowing:
+
+- `dist/` is **committed to this repository**, so a fresh checkout already has a
+  loadable entry point; you only need `npm run build` after changing `src/` or
+  `extensions/`, and CI fails if the committed output is stale.
+- The path is recorded in `settings.json` (with `-l`: in `.pi/settings.json`), so the
+  extension loads in every project Pi starts, like an npm or git install. Remove it
+  with `pi remove <the same path you installed>`.
+
 ### From a local tarball
 
 The release workflow produces a tarball such as
@@ -93,6 +122,10 @@ For developing the extension against a local checkout, symlink the package
 directory into Pi's auto-discovery extensions folder. Pi discovers any
 directory there whose `package.json` declares a `pi.extensions` entry — no
 manual `packages` entry in `settings.json` is needed.
+
+If you would rather have the install recorded in `settings.json` than rely on
+discovery, install the checkout as a local path instead — see
+[From a local checkout](#from-a-local-checkout-in-place).
 
 Find Pi's extension directory first (it follows `PI_CODING_AGENT_DIR` when set):
 
