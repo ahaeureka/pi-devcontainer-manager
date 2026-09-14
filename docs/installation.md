@@ -54,6 +54,13 @@ pi install npm:pi-devcontainer-manager
 pi install git:github.com/ahaeureka/pi-devcontainer-manager
 ```
 
+Pi clones the repository under
+`${PI_CODING_AGENT_DIR:-~/.pi/agent}/git/github.com/ahaeureka/pi-devcontainer-manager`,
+runs `npm install` there, and the package's `prepare` script builds `dist/` — the
+checkout has no compiled output of its own, since `dist/` is not committed. Pin a ref with
+`@v1.0.0` to freeze what you install; `pi update --extensions` reconciles the clone
+without moving a pinned ref.
+
 `pi install` records the package in Pi's user settings
 (`~/.pi/agent/settings.json`); add `-l` to record it in a project-local
 `.pi/settings.json` instead. Manage it afterwards with `pi list`,
