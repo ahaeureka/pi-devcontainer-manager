@@ -31,6 +31,7 @@
  */
 import { homedir } from "node:os";
 import { readFileSync } from "node:fs";
+import { spawn } from "node:child_process";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -39,14 +40,15 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { createBashToolDefinition } from "@earendil-works/pi-coding-agent";
 
-import { loadConfig, defaultConfigPaths } from "../src/config.js";
+import { defaultConfigPaths, loadConfigWithDiagnostics } from "../src/config.js";
+import { decideActivation, type ActivationDecision } from "../src/activation.js";
 import { JsonlAuditWriter, defaultAuditDirectory } from "../src/audit.js";
 import { NodeProcessRunner } from "../src/runtime/process-runner.js";
 import { NodeCapabilityService } from "../src/runtime/capabilities.js";
 import { NodeDockerAdapter } from "../src/runtime/docker-adapter.js";
 import { NodeDevcontainerAdapter } from "../src/runtime/devcontainer-adapter.js";
 import { NodeDockerLifecycleAdapter } from "../src/runtime/docker-lifecycle.js";
-import { buildWorkspaceRegistry, nodeTraversal, workspacePathFor } from "../src/runtime/host-discovery.js";
+import { buildWorkspaceRegistry, nodeTraversal, workspaceHasConfig, workspacePathFor } from "../src/runtime/host-discovery.js";
 import { buildPathMapping, findContainerPath, hostToContainer, type PathMapping } from "../src/path-mapper.js";
 import { TargetStore } from "../src/target-store.js";
 import { ExecutionService } from "../src/execution-service.js";
@@ -72,6 +74,10 @@ import { renderExecutionContext } from "../src/execution-context.js";
 
 /** Runtime composed once per session; re-composed on session reload. */
 interface Runtime {
+  /** Mutable per-session activation state (see ../src/activation.ts). */
+  readonly activation: ActivationState;
+  /** Host + Docker discovery; activation chain step 4 reads it for the container signal. */
+  readonly registry: CommandServices["registry"];
   readonly config: EffectiveConfig;
   readonly targetStore: TargetStore;
   readonly execution: ExecutionService;
@@ -96,7 +102,20 @@ interface Runtime {
   readonly reconcileSelection: (hint: { workspaceKey: string; candidateId?: string }) => Promise<void>;
 }
 
-function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessionWorkspace: string): Runtime {
+/**
+ * Mutable holder for the session's activation decision: `/devcontainer use|up`
+ * engages the container surfaces, `/devcontainer off` hands them back to the host.
+ */
+interface ActivationState {
+  decision: ActivationDecision;
+}
+
+function composeRuntime(
+  config: EffectiveConfig,
+  audit: JsonlAuditWriter,
+  sessionWorkspace: string,
+  activation: ActivationState,
+): Runtime {
   const runner = new NodeProcessRunner();
   const capabilities = new NodeCapabilityService(runner, {
     dockerPath: config.dockerPath,
@@ -443,6 +462,8 @@ function composeRuntime(config: EffectiveConfig, audit: JsonlAuditWriter, sessio
     hostRunner,
     tools,
     commandHandlers: createCommandHandlers(commandServices),
+    registry,
+    activation,
     executionContext,
     // One shared implementation for session restore and /devcontainer up.
     // No persistence here: a restored selection is already stored.
@@ -554,8 +575,11 @@ export default function (pi: ExtensionAPI): void {
 
   pi.on("session_start", async (_event, ctx) => {
     const paths = defaultConfigPaths(ctx.cwd);
-    const base = loadConfig(paths, { projectTrusted: ctx.isProjectTrusted() });
-    const config = composeRuntimeConfig(ctx.cwd, base);
+    const loaded = loadConfigWithDiagnostics(paths, { projectTrusted: ctx.isProjectTrusted() });
+    const config = composeRuntimeConfig(ctx.cwd, loaded.config);
+
+    const recovered = restoreSelection(ctx);
+    const activation: ActivationState = { decision: { active: false, reason: "no-evidence" } };
     // Honor audit.enabled and audit.directory: the configured directory is used
     // when set, and `enabled: false` accepts records but persists nothing.
     const audit = new JsonlAuditWriter(
@@ -563,17 +587,49 @@ export default function (pi: ExtensionAPI): void {
       config.audit.retentionDays,
       config.audit.enabled,
     );
-    runtime = composeRuntime(config, audit, ctx.cwd);
+    const rt = composeRuntime(config, audit, ctx.cwd, activation);
+    runtime = rt;
 
-    // Register the devcontainer tools now that the runtime exists, so each
-    // tool carries its real description/promptSnippet/promptGuidelines into the
-    // system prompt (the agent needs them to know when to use the tool).
-    // session_start refires on /reload and session switches; same-name
-    // re-registration replaces the prior definitions.
-    registerDevcontainerTools(pi, () => runtime);
+    // Activation is decided BEFORE any execution surface is registered. In a
+    // workspace that is not a DevContainer project the extension must leave Pi's
+    // built-in `bash`, `!`/`!!`, and the host file tools alone instead of taking
+    // them over and failing closed (AC-3/AC-4). `/devcontainer use|up` can still
+    // engage it for this session.
+    const evidence = {
+      activation: config.activation,
+      workspaceHasConfig: workspaceHasConfig(ctx.cwd),
+      workspaceHasRunningContainer: false,
+      hasExplicitSelection: recovered !== undefined,
+    };
+    let decision = decideActivation(evidence);
+    if (!decision.active && decision.reason === "no-evidence") {
+      // Chain step 4 is the only expensive signal, so it is probed last and only
+      // when every cheaper one missed. Its failure modes (no daemon, timeout) mean
+      // "no evidence": the decision fails toward dormancy, never toward takeover.
+      evidence.workspaceHasRunningContainer = await probeRunningContainer(rt, ctx.cwd);
+      decision = decideActivation(evidence);
+    }
+    activation.decision = decision;
 
-    const recovered = restoreSelection(ctx);
-    if (recovered !== undefined) {
+    // Register the devcontainer surfaces now that the runtime exists, so each tool
+    // carries its real description/promptSnippet/promptGuidelines into the system
+    // prompt (the agent needs them to know when to use the tool). session_start
+    // refires on /reload and session switches; same-name re-registration replaces
+    // the prior definitions.
+    if (decision.active) {
+      registerDevcontainerTools(pi, () => runtime);
+      registerBashReplacement(pi, () => runtime);
+    } else {
+      ctx.ui.notify(
+        `DevContainer extension is dormant here (${decision.reason}): bash, !/!!, and the file tools are host surfaces. Run /devcontainer use|up to engage a container target.`,
+        "info",
+      );
+    }
+    for (const line of loaded.diagnostics) {
+      ctx.ui.notify(`[devcontainer-manager] ${line}`, "warning");
+    }
+
+    if (recovered !== undefined && decision.active) {
       // Re-resolve against the live registry instead of parking the selection in
       // `selected-missing` forever: a still-running target becomes usable again
       // without a manual re-`use`.
@@ -598,7 +654,7 @@ export default function (pi: ExtensionAPI): void {
   // guessing an environment from command text.
   pi.on("before_agent_start", async (event) => {
     const rt = runtime;
-    if (rt === undefined) return undefined;
+    if (rt === undefined || !rt.activation.decision.active) return undefined;
     const block = await rt.executionContext();
     if (block === undefined) return undefined;
     return { systemPrompt: `${event.systemPrompt}\n\n${block}` };
@@ -625,7 +681,7 @@ export default function (pi: ExtensionAPI): void {
   // --- Commands ----------------------------------------------------------
 
   pi.registerCommand("devcontainer", {
-    description: "DevContainer management (list, use, status, up, build, stop, remove, logs, host-exec, setup)",
+    description: "DevContainer management (list, use, status, up, build, stop, remove, logs, host-exec, setup, off)",
     handler: async (args, ctx) => {
       const rt = runtime;
       if (rt === undefined) {
@@ -658,7 +714,11 @@ export default function (pi: ExtensionAPI): void {
           restoreSelection: () => restoreSelection(ctx),
         };
         const result = await handler(rest, cmdCtx);
-        ctx.ui.notify(result.text, "info");
+        // `/devcontainer use|up` engages this session's container surfaces;
+        // `/devcontainer off` hands them back to the host. `activation: "never"` is
+        // the one thing an explicit use cannot override (AC-5).
+        if (verb === "use" || verb === "up") engageDevcontainerSurfaces(pi, rt!, () => runtime);
+        if (verb === "off") rt!.activation.decision = { active: false, reason: "no-evidence" };
       };
       await run(args);
     },
@@ -666,22 +726,27 @@ export default function (pi: ExtensionAPI): void {
 
   // --- Bash routing ------------------------------------------------------
 
-  // Same-name registration replaces the built-in `bash` tool (extension tools
-  // override built-ins by name in `_refreshToolRegistry`). The operations are
-  // resolved lazily so they observe the current runtime.
-  // Build the routed bash definition, then override its system-prompt
-  // contribution. The built-in bash snippet/guidelines describe a HOST shell
-  // (including \"inspect PI_* variables\") which is false here: `bash` is
-  // routed into the selected DevContainer and PI_* is never exposed
-  // (exposeSessionEnvironment: false). The agent must see the routed
-  // semantics so it does not run container work on the host or expect host
-  // state inside bash.
-  const bashDefinition = createBashToolDefinition(process.cwd(), {
-    operations: lazyBashOperations(() => runtime),
+
+  pi.on("user_bash", (event) => resolveUserBash(runtime, event));
+}
+
+/**
+ * Register the container-routed `bash` replacement: a same-name override of Pi's
+ * built-in tool (`_refreshToolRegistry` replaces by name). Only called while the
+ * session is engaged — in a dormant workspace the built-in host shell, `!`/`!!`,
+ * and the host file tools stay exactly as Pi shipped them (AC-4).
+ */
+function registerBashReplacement(pi: ExtensionAPI, getRuntime: () => Runtime | undefined): void {
+  const definition = createBashToolDefinition(process.cwd(), {
+    operations: lazyBashOperations(getRuntime),
     exposeSessionEnvironment: false,
   });
+  // Override the built-in's system-prompt contribution: its snippet/guidelines
+  // describe a HOST shell (including "inspect PI_* variables"), which is false for
+  // the routed tool. The agent must see the routed semantics so it does not run
+  // container work on the host or expect host state inside bash.
   pi.registerTool({
-    ...bashDefinition,
+    ...definition,
     promptSnippet:
       "Execute a shell command inside the selected DevContainer (routed; not the host)",
     promptGuidelines: [
@@ -693,8 +758,88 @@ export default function (pi: ExtensionAPI): void {
       `If no target is selected or it is stopped, bash fails closed (target-stopped) — run /devcontainer up first.`,
     ],
   });
+}
 
-  pi.on("user_bash", (event) => resolveUserBash(runtime, event));
+/**
+ * Engage the container surfaces for a session that started dormant, after an
+ * explicit `/devcontainer use|up`. `activation: "never"` outranks this (AC-5).
+ *
+ * Registration happens mid-session here. Tool definitions registered during a
+ * command are expected to be picked up by the next turn (Pi refreshes its tool
+ * registry per turn); if a host cannot observe that, `/reload` makes it
+ * authoritative.
+ */
+function engageDevcontainerSurfaces(pi: ExtensionAPI, rt: Runtime, getRuntime: () => Runtime | undefined): void {
+  if (rt.config.activation === "never" || rt.activation.decision.active) return;
+  rt.activation.decision = { active: true, reason: "explicit-selection" };
+  registerDevcontainerTools(pi, getRuntime);
+  registerBashReplacement(pi, getRuntime);
+}
+
+/**
+ * Activation chain step 4: is there a RUNNING container labelled for this
+ * workspace? Bounded, and every failure mode (no daemon, timeout) counts as "no
+ * evidence" — the decision must fail toward dormancy, never toward takeover.
+ */
+async function probeRunningContainer(rt: Runtime, workspace: string): Promise<boolean> {
+  try {
+    const { entries } = await Promise.race([
+      rt.registry(),
+      new Promise<never>((_resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("container probe timed out")), 2_500);
+        timer.unref();
+      }),
+    ]);
+    const key = canonicalWorkspaceKey(workspace);
+    return entries.some(
+      (entry) => canonicalWorkspaceKey(entry.workspacePath) === key && (entry.containerState ?? "") === "running",
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Host-local shell used while dormant, for the window in which `/devcontainer off`
+ * disengaged a session whose routed `bash` tool is already registered.
+ *
+ * This is deliberately NOT the audited, policy-gated `devcontainer_host_exec`
+ * surface: it is what Pi's built-in `bash` does when this extension is absent, so
+ * dormancy can only restore the default, never widen host access.
+ */
+function dormantHostBash(
+  command: string,
+  cwd: string,
+  maxOutputBytes: number,
+): Promise<{ output: string; exitCode: number; cancelled: boolean; truncated: boolean }> {
+  return new Promise((resolve) => {
+    const child = spawn(command, { shell: true, cwd, env: process.env });
+    const chunks: Buffer[] = [];
+    let bytes = 0;
+    let truncated = false;
+    const collect = (chunk: Buffer): void => {
+      const room = maxOutputBytes - bytes;
+      if (room <= 0) {
+        truncated = true;
+        return;
+      }
+      chunks.push(chunk.length <= room ? chunk : chunk.subarray(0, room));
+      bytes += Math.min(chunk.length, room);
+    };
+    child.stdout?.on("data", collect);
+    child.stderr?.on("data", collect);
+    child.on("error", (error: Error) => {
+      resolve({
+        output: `[devcontainer-manager] host shell failed: ${error.message}`,
+        exitCode: 1,
+        cancelled: false,
+        truncated: false,
+      });
+    });
+    child.on("close", (code: number | null) => {
+      resolve({ output: Buffer.concat(chunks).toString("utf8"), exitCode: code ?? 1, cancelled: false, truncated });
+    });
+  });
 }
 
 /**
@@ -717,7 +862,7 @@ export default function (pi: ExtensionAPI): void {
 export function resolveUserBash(
   rt: Runtime | undefined,
   event: { command: string; cwd: string; excludeFromContext: boolean } | undefined = undefined,
-): UserBashEventResult {
+): UserBashEventResult | undefined {
   if (rt === undefined) {
     // For `!!` the output never reaches the LLM context, so the terse form
     // is enough; for `!` the full guidance is shown to the agent too.
@@ -732,6 +877,13 @@ export function resolveUserBash(
         truncated: false,
       },
     };
+  }
+  if (!rt.activation.decision.active) {
+    // Dormant: this session's `!`/`!!` belong to the host. Returning undefined is
+    // the correct answer HERE (unlike the unknown-runtime case above) — it is what
+    // lets Pi run the command with its own local bash, which is the dormant
+    // contract (AC-4).
+    return undefined;
   }
   // Future hook: `event` is available here to route by command/cwd or to
   // honour excludeFromContext; today every `!`/`!!` routes through the same
@@ -751,7 +903,7 @@ async function showVerbPicker(
   run: (verbArg: string) => Promise<void>,
 ): Promise<void> {
   if (!ctx.hasUI) {
-    ctx.ui.notify("DevContainer management: list, status, use, up, build, stop, remove, logs, host-exec, setup. Try /devcontainer <verb>.", "info");
+    ctx.ui.notify("DevContainer management: list, status, use, up, build, stop, remove, logs, host-exec, setup, off. Try /devcontainer <verb>.", "info");
     return;
   }
   const choice = await ctx.ui.select(
@@ -767,6 +919,7 @@ async function showVerbPicker(
       "logs [--tail N] - container logs",
       "host-exec <argv...> - HOST escape hatch (policy-gated)",
       "setup - install/upgrade the Dev Containers CLI",
+      "off - return this session to the host (dormant)",
     ],
     ctx.signal !== undefined ? { signal: ctx.signal } : undefined,
   );
@@ -864,6 +1017,12 @@ function lazyBashOperations(getRuntime: () => Runtime | undefined): BashOperatio
           message: "DevContainer runtime is not initialized.",
           remedy: "Run /reload or restart pi.",
         });
+      }
+      if (!rt.activation.decision.active) {
+        // `/devcontainer off` returned this session to dormancy after the routed
+        // tool was registered, so `bash` has to behave like the host shell it
+        // replaced until the next reload re-binds the built-in definition.
+        return dormantHostBash(command, cwd, rt.config.maxOutputBytes);
       }
       return rt.bashOperations.exec(command, cwd, options);
     },

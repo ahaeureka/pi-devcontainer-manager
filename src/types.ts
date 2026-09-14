@@ -73,11 +73,15 @@ export interface HostExecutionConfig {
   allow: boolean;
 }
 
+/** Whether the extension takes over a workspace's execution surfaces. */
+export type ActivationMode = "workspace" | "always" | "never";
+
 export interface ManagerConfig {
   version?: number;
   dockerPath?: string;
   devcontainerPath?: string;
   routeMode?: RouteMode;
+  activation?: ActivationMode;
   allowedWorkspaceRoots?: string[];
   environmentAllowlist?: string[];
   maxTimeoutSeconds?: number;
@@ -93,6 +97,7 @@ export interface EffectiveConfig {
   dockerPath: string;
   devcontainerPath: string;
   routeMode: RouteMode;
+  readonly activation: ActivationMode;
   allowedWorkspaceRoots: readonly string[];
   environmentAllowlist: readonly string[];
   maxTimeoutSeconds: number;

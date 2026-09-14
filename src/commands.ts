@@ -275,6 +275,17 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     return { text: renderStatus(snapshot, entries, services.config) };
   };
 
+  /**
+   * Return to the dormant state: clear the target so the session's execution
+   * surfaces belong to the host again (AC-5).
+   */
+  handlers["off"] = async (_args, _ctx) => {
+    await services.targetStore.clear();
+    return {
+      text: "DevContainer target cleared. `bash`, `!`/`!!`, and the file tools are host surfaces again.\nRun /devcontainer use to take over a container again.",
+    };
+  };
+
   handlers["use"] = async (args, ctx) => {
     const { entries } = await services.registry();
     const { selector: wanted, config: configSelector } = parseUseArgs(args);

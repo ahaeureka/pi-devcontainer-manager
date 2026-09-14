@@ -35,10 +35,24 @@ describe("resolveUserBash (user_bash fail-closed contract)", () => {
 
   it("still routes when runtime is ready regardless of excludeFromContext", () => {
     const bashOperations = { exec: async () => ({ exitCode: 0 }) };
+    const engaged = { bashOperations, activation: { decision: { active: true, reason: "workspace-config" } } };
     for (const excludeFromContext of [false, true]) {
-      const resolved = resolveUserBash({ bashOperations } as never, { command: "ls", cwd: "/w", excludeFromContext });
-      expect("operations" in resolved).toBe(true);
-      if ("operations" in resolved) expect(resolved.operations).toBe(bashOperations);
+      const resolved = resolveUserBash(engaged as never, { command: "ls", cwd: "/w", excludeFromContext });
+      expect("operations" in (resolved ?? {})).toBe(true);
+      if (resolved !== undefined && "operations" in resolved) expect(resolved.operations).toBe(bashOperations);
+    }
+  });
+
+  it("hands `!`/`!!` back to Pi's local bash while the session is dormant", () => {
+    const dormant = {
+      bashOperations: { exec: async () => ({ exitCode: 0 }) },
+      activation: { decision: { active: false, reason: "no-evidence" } },
+    };
+    // Undefined is the CORRECT answer here: Pi runs the command with its own local
+    // bash, which is exactly what dormancy means (AC-4). The unknown-runtime case
+    // above must stay a hard stop, so the two paths are asserted separately.
+    for (const excludeFromContext of [false, true]) {
+      expect(resolveUserBash(dormant as never, { command: "ls", cwd: "/w", excludeFromContext })).toBeUndefined();
     }
   });
 });

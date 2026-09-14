@@ -13,6 +13,7 @@ const DEFAULTS: EffectiveConfig = Object.freeze({
   dockerPath: "docker",
   devcontainerPath: "devcontainer",
   routeMode: "container-required",
+  activation: "workspace",
   allowedWorkspaceRoots: Object.freeze([]),
   environmentAllowlist: Object.freeze([]),
   maxTimeoutSeconds: 900,
@@ -58,10 +59,87 @@ export function loadConfig(
   paths: ConfigPaths,
   options: { projectTrusted: boolean; readFile?: (path: string) => string },
 ): EffectiveConfig {
+  return loadConfigWithDiagnostics(paths, options).config;
+}
+
+/**
+ * Like {@link loadConfig}, but also explains two outcomes an operator otherwise
+ * cannot see (AC-7): a project file that is never read because the project is not
+ * trusted by Pi, and a project value that a host-protective ceiling silently
+ * clamped.
+ */
+export function loadConfigWithDiagnostics(
+  paths: ConfigPaths,
+  options: { projectTrusted: boolean; readFile?: (path: string) => string },
+): { config: EffectiveConfig; diagnostics: string[] } {
   const read = options.readFile ?? ((path: string) => readFileSync(path, "utf8"));
   const global = readOptional(paths.globalPath, read);
+  const projectFileExists = canRead(paths.projectPath, read) || existsSync(paths.projectPath);
   const project = options.projectTrusted ? readOptional(paths.projectPath, read) : {};
-  return compileConfig(global, project);
+  return {
+    config: compileConfig(global, project),
+    diagnostics: describeConfigDiagnostics(global, project, {
+      projectTrusted: options.projectTrusted,
+      projectPath: paths.projectPath,
+      projectFileExists,
+    }),
+  };
+}
+
+/** Does the reader resolve this path? Existence must come from the same seam as
+ * the content: with an injected reader the real filesystem is not the source of
+ * truth. */
+function canRead(path: string, read: (path: string) => string): boolean {
+  try {
+    read(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Report configuration that cannot take effect. Narrowing at a ceiling is
+ * intentional — the ceilings protect the host — but doing it silently is not.
+ */
+export function describeConfigDiagnostics(
+  global: ManagerConfig,
+  project: ManagerConfig,
+  options: { projectTrusted: boolean; projectPath?: string; projectFileExists?: boolean },
+): string[] {
+  const diagnostics: string[] = [];
+  if (!options.projectTrusted && options.projectFileExists === true) {
+    diagnostics.push(
+      `project configuration at ${options.projectPath ?? "<project>"} is ignored: this project is not trusted by Pi`,
+    );
+  }
+
+  const widened: Array<{ key: string; requested: string; ceiling: string }> = [];
+  const globalRoots = global.allowedWorkspaceRoots ?? [];
+  const projectRoots = project.allowedWorkspaceRoots ?? [];
+  const rootsOutside = projectRoots.filter((root) => !globalRoots.includes(root));
+  if (rootsOutside.length > 0) {
+    widened.push({ key: "allowedWorkspaceRoots", requested: rootsOutside.join(", "), ceiling: globalRoots.join(", ") });
+  }
+  const globalEnv = global.environmentAllowlist ?? [];
+  const projectEnv = project.environmentAllowlist ?? [];
+  const envOutside = projectEnv.filter((name) => !globalEnv.includes(name));
+  if (envOutside.length > 0) {
+    widened.push({ key: "environmentAllowlist", requested: envOutside.join(", "), ceiling: globalEnv.join(", ") });
+  }
+  for (const key of ["maxTimeoutSeconds", "maxOutputBytes"] as const) {
+    const requested = project[key];
+    const ceiling = global[key];
+    if (requested !== undefined && ceiling !== undefined && requested > ceiling) {
+      widened.push({ key, requested: String(requested), ceiling: String(ceiling) });
+    }
+  }
+  for (const entry of widened) {
+    diagnostics.push(
+      `project ${entry.key} requested ${entry.requested} but is clamped by the global ceiling ${entry.ceiling}`,
+    );
+  }
+  return diagnostics;
 }
 
 export function compileConfig(
@@ -100,6 +178,7 @@ export function compileConfig(
     dockerPath: project.dockerPath ?? global.dockerPath ?? DEFAULTS.dockerPath,
     devcontainerPath: project.devcontainerPath ?? global.devcontainerPath ?? DEFAULTS.devcontainerPath,
     routeMode: project.routeMode ?? global.routeMode ?? DEFAULTS.routeMode,
+    activation: project.activation ?? global.activation ?? DEFAULTS.activation,
     allowedWorkspaceRoots: projectRoots,
     environmentAllowlist: projectEnv,
     maxTimeoutSeconds: maxTimeout,
@@ -187,6 +266,9 @@ function validateConfig(config: ManagerConfig, source: string): void {
       `${source} configuration routeMode '${config.routeMode}' is not implemented; only "container-required" is supported in v1`,
     );
   }
+  if (config.activation !== undefined && !["workspace", "always", "never"].includes(config.activation)) {
+    throw new Error(`${source} configuration activation is invalid`);
+  }
   for (const [name, value] of [["allowedWorkspaceRoots", config.allowedWorkspaceRoots], ["environmentAllowlist", config.environmentAllowlist]] as const) {
     if (value !== undefined && (!Array.isArray(value) || value.some((item) => typeof item !== "string" || item.length === 0))) {
       throw new Error(`${source} configuration ${name} must be a non-empty string array`);
@@ -240,6 +322,7 @@ function freezeConfig(value: {
   dockerPath: string;
   devcontainerPath: string;
   routeMode: RouteMode;
+  activation: EffectiveConfig["activation"];
   allowedWorkspaceRoots: readonly string[];
   environmentAllowlist: readonly string[];
   maxTimeoutSeconds: number;

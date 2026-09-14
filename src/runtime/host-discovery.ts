@@ -99,6 +99,29 @@ export function mapContainerState(state: string | undefined): ContainerState | u
   }
 }
 
+/**
+ * Cheap, cwd-anchored probe used by the activation decision: does this workspace
+ * itself own a DevContainer configuration? Unlike {@link discoverHostConfigs} it
+ * never scans a tree and never touches Docker — it only looks at the forms a
+ * workspace can declare at its own root.
+ */
+export function workspaceHasConfig(workspace: string, traversal: DirectoryTraversal = nodeTraversal()): boolean {
+  for (const name of ["devcontainer.json", ".devcontainer.json"]) {
+    if (isExistingFile(join(workspace, name), traversal)) return true;
+  }
+  const dotDevcontainer = join(workspace, ".devcontainer");
+  if (isExistingFile(join(dotDevcontainer, "devcontainer.json"), traversal)) return true;
+  let entries: readonly string[];
+  try {
+    entries = traversal.readdir(dotDevcontainer);
+  } catch {
+    return false;
+  }
+  return entries.some(
+    (entry) => !entry.startsWith(".") && isExistingFile(join(dotDevcontainer, entry, "devcontainer.json"), traversal),
+  );
+}
+
 /** Classify a discovered configuration file path into its locked kind. */
 export function kindFor(configPath: string): DevcontainerConfigKind {
   const parent = basename(dirname(configPath));
