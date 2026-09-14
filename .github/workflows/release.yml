@@ -66,9 +66,9 @@ jobs:
 
   publish:
     name: publish to npm
-    # The packed-tarball runtime smoke gates publishing whenever provider
-    # secrets are configured. When that job is SKIPPED (no PI_PROVIDER secret)
-    # publishing still proceeds, so secret-less dry runs are not blocked.
+    # The packed-tarball runtime smoke runs unconditionally: the packed-artifact
+    # checks always run, and the script self-skips only its model-touching step
+    # when no PI_PROVIDER secret is configured (named reason, exit 0).
     needs: [verify, smoke-pi]
     runs-on: ubuntu-latest
     # github.event.inputs.* arrives as the STRING "true"/"false"; compare
@@ -98,7 +98,10 @@ jobs:
     name: packed-tarball Pi runtime smoke
     runs-on: ubuntu-latest
     needs: [verify]
-    if: ${{ secrets.PI_PROVIDER != '' }}
+    # NOT gated on `secrets.PI_PROVIDER`: the `secrets` context is unavailable in
+    # `if:` expressions, and referencing it makes GitHub reject this entire
+    # workflow file — the run then fails at startup with zero jobs. The script
+    # self-skips the model-touching step instead.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -111,7 +114,7 @@ jobs:
         run: npm i -g @earendil-works/pi-coding-agent
       - name: Build dist
         run: npm run build
-      - name: Packed Pi runtime smoke (model-touching, secret-gated)
+      - name: Packed Pi runtime smoke (self-skips the model step without PI_PROVIDER)
         env:
           PI_PROVIDER: ${{ secrets.PI_PROVIDER }}
           PI_MODEL: ${{ secrets.PI_MODEL }}
