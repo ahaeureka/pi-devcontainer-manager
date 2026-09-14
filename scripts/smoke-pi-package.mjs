@@ -60,8 +60,15 @@ function providerConfigured() {
 
 const pi = piOnPath();
 if (pi === undefined) {
-  if (noModel) {
-    console.warn("[smoke-pi-package] pi CLI not on PATH; skipping install/probe steps (--no-model).");
+  // No Pi runtime on PATH is only fatal when a real smoke was actually possible: with
+  // `--no-model`, or with no provider configured at all, there is nothing to smoke and
+  // the packed-artifact checks below still run. (A `--provider`-less CI runner lands
+  // here; `integration.yml` used to skip this step entirely via a secret gate, which
+  // GitHub rejects because `secrets` is not allowed in `if:`.)
+  if (noModel || !providerConfigured()) {
+    console.warn(
+      `[smoke-pi-package] pi CLI not on PATH; running the packed-artifact checks only${noModel ? " (--no-model)" : " (no provider configured)"}.`,
+    );
   } else {
     fail("pi CLI not found on PATH; run: npm i -g @earendil-works/pi-coding-agent");
     console.error("[smoke-pi-package] skipping — no real Pi runtime available.");
