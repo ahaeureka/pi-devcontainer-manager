@@ -42,6 +42,13 @@ jobs:
       - name: E2E suite (real Docker + CLI via capability gate)
         run: npx vitest run tests/e2e
 
+
+      # The packed-artifact checks below inspect the packed TARBALL, so the compiled
+      # dist/ has to exist; the test suites above read the TypeScript sources through
+      # vitest and never build. Without this step the tarball ships no
+      # dist/extensions/index.js and the smoke fails on its own packaging check.
+      - name: Build dist for the packed smoke
+        run: npm run build
       # Real Pi runtime smoke: the packed-artifact checks always run; the script
       # self-skips its model-touching step (named reason) when no provider is
       # configured. NOT gated on `secrets.PI_PROVIDER` — `secrets` is unavailable
