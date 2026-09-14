@@ -67,6 +67,19 @@ macOS.
   model, the v1 compatibility matrix, and a typed-error troubleshooting guide,
   plus a documentation index and a contributing guide.
 
+### Changed
+
+- Routing from outside the selected target: a container operation may now be issued
+  from a workspace that is not itself a DevContainer project (it runs against the
+  selected target), and the audit record carries the executed workspace **and** the
+  request's `requestedCwd`. A request whose cwd is itself another DevContainer project
+  is still refused with `policy-denied`, and the CLI always receives the target
+  workspace, so authorization scope, execution, and audit cannot disagree.
+
+- Audit records for a request inside the target no longer claim a sub-directory was
+  the workspace: `workspace` is always the executed target, with the caller's cwd in
+  `requestedCwd` when it differs.
+
 ### Fixed
 
 - Discovery and the pinned CLI disagreed about which configuration forms exist: a

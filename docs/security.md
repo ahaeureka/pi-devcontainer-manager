@@ -40,6 +40,12 @@ operational defaults.
   stable workspace key + candidate discriminator, and each operation re-resolves
   the target and freezes an immutable policy snapshot before any spawn. A
   concurrent selection switch cannot redirect a bound operation.
+- **The executed workspace is always the bound target.** An operation issued from a path
+  outside the selected target runs against the target (that is the explicit-selection
+  workflow) and its audit record carries the caller's cwd in `requestedCwd`; a request
+  whose cwd is itself another DevContainer project is refused with `policy-denied`, so
+  a caller can never silently act on a different repository. The CLI always receives
+  the target workspace, so authorization scope, execution, and audit cannot disagree.
 - **File tools are a host capability, not a container route.** Pi's built-in
   file tools (`read`/`write`/`edit`/`grep`/`find`/`ls`) always run against
   the host filesystem under the normal Pi trust model; they are never

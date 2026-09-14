@@ -135,6 +135,8 @@ export interface AuditRecord {
   readonly initiator: Initiator;
   readonly workspace?: string;
   readonly targetId?: string;
+  /** The request's cwd when it differs from the executed (target) workspace. */
+  readonly requestedCwd?: string;
   readonly policyAuthorized: boolean;
   readonly policyDenialReason?: string;
   readonly durationMs?: number;

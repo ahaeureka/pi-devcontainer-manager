@@ -240,9 +240,18 @@ instance — so the two surfaces cannot drift.
 
 ### Discovery and selection
 
-- Recognizes `devcontainer.json`, `.devcontainer/devcontainer.json`, and
-  `.devcontainer.json`; merges host-config entries with Docker label candidates
-  (`devcontainer.local_folder`) into one registry keyed by canonical workspace path.
+- Recognizes `.devcontainer/devcontainer.json`, `.devcontainer.json`,
+  `.devcontainer/<name>/devcontainer.json` (named; several per workspace), and the
+  legacy root `devcontainer.json`; merges host-config entries with Docker label
+  candidates (`devcontainer.local_folder`) into one registry keyed by canonical
+  workspace path. The CLI resolves only the first two by itself — for every other form
+  the extension passes `--config <path>`, and
+  `/devcontainer use <ws> --config <name|path>` selects which one to use.
+- Once a target is selected, a container command may be issued from a workspace that is
+  not itself a DevContainer project: it runs against the selected target, and the audit
+  record carries the executed target **and** the request's cwd. A request whose cwd is
+  another DevContainer project stays `policy-denied` — it would silently act on a
+  different repository.
 - The bounded scan stops at `discovery.maxDepth` (default `3`), never descends
   into excluded or hidden directories (`.devcontainer` excepted), and refuses
   directories whose real path escapes an allowed root.

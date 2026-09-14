@@ -68,6 +68,15 @@ Step 4 costs one bounded `docker ps` (2.5 s cap) and only runs when every cheape
 signal missed; any failure there counts as "no evidence". To force a decision, set
 [`activation`](configuration.md#activation) in the project or global configuration.
 
+### `[policy-denied] Requested workspace … is not the selected target workspace`
+
+You are standing in one DevContainer project while a different target is selected.
+Routing from *outside* any project is allowed — that is how you drive a selected target
+from a plain repository — but a request from another project's workspace is refused on
+purpose, because it would act on a different repository than the one you are in. Run
+`/devcontainer use` for the project you are standing in, or issue the command from a
+directory that is not another project.
+
 ### `bash` refuses to run anything
 
 That is the fail-closed contract. `bash` is routed into the selected
