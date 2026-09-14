@@ -1,0 +1,54 @@
+{
+  "requirements": [
+    {
+      "id": "AC-1",
+      "statement": "For every config form discovery accepts, the argv the extension builds makes `devcontainer read-configuration` exit 0 (contract test over fixtures for each form).",
+      "source": "openspec/changes/activation-and-config-mechanism/design.md#3-acceptance-matrix"
+    },
+    {
+      "id": "AC-2",
+      "statement": "`.devcontainer/<name>/devcontainer.json` yields candidates for the same workspace; selecting one makes `up`/`build`/`exec` carry `--config <that path>`; selecting the default form still carries no `--config`.",
+      "source": "openspec/changes/activation-and-config-mechanism/design.md#3-acceptance-matrix"
+    },
+    {
+      "id": "AC-3",
+      "statement": "Activation follows the priority chain: `never` beats `always`; cwd-with-config engages; cwd-with-running-container engages when there is no config; explicit `use` engages; otherwise dormant.",
+      "source": "openspec/changes/activation-and-config-mechanism/design.md#3-acceptance-matrix"
+    },
+    {
+      "id": "AC-4",
+      "statement": "Dormant state: `bash` is the host built-in, `!`/`!!` run locally, the three container tools are absent from the active set, no execution context is injected, and `/devcontainer list|use|up` still work.",
+      "source": "openspec/changes/activation-and-config-mechanism/design.md#3-acceptance-matrix"
+    },
+    {
+      "id": "AC-5",
+      "statement": "`/devcontainer off` clears the selection and returns to dormant; `activation: \"never\"` cannot be overridden by an explicit `use`.",
+      "source": "openspec/changes/activation-and-config-mechanism/design.md#3-acceptance-matrix"
+    },
+    {
+      "id": "AC-6",
+      "statement": "Merge precedence matches the documented table exactly, for both directions (project narrower and project wider), with the four ceilings still clamping.",
+      "source": "openspec/changes/activation-and-config-mechanism/design.md#3-acceptance-matrix"
+    },
+    {
+      "id": "AC-7",
+      "statement": "Both formerly silent cases now emit the configured diagnostics (untrusted project file; clamped ceiling), asserted on the rendered status text.",
+      "source": "openspec/changes/activation-and-config-mechanism/design.md#3-acceptance-matrix"
+    },
+    {
+      "id": "AC-8",
+      "statement": "Routing: executing from a non-DevContainer cwd against an explicitly selected target succeeds, the audit record carries target workspace + `requestedCwd`, and a request whose cwd is another DevContainer project still fails with `policy-denied`.",
+      "source": "openspec/changes/activation-and-config-mechanism/design.md#3-acceptance-matrix"
+    },
+    {
+      "id": "AC-9",
+      "statement": "`docs/compatibility.md` (config forms), `docs/configuration.md` (precedence + diagnostics), `docs/security.md` (invariants), and README (discovery/activation) match the implementation; CHANGELOG records it under the unreleased 1.0.0.",
+      "source": "openspec/changes/activation-and-config-mechanism/design.md#3-acceptance-matrix"
+    },
+    {
+      "id": "AC-10",
+      "statement": "Regression: the pre-existing unit tests plus the capability-gated integration/e2e suites stay green; `npm run typecheck`, `npm run test:unit`, and `node scripts/verify-package.mjs --unit-tests` pass.",
+      "source": "openspec/changes/activation-and-config-mechanism/design.md#3-acceptance-matrix"
+    }
+  ]
+}
