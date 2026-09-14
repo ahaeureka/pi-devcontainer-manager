@@ -1,8 +1,9 @@
 # Dependencies
 node_modules/
 
-# Build output
-dist/
+# Build output. `dist/` is COMMITTED on purpose: Pi installs git packages with
+# `npm install --omit=dev`, so a git source must carry a working entry point without a
+# build toolchain. CI asserts the committed output matches a fresh build.
 *.tgz
 
 # Pi machine-local state

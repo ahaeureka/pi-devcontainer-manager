@@ -40,6 +40,12 @@ jobs:
       - name: Whole-package gate (verify-package.mjs, build + pack:check)
         run: node scripts/verify-package.mjs --unit-tests
 
+      # dist/ is committed so `pi install git:...` works without a build toolchain (Pi
+      # installs git packages with `npm install --omit=dev`). verify-package just built
+      # it, so any difference here means the committed artifact is stale.
+      - name: Committed dist matches a fresh build
+        run: git diff --exit-code -- dist
+
       - name: Package smoke (manifest + tarball contract, no model needed)
         run: node scripts/smoke-pi-package.mjs --no-model
 

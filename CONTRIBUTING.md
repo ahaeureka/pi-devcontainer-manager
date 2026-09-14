@@ -79,6 +79,14 @@ structural casts that wire `src/` into Pi.
 | `node scripts/verify-package.mjs` | whole-package gate: typecheck → tests → build → pack check → engines probe → CLI-pin probe |
 | `node scripts/smoke-pi-package.mjs --no-model` | packed-tarball manifest/registration smoke (no model) |
 
+`dist/` is **committed to the repository**: Pi installs git packages with
+`npm install --omit=dev`, so `pi install git:github.com/ahaeureka/pi-devcontainer-manager`
+needs a working `dist/extensions/index.js` without a TypeScript toolchain (a `tsc`-based
+`prepare` script fails that install outright — `scripts/prepare-package.mjs` therefore
+refreshes `dist/` only when the toolchain is present). Rebuild and commit `dist/` with any
+source change: CI runs `git diff --exit-code -- dist` after a fresh build and fails if the
+committed output is stale.
+
 ### Test layers
 
 - **Unit** (`tests/unit`) — deterministic and capability-free. They must not need
