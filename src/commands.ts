@@ -144,10 +144,15 @@ export function selectionFor(
 ): TargetSelection {
   const state = entry.containerState ?? "exited";
   // A named configuration (or the legacy root form) is invisible to the CLI's own
-  // lookup, so it must travel with the operation. The default forms stay
-  // flag-free so today's argv is unchanged.
+  // lookup, so it must travel with the operation. Only a DISCOVERED path is ever
+  // carried — a caller cannot smuggle an arbitrary `--config` into the argv — and the
+  // default-lookup forms stay flag-free so today's argv is unchanged.
   const resolvedConfig =
-    configPath ?? (needsExplicitConfig(entry.configKind) && entry.configPath.length > 0 ? entry.configPath : undefined);
+    configPath !== undefined
+      ? candidatesOf(entry).find((candidate) => candidate.configPath === configPath)?.configPath
+      : needsExplicitConfig(entry.configKind) && entry.configPath.length > 0
+        ? entry.configPath
+        : undefined;
   // More than one running container for this workspace: Docker result order
   // must never decide the target. Fail closed until an explicit id is given.
   if (entry.ambiguous === true && candidateId === undefined) {
@@ -235,11 +240,42 @@ function selectorNameOf(candidate: ConfigCandidate): string {
   return parts[parts.length - 2] ?? "default";
 }
 
+/** Every configuration discovered for one workspace (primary form when unlisted). */
+function candidatesOf(entry: RegistryEntry): readonly ConfigCandidate[] {
+  return entry.configCandidates ?? (entry.configPath.length > 0 ? [{ configPath: entry.configPath, configKind: entry.configKind }] : []);
+}
+
+/**
+ * The configuration `up`/`build` should hand the CLI, most explicit source first: the
+ * operator's `--config` selector, the configuration already selected for that
+ * workspace, then the workspace's highest-priority discovered form.
+ *
+ * Every path returned comes from the discovered candidate set, so no caller can put an
+ * arbitrary path into the CLI's `--config`.
+ */
+export function configPathFor(
+  entry: RegistryEntry,
+  requested: { selector?: string; selectedWorkspaceKey?: string; selectedConfigPath?: string },
+): ConfigResolution {
+  if (requested.selector !== undefined) return resolveConfigCandidate(entry, requested.selector);
+  const { selectedConfigPath, selectedWorkspaceKey } = requested;
+  if (
+    selectedConfigPath !== undefined &&
+    selectedWorkspaceKey !== undefined &&
+    canonicalWorkspaceKey(selectedWorkspaceKey) === canonicalWorkspaceKey(entry.workspacePath)
+  ) {
+    const validated = resolveConfigCandidate(entry, selectedConfigPath);
+    if (validated.ok) return validated;
+  }
+  return {
+    ok: true,
+    ...(needsExplicitConfig(entry.configKind) && entry.configPath.length > 0 ? { configPath: entry.configPath } : {}),
+  };
+}
+
 /** Resolve a `--config` selector against every configuration of one workspace. */
 export function resolveConfigCandidate(entry: RegistryEntry, requested: string): ConfigResolution {
-  const discovered: readonly ConfigCandidate[] =
-    entry.configCandidates ??
-    (entry.configPath.length > 0 ? [{ configPath: entry.configPath, configKind: entry.configKind }] : []);
+  const discovered: readonly ConfigCandidate[] = candidatesOf(entry);
   for (const candidate of discovered) {
     if (candidate.configPath === requested || selectorNameOf(candidate) === requested) {
       return { ok: true, configPath: candidate.configPath };
@@ -339,11 +375,53 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     return { text: `Selected \`${picked.workspacePath}\` (${picked.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
   };
 
+  /**
+   * Resolve which workspace and which configuration an `/devcontainer up`/`build`
+   * invocation targets. Shared by both verbs so their argument handling cannot drift,
+   * and resolved through the registry so every path handed to the CLI is a discovered
+   * one (AC-2).
+   */
+  const resolveUpBuildTarget = async (
+    args: string,
+    ctx: CommandContextLike,
+  ): Promise<{ ok: true; workspace: string; configPath?: string } | { ok: false; text: string }> => {
+    const { selector, config } = parseUseArgs(args);
+    const workspace = selector.length > 0 ? selector : ctx.cwd;
+    const { entries } = await services.registry();
+    const key = canonicalWorkspaceKey(workspace);
+    const entry = entries.find((candidate) => canonicalWorkspaceKey(candidate.workspacePath) === key);
+    if (entry === undefined) {
+      // Nothing discovered for this path: keep the CLI's own lookup and its own error,
+      // unless a configuration was requested explicitly — then nothing can resolve it.
+      return config === undefined
+        ? { ok: true, workspace }
+        : {
+            ok: false,
+            text: `[no-candidate] No registry entry matches \`${workspace}\`.\nRun /devcontainer list to see available targets.`,
+          };
+    }
+    const snapshot = services.targetStore.snapshot();
+    const resolved = configPathFor(entry, {
+      ...(config !== undefined ? { selector: config } : {}),
+      ...(snapshot.workspaceKey !== undefined ? { selectedWorkspaceKey: snapshot.workspaceKey } : {}),
+      ...(snapshot.configPath !== undefined ? { selectedConfigPath: snapshot.configPath } : {}),
+    });
+    if (resolved.ok === false) return { ok: false, text: resolved.text };
+    return { ok: true, workspace, ...(resolved.configPath !== undefined ? { configPath: resolved.configPath } : {}) };
+  };
+
   handlers["up"] = async (args, ctx) => {
-    const workspace = args.trim().length > 0 ? args.trim() : ctx.cwd;
+    const target = await resolveUpBuildTarget(args, ctx);
+    if (target.ok === false) return { text: target.text };
+    const { workspace } = target;
     let outcome: UpBuildOutcome;
     try {
-      outcome = await services.execution.up({ operation: "up", initiator: "slash-command", workspace });
+      outcome = await services.execution.up({
+        operation: "up",
+        initiator: "slash-command",
+        workspace,
+        ...(target.configPath !== undefined ? { configPath: target.configPath } : {}),
+      });
     } catch (error) {
       return { text: describeError(error) };
     }
@@ -362,10 +440,17 @@ export function createCommandHandlers(services: CommandServices): Record<string,
   };
 
   handlers["build"] = async (args, ctx) => {
-    const workspace = args.trim().length > 0 ? args.trim() : ctx.cwd;
+    const target = await resolveUpBuildTarget(args, ctx);
+    if (target.ok === false) return { text: target.text };
+    const { workspace } = target;
     let outcome: UpBuildOutcome;
     try {
-      outcome = await services.execution.build({ operation: "build", initiator: "slash-command", workspace });
+      outcome = await services.execution.build({
+        operation: "build",
+        initiator: "slash-command",
+        workspace,
+        ...(target.configPath !== undefined ? { configPath: target.configPath } : {}),
+      });
     } catch (error) {
       return { text: describeError(error) };
     }

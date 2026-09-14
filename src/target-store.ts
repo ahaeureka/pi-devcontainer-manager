@@ -56,6 +56,8 @@ export interface TargetStoreSnapshot {
   readonly status: SelectionStatus;
   readonly workspaceKey: string | undefined;
   readonly candidateId: string | undefined;
+  /** Configuration carried by the current selection, when it has one. */
+  readonly configPath?: string;
   readonly detail: string | undefined;
 }
 
@@ -73,6 +75,7 @@ export class TargetStore {
       workspaceKey: this.selection.workspaceKey,
       candidateId: this.selection.candidate?.id,
       detail: this.selection.detail,
+      ...(this.selection.candidate?.configPath !== undefined ? { configPath: this.selection.candidate.configPath } : {}),
     };
   }
 

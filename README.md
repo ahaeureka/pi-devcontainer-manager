@@ -246,7 +246,10 @@ instance — so the two surfaces cannot drift.
   candidates (`devcontainer.local_folder`) into one registry keyed by canonical
   workspace path. The CLI resolves only the first two by itself — for every other form
   the extension passes `--config <path>`, and
-  `/devcontainer use <ws> --config <name|path>` selects which one to use.
+  `/devcontainer use <ws> --config <name|path>` selects which one to use, and
+  `/devcontainer up|build` accept the same `--config <name|path>` (without it they use
+  the configuration already selected for that workspace, else the highest-priority
+  discovered form).
 - Once a target is selected, a container command may be issued from a workspace that is
   not itself a DevContainer project: it runs against the selected target, and the audit
   record carries the executed target **and** the request's cwd. A request whose cwd is
