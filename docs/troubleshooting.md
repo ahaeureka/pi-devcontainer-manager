@@ -41,32 +41,32 @@ The extension's runtime is composed on `session_start`, so a command or tool
 invoked before that (or during a reload) fails closed rather than falling back to
 the host. Run `/reload`, or restart Pi.
 
-### The extension is loaded in a project with no DevContainer
+### The extension is dormant in my project (it did not take over `bash`)
 
-The extension is discovered from
-`${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/` (or a `pi install` entry) and
-loads in **every** workspace it serves, so its replacement `bash` tool is always
-active. A `devcontainer.json` is a *discovery* input, not a load gate.
+That is the default, and it is deliberate. The extension is loaded for every
+workspace, so it decides **per session** whether to engage at all:
 
-In a project with no DevContainer configuration, discovery produces no registry
-entry for the session cwd, so no target can be selected and every routed command
-fails closed:
+| # | Evidence | Result |
+|---|---|---|
+| 1 | `activation: "never"` | dormant |
+| 2 | `activation: "always"` | engaged |
+| 3 | the session cwd owns a DevContainer configuration (`.devcontainer/devcontainer.json`, a named `.devcontainer/<name>/devcontainer.json`, `.devcontainer.json`, or a root `devcontainer.json`) | engaged |
+| 4 | a **running** container is labelled `devcontainer.local_folder` for the cwd | engaged |
+| 5 | you ran `/devcontainer use`/`up`, or a selection for this workspace was restored | engaged |
+| 6 | none of the above | **dormant** |
+
+Dormant means nothing was registered: `bash`, `!`/`!!`, and the host file tools
+behave exactly as in a Pi without this extension. `/devcontainer list`, `status`,
+`use`, and `up` still work — they are how you engage it:
 
 ```text
-[no-candidate] No DevContainer target is selected.
-Run /devcontainer list then /devcontainer use <workspace>.
+/devcontainer use <workspace>     # engage this session against that target
+/devcontainer off                 # hand the session back to the host
 ```
 
-This is intentional — there is no silent host fallback — and it is not
-overridable per project: `routeMode` values other than `container-required` are
-rejected at load, and selecting *another* project's target does not rescue the
-current directory, because an operation is refused with `policy-denied` when the
-request workspace is not the bound target workspace.
-
-To use a host shell in such a project, take the extension out of the picture for
-it: run `pi config` (`pi config -l` for project-level overrides) and disable the
-extension, remove the auto-discovery symlink, or `pi remove` the package — then
-restart Pi.
+Step 4 costs one bounded `docker ps` (2.5 s cap) and only runs when every cheaper
+signal missed; any failure there counts as "no evidence". To force a decision, set
+[`activation`](configuration.md#activation) in the project or global configuration.
 
 ### `bash` refuses to run anything
 

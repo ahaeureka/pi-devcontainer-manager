@@ -15,6 +15,19 @@ macOS.
 
 ### Added
 
+
+- Named DevContainer configurations (`.devcontainer/<name>/devcontainer.json`) are
+  discovered as candidates for their workspace and selectable with
+  `/devcontainer use <workspace> --config <name|path>`; the selected configuration is
+  carried through selection into `up`/`build`/`exec` as `--config <path>`.
+- `activation` (`"workspace"` (default) | `"always"` | `"never"`): the extension now
+  decides **per session** whether to take over the execution surfaces. In a workspace
+  with no DevContainer evidence it stays dormant and registers nothing, so Pi's
+  built-in `bash`, `!`/`!!`, and host file tools are untouched.
+- `/devcontainer off`: clears the target and hands the session back to the host.
+- Configuration diagnostics for two formerly silent outcomes: a project file ignored
+  because Pi does not trust the project, and a project value clamped by a host
+  ceiling (reported at session start and by `/devcontainer status`).
 - Host-side Pi extension for governed multi-DevContainer discovery, selection,
   and execution.
 - Bounded DevContainer configuration discovery (`devcontainer.json`,
@@ -56,6 +69,13 @@ macOS.
 
 ### Fixed
 
+- Discovery and the pinned CLI disagreed about which configuration forms exist: a
+  legacy root `devcontainer.json` was listed as a first-class form but was invisible to
+  `devcontainer up --workspace-folder`, so such a target could be selected and never
+  started, while named `.devcontainer/<name>/devcontainer.json` forms were not
+  discovered at all. Every accepted form is now covered by a contract test that runs
+  the real pinned CLI, and the non-default forms are passed explicitly with `--config`.
+
 - The global configuration file now follows Pi's config directory
   (`PI_CODING_AGENT_DIR`, default `~/.pi/agent`) instead of being hard-coded to
   `~/.pi/agent/extensions/`. With a relocated agent directory the previous path
@@ -64,6 +84,10 @@ macOS.
   `env`/`home` arguments (mirroring `defaultAuditDirectory`) and is unit-tested.
 
 ### Security
+
+- The "no silent host fallback" invariant is now **per workspace**. While dormant the
+  extension registers nothing, so `bash` is Pi's built-in host shell by design — that
+  restores default behavior rather than widening host access. The audited,
 
 - `bash` replacement registered with `exposeSessionEnvironment: false`; session
   metadata never reaches a container.

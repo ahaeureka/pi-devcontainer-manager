@@ -46,14 +46,29 @@ untrusted/less-privileged project config can never *expand* a global grant:
 | `audit.enabled` | project `false` wins; else global `false`; else default `true`. When `false` the runtime accepts records but persists nothing. |
 | `destructive.allowStop/allowRemove` | `true` only when **both** global and project grant it |
 | `hostExecution.allow` | `true` only when **both** grant it |
+| `activation` | project wins when both set (a repository can opt itself in or out) |
 
 `audit.directory` is merged global-only into the effective config (a project
 config cannot relocate the audit directory) and **is honored** by the runtime;
 when unset, the platform default is used. `audit.enabled: false` accepts
 records but persists nothing.
-`dockerPath`/`devcontainerPath`/`routeMode` prefer project over global when
-both set (these do not raise privilege, so project wins). In v1 `routeMode`
+`dockerPath`/`devcontainerPath`/`routeMode`/`activation` prefer project over global
+when both set (these do not raise privilege, so project wins). In v1 `routeMode`
 must be `"container-required"`; the other values are rejected at load.
+
+## Configuration diagnostics
+
+Two outcomes used to be invisible. Both are now reported at session start (as Pi
+notifications) and by `/devcontainer status`, so a configuration that appears to do
+nothing can explain itself:
+
+- **The project file is ignored** because Pi does not trust the project:
+  `project configuration at <path> is ignored: this project is not trusted by Pi`.
+- **A project value is clamped** by a host-protective ceiling:
+  `project <key> requested <value> but is clamped by the global ceiling <value>`.
+
+Narrowing at a ceiling is intentional — the ceilings protect the host — but doing it
+silently was not.
 
 ## Reference
 
@@ -74,6 +89,28 @@ must be `"container-required"`; the other values are rejected at load.
 - Type: `string` · Default: `"devcontainer"`
 - Executable used for `up`, `build`, and `exec` (resolved through `PATH`; see
   [installation.md](installation.md) for how the pinned CLI is supplied).
+
+### `activation`
+
+- Type: `"workspace" | "always" | "never"`
+- Default: `"workspace"`
+- Merge: **project-first** (`project ?? global ?? default`)
+
+Whether the extension engages a session at all. `"workspace"` (the default) engages
+only when the session's workspace shows DevContainer evidence — a configuration at
+the cwd, a running container labelled for it, or an explicit/restored selection —
+and otherwise stays dormant, leaving Pi's built-in `bash`, `!`/`!!`, and the host
+file tools exactly as shipped. `"always"` engages everywhere (the pre-1.0 behavior:
+useful when you drive other projects' targets from a plain repository). `"never"`
+refuses even an explicit `/devcontainer use`, which is how a repository opts out
+permanently.
+
+```json
+{ "activation": "workspace" }
+```
+
+A project value wins over the global one, so a repository can opt itself in or out
+without touching your global configuration.
 
 ### `routeMode`
 
@@ -160,9 +197,13 @@ tools; use `devcontainer_exec` (container-side `cat`/`find`) to reach them.
   "dist", "build"]`. Directories never traversed. Hidden directories are skipped
   except `.devcontainer`.
 
-Discovery recognizes all three canonical forms:
-`devcontainer.json` (root), `.devcontainer/devcontainer.json`, and
-`.devcontainer.json` (dot-file at root).
+Discovery recognizes every configuration form the CLI supports, plus the legacy root
+`.devcontainer/devcontainer.json`, `.devcontainer.json` (dot-file at root),
+`.devcontainer/<name>/devcontainer.json` (named; a workspace may have several), and
+the legacy `devcontainer.json` (root). The CLI resolves only the first two on its
+own; for every other form the extension passes the discovered path as
+`--config <path>` so the target can actually be started (see
+[compatibility.md](compatibility.md#discovery-behavior)).
 
 ### `audit`
 

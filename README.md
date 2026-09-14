@@ -56,7 +56,7 @@ environment should this command run in, and is that decision auditable?"**
 
 This extension answers that with explicit routing instead of name-based guessing:
 
-- **`bash`, `!`/`!!`, and `devcontainer_exec` are always the container.**
+- **While engaged, `bash`, `!`/`!!`, and `devcontainer_exec` are always the container.**
 - **`devcontainer_host_exec` and `/devcontainer host-exec` are the only general
   host-argv surfaces**, policy-gated and audited. `/devcontainer setup` is the one
   other host-side operation and runs a single fixed command.
@@ -101,6 +101,16 @@ every turn.
 - **Installs its own prerequisite**: `/devcontainer setup` runs
   `npm install -g @devcontainers/cli` on the host after an interactive
   confirmation (see [Security](docs/security.md#devcontainer-setup)).
+- **Loads only where it belongs.** A `devcontainer.json` is a *discovery* input, never
+  a load gate, so the extension decides **per session**: in a workspace with no
+  DevContainer evidence it stays **dormant** and leaves Pi's built-in `bash`,
+  `!`/`!!`, and host file tools exactly as shipped. `/devcontainer use` engages it,
+  `/devcontainer off` hands the session back — see
+  [`activation`](docs/configuration.md#activation).
+- **Named configurations are first-class.** A workspace may carry several
+  `.devcontainer/<name>/devcontainer.json` files;
+  `/devcontainer use <workspace> --config <name|path>` picks one, and every
+  `up`/`build`/`exec` then carries `--config <that path>`.
 - **Audits** every operation to a host-local JSONL file: fingerprint capture by
   default, 90-day retention window, `audit.enabled` and `audit.directory` honored.
 - **Never falls back silently** to the host: a `container-required` route returns
@@ -203,6 +213,7 @@ If the Dev Containers CLI is missing, run `/devcontainer setup` once.
 | `/devcontainer logs [--tail N]` | Bounded `docker logs` (default 100 lines); policy-checked and audited |
 | `/devcontainer host-exec <argv...>` | Audited host escape hatch (requires `hostExecution.allow`) |
 | `/devcontainer setup` | Install/upgrade the Dev Containers CLI globally (confirmed, audited) |
+| `/devcontainer off` | Clear the target and hand this session back to the host (dormant) |
 
 ### Tools
 
@@ -225,6 +236,7 @@ instance — so the two surfaces cannot drift.
 | `/devcontainer setup` | the host (one fixed `npm install -g` behind a confirmation) |
 | `/devcontainer stop` / `remove` / `logs`, `up` / `build` | Docker / the Dev Containers CLI on the host, against the container |
 | `read` / `write` / `edit` / `grep` / `find` / `ls` | **always the host** |
+| everything, while **dormant** | nothing was registered: Pi's built-in host surfaces, unchanged |
 
 ### Discovery and selection
 
