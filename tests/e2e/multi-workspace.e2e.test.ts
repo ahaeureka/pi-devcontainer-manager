@@ -262,7 +262,7 @@ const piSuite = piAvailable ? describe : describe.skip;
 piSuite("multi-workspace e2e (real Pi runtime)", () => {
   const ext = resolve(process.cwd(), "extensions", "index.ts");
 
-  it("loads the extension and registers the devcontainer tool surface", async () => {
+  it("loads the extension and registers the devcontainer tool surface", async (ctx) => {
     expect(existsSync(ext)).toBe(true);
     // Ask Pi to enumerate its tools and confirm the extension's names exist.
     const result = spawnSync(
@@ -286,9 +286,19 @@ piSuite("multi-workspace e2e (real Pi runtime)", () => {
     expect(result.status).not.toBe(null);
     expect(result.error).toBeUndefined();
     const out = `${result.stdout}\n${result.stderr}`;
-    // A real model reply is not deterministic; assert the extension did not
-    // crash the runtime (no "Extension error" for OUR path) and that Pi
-    // reached a model turn (the session/agent_start envelope).
+    // Capability gate at runtime: a Pi CLI can exist with no usable credentials (a CI
+    // runner without provider secrets), in which case Pi exits before any model turn.
+    // That is a missing capability, not a failure of this extension — skip with the
+    // reason instead of asserting on output that can never appear. A provider may come
+    // from the environment OR from Pi's own config, so this is detected here rather
+    // than statically (a plain `PI_PROVIDER` check would skip where Pi is logged in).
+    if (!out.includes("agent_start") && /No API key|not logged in|log into a provider/i.test(out)) {
+      const reason = out.split("\n").find((line) => line.trim().length > 0 && !line.startsWith("{"));
+      ctx.skip(`pi has no configured provider: ${reason ?? "unknown reason"}`);
+    }
+    // A real model reply is not deterministic; assert the extension did not crash the
+    // runtime (no "Extension error" for OUR path) and that Pi reached a model turn
+    // (the session/agent_start envelope).
     expect(out).not.toContain("Extension error");
     expect(out).toContain("agent_start");
   }, 150_000);
