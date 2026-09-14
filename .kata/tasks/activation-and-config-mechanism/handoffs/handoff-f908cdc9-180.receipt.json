@@ -1,0 +1,23 @@
+{
+  "protocolVersion": 1,
+  "taskId": "activation-and-config-mechanism",
+  "handoffId": "handoff-f908cdc9-180",
+  "platform": "pi",
+  "role": "designer",
+  "packetSha256": "f206c01b03bd003e2a2d8646244b78777110abf5a985ecef0f7d2d2bcdcc8871",
+  "acknowledgedAt": "2026-09-14T11:31:22.385Z",
+  "repository": {
+    "head": "a44ee8b55a04827010d21cb4cd78131a818e043f",
+    "branch": "feature/activation-and-config-mechanism",
+    "diffHash": "dd2c053047125c90df0794180085b250620e3e4c4aa42dbbcc79cacd16d07033",
+    "scope": {
+      "kind": "task_context",
+      "paths": [
+        ".kata/tasks/activation-and-config-mechanism/task.json",
+        ".kata/tasks/activation-and-config-mechanism/current-state.json"
+      ],
+      "hash": "dd2c053047125c90df0794180085b250620e3e4c4aa42dbbcc79cacd16d07033"
+    },
+    "worktreeRoot": "."
+  }
+}

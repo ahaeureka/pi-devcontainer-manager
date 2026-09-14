@@ -11,7 +11,8 @@ export type ContainerState = "running" | "exited" | "created" | "paused" | "unkn
 export type DevcontainerConfigKind =
   | "root/devcontainer.json"
   | "root/.devcontainer.json"
-  | ".devcontainer/devcontainer.json";
+  | ".devcontainer/devcontainer.json"
+  | ".devcontainer/<name>/devcontainer.json";
 
 export interface DiscoveredProject {
   readonly workspacePath: string;
@@ -25,6 +26,12 @@ export interface RegistryCandidate {
   readonly state: ContainerState;
 }
 
+/** One discovered DevContainer configuration for a workspace. */
+export interface ConfigCandidate {
+  readonly configPath: string;
+  readonly configKind: DevcontainerConfigKind;
+}
+
 export interface RegistryEntry {
   readonly workspacePath: string;
   readonly configPath: string;
@@ -35,6 +42,8 @@ export interface RegistryEntry {
   readonly containerState?: ContainerState;
   /** ALL containers discovered for this workspace (never collapsed away). */
   readonly containerCandidates?: readonly RegistryCandidate[];
+  /** EVERY configuration discovered for this workspace (never collapsed away). */
+  readonly configCandidates?: readonly ConfigCandidate[];
   /**
    * True when MORE THAN ONE running container matches this workspace. Such a
    * target must never be auto-selected by Docker result order; the operator
@@ -64,11 +73,15 @@ export interface HostExecutionConfig {
   allow: boolean;
 }
 
+/** Whether the extension takes over a workspace's execution surfaces. */
+export type ActivationMode = "workspace" | "always" | "never";
+
 export interface ManagerConfig {
   version?: number;
   dockerPath?: string;
   devcontainerPath?: string;
   routeMode?: RouteMode;
+  activation?: ActivationMode;
   allowedWorkspaceRoots?: string[];
   environmentAllowlist?: string[];
   maxTimeoutSeconds?: number;
@@ -84,6 +97,7 @@ export interface EffectiveConfig {
   dockerPath: string;
   devcontainerPath: string;
   routeMode: RouteMode;
+  readonly activation: ActivationMode;
   allowedWorkspaceRoots: readonly string[];
   environmentAllowlist: readonly string[];
   maxTimeoutSeconds: number;
@@ -121,6 +135,8 @@ export interface AuditRecord {
   readonly initiator: Initiator;
   readonly workspace?: string;
   readonly targetId?: string;
+  /** The request's cwd when it differs from the executed (target) workspace. */
+  readonly requestedCwd?: string;
   readonly policyAuthorized: boolean;
   readonly policyDenialReason?: string;
   readonly durationMs?: number;

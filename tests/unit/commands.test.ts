@@ -199,6 +199,75 @@ describe("/devcontainer use", () => {
     const result = await handlers["use"]!("", ctx);
     expect(result.text).toBe("Selection cancelled.");
   });
+
+  it("leaves the configuration unset for the CLI default-lookup form", async () => {
+    const { handlers, targetStore } = makeServices();
+    const ctx = makeCtx();
+    await handlers["use"]!("project-a", ctx);
+    const selection = targetStore.select.mock.calls[0]![0] as { candidate?: { configPath?: string } };
+    // `.devcontainer/devcontainer.json` is resolved by the CLI itself, so argv
+    // must stay exactly as it is today.
+    expect(selection.candidate?.configPath).toBeUndefined();
+  });
+
+  it("carries the named configuration when the workspace has no default-lookup form", async () => {
+    const namedPath = "/ws/project-a/.devcontainer/python/devcontainer.json";
+    const named: RegistryEntry = {
+      ...entry,
+      configPath: namedPath,
+      configKind: ".devcontainer/<name>/devcontainer.json",
+      configCandidates: [{ configPath: namedPath, configKind: ".devcontainer/<name>/devcontainer.json" }],
+    };
+    const { handlers, targetStore } = makeServices({
+      registry: vi.fn(async () => ({ entries: [named], diagnostics: [] })),
+    });
+    const ctx = makeCtx();
+    await handlers["use"]!("project-a", ctx);
+    const selection = targetStore.select.mock.calls[0]![0] as { candidate?: { configPath?: string } };
+    expect(selection.candidate?.configPath).toBe(namedPath);
+  });
+
+  it("selects a configuration named with --config", async () => {
+    const defaultPath = "/ws/project-a/.devcontainer/devcontainer.json";
+    const pythonPath = "/ws/project-a/.devcontainer/python/devcontainer.json";
+    const multi: RegistryEntry = {
+      ...entry,
+      configPath: defaultPath,
+      configCandidates: [
+        { configPath: defaultPath, configKind: ".devcontainer/devcontainer.json" },
+        { configPath: pythonPath, configKind: ".devcontainer/<name>/devcontainer.json" },
+      ],
+    };
+    const { handlers, targetStore } = makeServices({
+      registry: vi.fn(async () => ({ entries: [multi], diagnostics: [] })),
+    });
+    const ctx = makeCtx();
+    const result = await handlers["use"]!("project-a --config python", ctx);
+    const selection = targetStore.select.mock.calls[0]![0] as { candidate?: { configPath?: string } };
+    expect(selection.candidate?.configPath).toBe(pythonPath);
+    expect(result.text).toContain("Selected `/ws/project-a`");
+  });
+
+  it("names the available configurations when --config does not match", async () => {
+    const defaultPath = "/ws/project-a/.devcontainer/devcontainer.json";
+    const pythonPath = "/ws/project-a/.devcontainer/python/devcontainer.json";
+    const multi: RegistryEntry = {
+      ...entry,
+      configPath: defaultPath,
+      configCandidates: [
+        { configPath: defaultPath, configKind: ".devcontainer/devcontainer.json" },
+        { configPath: pythonPath, configKind: ".devcontainer/<name>/devcontainer.json" },
+      ],
+    };
+    const { handlers, targetStore } = makeServices({
+      registry: vi.fn(async () => ({ entries: [multi], diagnostics: [] })),
+    });
+    const ctx = makeCtx();
+    const result = await handlers["use"]!("project-a --config nope", ctx);
+    expect(result.text).toContain("[no-candidate]");
+    expect(result.text).toContain("python");
+    expect(targetStore.select).not.toHaveBeenCalled();
+  });
 });
 
 describe("/devcontainer up + build", () => {

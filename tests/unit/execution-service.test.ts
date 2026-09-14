@@ -202,13 +202,18 @@ describe("ExecutionService.exec", () => {
     expect(record.policyDenialReason).toBe("destructive-operation-disabled");
   });
 
-  it("denies a request whose workspace is not the bound target workspace", async () => {
+  it("executes from a cwd outside the target and records which cwd asked (AC-8)", async () => {
     const { adapter, calls } = fakeDevcontainer([execOk]);
-    const { service } = makeService({ devcontainer: adapter });
-    await expect(
-      service.exec({ operation: "container-exec", initiator: "tool", workspace: "/ws/other", cmd: "ls", args: [] }),
-    ).rejects.toMatchObject({ kind: "policy-denied" });
-    expect(calls).toHaveLength(0);
+    const { service, audit } = makeService({ devcontainer: adapter });
+    // A request from a workspace that is not itself a DevContainer project is the
+    // explicit-selection workflow: stand in a plain repository and drive the target.
+    // (The refusal of a cwd that IS another project is pinned in
+    // execution-routing.test.ts, where the probe is injectable.)
+    await service.exec({ operation: "container-exec", initiator: "tool", workspace: "/ws/other", cmd: "ls", args: [] });
+    expect(calls[0]!.workspace).toBe("/ws/project-a");
+    const record = (audit.write as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0] as AuditRecord;
+    expect(record.workspace).toBe("/ws/project-a");
+    expect(record.requestedCwd).toBe("/ws/other");
   });
 
   it("sends the BOUND target workspace to the CLI, not the caller workspace", async () => {

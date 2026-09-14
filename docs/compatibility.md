@@ -66,8 +66,13 @@ supports them.
 
 ## Discovery behavior
 
-- Recognizes `devcontainer.json`, `.devcontainer/devcontainer.json`, and
-  `.devcontainer.json`.
+- Recognizes `.devcontainer/devcontainer.json`, `.devcontainer.json`,
+  `.devcontainer/<name>/devcontainer.json` (named; several per workspace), and the
+  legacy root `devcontainer.json`.
+- The pinned CLI resolves only the first two by itself; for every other form the
+  extension passes `--config <discovered path>`, so every recognized form can
+  actually be started. (Before 1.0.0 the root form was discovered but never
+  startable, which this release fixes.)
 - Bounded scan: stops at `discovery.maxDepth` (default `3`) and never traverses
   `node_modules`, `.git`, `.pi`, `dist`, or `build` (default exclusions, all
   configurable).

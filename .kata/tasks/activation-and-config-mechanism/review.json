@@ -1,0 +1,43 @@
+{
+  "revisionId": "revision-8e6c0670-8d39-47d5-89d7-d7fdc4738853",
+  "status": "approved",
+  "reviewEvidence": "Security review of revision-8e6c0670 (repair of revision-2aeb66f7). Blocking finding verified fixed: the 6 handler-level cases in tests/unit/command-config-selection.test.ts that failed before the repair now pass (RED re-verified by stashing src/ and re-running), /devcontainer up|build resolve the workspace's discovered configuration via resolveUpBuildTarget/configPathFor and pass it as --config, and an unknown --config is refused before any spawn. Major finding verified fixed: selectionFor only carries a path present in the workspace's discovered candidate set (test asserts '/etc/passwd' is dropped). Trust-boundary re-check: every path handed to the CLI originates from discovery or is re-validated at the boundary; no shell interpolation added (fixed argv plus a --config value); no new environment, secret, or audit surface; the new snapshot field is local-only and not audited. Remaining non-blocking findings are recorded below.",
+  "findings": [
+    {
+      "id": "finding-extra-discovery-pass-per-up-build",
+      "taskId": "activation-and-config-mechanism",
+      "acceptanceId": "AC-2",
+      "severity": "note",
+      "message": "Introduced by this repair: `resolveUpBuildTarget` calls `services.registry()` (host scan + `docker ps`) on every `/devcontainer up|build`, and `up` then calls `reconcileSelection`, which discovers again — two discovery passes per `up`. Correct but wasteful; passing the already-resolved entry into the reconcile step would halve it. No security effect.",
+      "path": "src/commands.ts"
+    },
+    {
+      "id": "finding-dormant-host-shell-reimplementation",
+      "taskId": "activation-and-config-mechanism",
+      "severity": "minor",
+      "message": "Unresolved from revision-2aeb66f7: `dormantHostBash` (extensions/index.ts) reimplements the host shell with `spawn(command, { shell: true, cwd, env: process.env })`, so after `/devcontainer off` the LLM-facing `bash` tool uses this extension's shell choice, output bound, and a full inherited environment (including any provider keys present in the Pi process) instead of Pi's built-in semantics. It does not widen access relative to an extension-free Pi. Recommend delegating to the built-in definition or passing the same minimal env the rest of the extension builds (PATH/HOME/XDG).",
+      "path": "extensions/index.ts"
+    },
+    {
+      "id": "finding-acceptance-matrix-placeholder",
+      "taskId": "activation-and-config-mechanism",
+      "severity": "minor",
+      "message": "Unresolved from revision-2aeb66f7: `missingAcceptanceMatrix: true` still holds — `.kata/tasks/activation-and-config-mechanism/task.json` carries the placeholder `AC-1: \"Implement the change successfully.\"` while the real ten-criterion matrix lives in `openspec/changes/activation-and-config-mechanism/design.md`. Both verify runs therefore reported `acceptanceResults: [{ id: \"AC-1\", result: \"PASS\" }]`, which evaluates the placeholder rather than the change. The Judge must decide against the design matrix or the task store must be synced first.",
+      "path": ".kata/tasks/activation-and-config-mechanism/task.json"
+    },
+    {
+      "id": "finding-unverified-runtime-claims",
+      "taskId": "activation-and-config-mechanism",
+      "severity": "note",
+      "message": "Unresolved from revision-2aeb66f7: three shipped behaviors are not isolated by any test in this environment — dormancy at session start, `engageDevcontainerSurfaces` registering tools from a command handler mid-session, and the latency of the bounded Docker probe for activation chain step 4. The capability-gated suites do load the real packed extension in a real Pi session and the full real-Docker run is green (10/10), which supports the wiring without isolating these three. Documented as unverified rather than claimed verified.",
+      "path": "extensions/index.ts"
+    },
+    {
+      "id": "finding-design-artifact-outside-revision",
+      "taskId": "activation-and-config-mechanism",
+      "severity": "note",
+      "message": "Unresolved from revision-2aeb66f7: `workspaceDrift` reports `openspec/changes/activation-and-config-mechanism/design.md` outside the sealed revision scope, so the artifact authorizing the change is not co-versioned with it. Add the design path to the owned paths at seal time or accept the drift explicitly.",
+      "path": "openspec/changes/activation-and-config-mechanism/design.md"
+    }
+  ]
+}

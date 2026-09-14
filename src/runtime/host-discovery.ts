@@ -1,6 +1,6 @@
 import { readdirSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import type { ContainerState, DevcontainerConfigKind, DiscoveredProject, DiscoveryConfig, RegistryEntry } from "../types.js";
+import type { ConfigCandidate, ContainerState, DevcontainerConfigKind, DiscoveredProject, DiscoveryConfig, RegistryEntry } from "../types.js";
 import { isPathBelow, resolveRealPath, uniqueWorkspaceKeys } from "../workspace-path.js";
 import type { DockerContainer } from "./docker-adapter.js";
 
@@ -61,8 +61,9 @@ export interface HostDiscoveryResult {
  */
 const KIND_PRIORITY: Readonly<Record<DevcontainerConfigKind, number>> = {
   ".devcontainer/devcontainer.json": 0,
-  "root/.devcontainer.json": 1,
-  "root/devcontainer.json": 2,
+  ".devcontainer/<name>/devcontainer.json": 1,
+  "root/.devcontainer.json": 2,
+  "root/devcontainer.json": 3,
 };
 
 /** Production traversal backed by the synchronous `node:fs` surface. */
@@ -98,9 +99,36 @@ export function mapContainerState(state: string | undefined): ContainerState | u
   }
 }
 
+/**
+ * Cheap, cwd-anchored probe used by the activation decision: does this workspace
+ * itself own a DevContainer configuration? Unlike {@link discoverHostConfigs} it
+ * never scans a tree and never touches Docker — it only looks at the forms a
+ * workspace can declare at its own root.
+ */
+export function workspaceHasConfig(workspace: string, traversal: DirectoryTraversal = nodeTraversal()): boolean {
+  for (const name of ["devcontainer.json", ".devcontainer.json"]) {
+    if (isExistingFile(join(workspace, name), traversal)) return true;
+  }
+  const dotDevcontainer = join(workspace, ".devcontainer");
+  if (isExistingFile(join(dotDevcontainer, "devcontainer.json"), traversal)) return true;
+  let entries: readonly string[];
+  try {
+    entries = traversal.readdir(dotDevcontainer);
+  } catch {
+    return false;
+  }
+  return entries.some(
+    (entry) => !entry.startsWith(".") && isExistingFile(join(dotDevcontainer, entry, "devcontainer.json"), traversal),
+  );
+}
+
 /** Classify a discovered configuration file path into its locked kind. */
 export function kindFor(configPath: string): DevcontainerConfigKind {
-  if (basename(dirname(configPath)) === ".devcontainer") return ".devcontainer/devcontainer.json";
+  const parent = basename(dirname(configPath));
+  if (parent === ".devcontainer") return ".devcontainer/devcontainer.json";
+  if (basename(dirname(dirname(configPath))) === ".devcontainer") {
+    return ".devcontainer/<name>/devcontainer.json";
+  }
   if (basename(configPath) === ".devcontainer.json") return "root/.devcontainer.json";
   return "root/devcontainer.json";
 }
@@ -112,7 +140,11 @@ export function kindFor(configPath: string): DevcontainerConfigKind {
  */
 export function workspacePathFor(configPath: string): string {
   const parent = dirname(configPath);
-  return basename(parent) === ".devcontainer" ? dirname(parent) : parent;
+  if (basename(parent) === ".devcontainer") return dirname(parent);
+  // Named configuration: `.devcontainer/<name>/devcontainer.json` belongs to the
+  // folder that owns `.devcontainer/`, exactly like the unnamed form.
+  if (basename(dirname(parent)) === ".devcontainer") return dirname(dirname(parent));
+  return parent;
 }
 
 /**
@@ -178,6 +210,16 @@ function walkDir(
         if (isExistingFile(configPath, traversal)) {
           found.push(toDiscoveredProject(configPath, traversal));
         }
+        // Named configurations: `.devcontainer/<name>/devcontainer.json` (one
+        // level only). This is a first-class Dev Containers feature — the CLI
+        // resolves it when given `--config`, and VS Code offers a picker.
+        for (const entry of safeReaddir(full, traversal, diagnostics)) {
+          if (entry.startsWith(".")) continue;
+          const namedPath = join(full, entry, "devcontainer.json");
+          if (isExistingFile(namedPath, traversal)) {
+            found.push(toDiscoveredProject(namedPath, traversal));
+          }
+        }
         continue; // never descend further into .devcontainer
       }
       if (name.startsWith(".")) continue; // hidden directories are skipped
@@ -210,6 +252,20 @@ function toDiscoveredProject(configPath: string, traversal: DirectoryTraversal):
   };
 }
 
+/** Read a directory for the `.devcontainer` sub-scan; failure is a diagnostic, not fatal. */
+function safeReaddir(
+  dir: string,
+  traversal: DirectoryTraversal,
+  diagnostics: string[],
+): readonly string[] {
+  try {
+    return [...traversal.readdir(dir)].sort();
+  } catch (error) {
+    diagnostics.push(`cannot read directory ${dir}: ${errorMessage(error)}`);
+    return [];
+  }
+}
+
 /** Existence probe for a nested config file; absence is the normal case, not a diagnostic. */
 function isExistingFile(path: string, traversal: DirectoryTraversal): boolean {
   try {
@@ -240,15 +296,34 @@ export function buildWorkspaceRegistry(input: DiscoveryInput): RegistryResult {
 
   const byKey = new Map<string, RegistryEntry>();
   for (const project of projects) {
+    const candidate = { configPath: project.configPath, configKind: project.configKind };
     const existing = byKey.get(project.workspacePath);
-    if (existing === undefined || kindPriority(project.configKind) < kindPriority(existing.configKind)) {
+    if (existing === undefined) {
       byKey.set(project.workspacePath, {
         workspacePath: project.workspacePath,
-        configPath: project.configPath,
-        configKind: project.configKind,
+        configPath: candidate.configPath,
+        configKind: candidate.configKind,
         discoveredFrom: "host-config",
+        configCandidates: [candidate],
       });
+      continue;
     }
+    // A workspace can own several configurations: the CLI's default lookup plus
+    // any number of named ones. Keep them all, ordered by lookup priority, and
+    // let the primary fields stay the highest-priority entry.
+    const configCandidates = [
+      ...(existing.configCandidates ?? [
+        { configPath: existing.configPath, configKind: existing.configKind },
+      ]),
+      candidate,
+    ].sort(compareConfigCandidates);
+    const primary = configCandidates[0]!;
+    byKey.set(project.workspacePath, {
+      ...existing,
+      configPath: primary.configPath,
+      configKind: primary.configKind,
+      configCandidates,
+    });
   }
 
   const dockerByKey = new Map<string, DockerContainer[]>();
@@ -311,6 +386,11 @@ export function buildWorkspaceRegistry(input: DiscoveryInput): RegistryResult {
 
   entries.sort((a, b) => a.workspacePath.localeCompare(b.workspacePath));
   return { entries, configOnly, orphanDockerCandidates, diagnostics };
+}
+
+/** Deterministic candidate order: CLI lookup priority first, then path. */
+function compareConfigCandidates(left: ConfigCandidate, right: ConfigCandidate): number {
+  return kindPriority(left.configKind) - kindPriority(right.configKind) || left.configPath.localeCompare(right.configPath);
 }
 
 function kindPriority(kind: DevcontainerConfigKind): number {

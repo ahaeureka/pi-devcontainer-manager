@@ -1,0 +1,93 @@
+{
+  "protocolVersion": 1,
+  "id": "handoff-f908cdc9-180",
+  "taskId": "activation-and-config-mechanism",
+  "createdAt": "2026-09-14T11:30:28.209Z",
+  "from": {
+    "role": "designer",
+    "platform": "pi"
+  },
+  "to": {
+    "role": "designer"
+  },
+  "phase": "intake",
+  "repository": {
+    "head": "a44ee8b55a04827010d21cb4cd78131a818e043f",
+    "branch": "feature/activation-and-config-mechanism",
+    "diffHash": "dd2c053047125c90df0794180085b250620e3e4c4aa42dbbcc79cacd16d07033",
+    "scope": {
+      "kind": "task_context",
+      "paths": [
+        ".kata/tasks/activation-and-config-mechanism/task.json",
+        ".kata/tasks/activation-and-config-mechanism/current-state.json"
+      ],
+      "hash": "dd2c053047125c90df0794180085b250620e3e4c4aa42dbbcc79cacd16d07033"
+    },
+    "worktreeRoot": "."
+  },
+  "task": {
+    "id": "activation-and-config-mechanism",
+    "title": "Change activation-and-config-mechanism",
+    "phase": "intake",
+    "acceptance": [
+      {
+        "id": "AC-1",
+        "statement": "Implement the change successfully."
+      }
+    ],
+    "branch": "main",
+    "createdAt": "2026-09-14T11:27:24.890Z",
+    "updatedAt": "2026-09-14T11:27:24.890Z",
+    "workflowProfile": {
+      "version": 1,
+      "isolationMode": "git_flow",
+      "developmentMode": "tdd",
+      "reviewMode": "security",
+      "comet": {
+        "projectInit": "not_requested",
+        "openStatus": "required"
+      },
+      "gitFlow": {
+        "strategy": "manual",
+        "branch": "feature/activation-and-config-mechanism",
+        "baseBranch": "main",
+        "status": "active"
+      }
+    }
+  },
+  "context": {
+    "requiredReads": [
+      "AGENTS.md",
+      ".llmwiki/SCHEMA.md",
+      ".llmwiki/index.md",
+      ".llmwiki/log.md",
+      ".kata/tasks/activation-and-config-mechanism/task.json",
+      ".kata/tasks/activation-and-config-mechanism/current-state.json"
+    ],
+    "designRefs": [],
+    "sourceRefs": [
+      "AC-1"
+    ],
+    "authoritativeWiki": [],
+    "excludedWiki": [],
+    "evidencePaths": [],
+    "priorArtifacts": [
+      ".kata/tasks/activation-and-config-mechanism/review.json",
+      ".kata/tasks/activation-and-config-mechanism/judge.json",
+      ".kata/tasks/activation-and-config-mechanism/repair.json"
+    ]
+  },
+  "permissions": {
+    "allowedWrites": [
+      "docs/",
+      ".kata/tasks/activation-and-config-mechanism/"
+    ],
+    "guardInstructions": [
+      "Write only to task design artifacts, docs/, and task-owned .kata paths.",
+      "Clarify acceptance criteria before implementation.",
+      "Do not modify implementation files during design.",
+      "Work on feature/activation-and-config-mechanism; do not start, finish, or switch Git Flow branches outside the recorded task action."
+    ]
+  },
+  "nextAction": "Perform designer work after verifying this handoff."
+}

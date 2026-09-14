@@ -12,18 +12,26 @@ operational defaults.
 - **Pi never runs inside a container.** No Pi session, extension, skill,
   configuration, model credential, or API key is installed, copied, mounted, or
   persisted inside any target container.
-- **No silent host fallback.** A `container-required` route never executes on the
-  host. With no explicit selection, the session-cwd workspace is auto-selected as
-  the default when it has a DevContainer configuration (an empty-selection-only
-  convenience — an explicit `/devcontainer use` always wins); if no container
-  target resolves, the route returns a typed error (`no-candidate`,
-  `ambiguous-candidate`, `target-stopped`, `policy-denied`). The only host escape hatch
-  is the visibly named `devcontainer_host_exec` tool and `/devcontainer
-  host-exec` command, which pass a *separate* `hostExecution.allow` policy check
+- **No silent host fallback inside an engaged workspace.** Once the extension is
+  engaged, a `container-required` route never executes on the host: with no explicit
+  selection the session-cwd workspace is auto-selected when it has a DevContainer
+  configuration (an empty-selection-only convenience — an explicit
+  `/devcontainer use` always wins); if no container target resolves, the route
+  returns a typed error (`no-candidate`, `ambiguous-candidate`, `target-stopped`,
+  `policy-denied`). The explicit host escape hatch
   and write their own audit records. The one other host-side operation is
   `/devcontainer setup`, which runs a single fixed
   `npm install -g @devcontainers/cli` behind an interactive confirmation — it
   never executes caller-supplied argv, so it is not a general host escape.
+- **Per-workspace engagement** ([activation](configuration.md#activation)). The
+  extension is loaded for every workspace, so it decides *per session* whether to
+  take over the execution surfaces at all. In a workspace with no DevContainer
+  evidence it registers nothing: `bash`, `!`/`!!`, and the host file tools stay
+  exactly as Pi shipped them. Dormancy restores the behavior of a Pi without this
+  extension installed, so it can only narrow what the extension controls, never
+  widen host access. `/devcontainer off` returns an engaged session to that state;
+  the host-local shell it then uses is Pi's own built-in behavior, not the audited
+  `devcontainer_host_exec` surface.
 - **Default-deny policy.** Workspace roots, forwarded environment names,
   destructive actions, and host execution are all denied unless explicitly
   granted. Grants from an untrusted project config can never *expand* a global
@@ -32,6 +40,12 @@ operational defaults.
   stable workspace key + candidate discriminator, and each operation re-resolves
   the target and freezes an immutable policy snapshot before any spawn. A
   concurrent selection switch cannot redirect a bound operation.
+- **The executed workspace is always the bound target.** An operation issued from a path
+  outside the selected target runs against the target (that is the explicit-selection
+  workflow) and its audit record carries the caller's cwd in `requestedCwd`; a request
+  whose cwd is itself another DevContainer project is refused with `policy-denied`, so
+  a caller can never silently act on a different repository. The CLI always receives
+  the target workspace, so authorization scope, execution, and audit cannot disagree.
 - **File tools are a host capability, not a container route.** Pi's built-in
   file tools (`read`/`write`/`edit`/`grep`/`find`/`ls`) always run against
   the host filesystem under the normal Pi trust model; they are never

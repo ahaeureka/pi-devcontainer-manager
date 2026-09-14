@@ -21,6 +21,7 @@
  * Nonzero target exits are carried in the result, never thrown.
  */
 import { commandFingerprint, evaluatePolicy, buildChildEnvironment } from "./policy.js";
+import { workspaceHasConfig } from "./runtime/host-discovery.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
 import { RuntimeError } from "./errors.js";
 import type { AuditWriter } from "./audit.js";
@@ -77,6 +78,8 @@ export interface UpBuildRequest {
   readonly initiator: Initiator;
   readonly workspace: string;
   readonly dockerPath?: string;
+  /** Named configuration to start/build (`--config`); absent uses the CLI default. */
+  readonly configPath?: string;
   readonly noCache?: boolean;
   readonly imageName?: string;
   readonly signal?: AbortSignal;
@@ -117,6 +120,12 @@ export interface ExecutionServiceOptions {
    * Returns undefined when no mapping exists (host path is shown unchanged).
    */
   readonly resolveContainerWorkspace?: (hostWorkspace: string) => Promise<string | undefined>;
+  /**
+   * Optional probe deciding whether a workspace is itself a DevContainer project.
+   * Injected by tests; defaults to the filesystem probe. It only decides whether a
+   * request from outside the bound target is allowed (AC-8).
+   */
+  readonly workspaceHasConfig?: (workspace: string) => boolean;
 }
 
 export class ExecutionService {
@@ -152,7 +161,13 @@ export class ExecutionService {
     const requestKey = canonicalWorkspaceKey(request.workspace);
     const targetKey = canonicalWorkspaceKey(ctx.workspaceKey);
     const withinTarget = requestKey === targetKey || requestKey.startsWith(targetKey === "/" ? "/" : `${targetKey}/`);
-    if (!withinTarget) {
+    // A request from outside the bound target is allowed ONLY when it comes from a
+    // workspace that is not itself a DevContainer project. That is the
+    // explicit-selection workflow (stand in a plain repository and drive a selected
+    // target); a request from another project's workspace would silently act on the
+    // wrong repository, so it stays refused. Either way the CLI receives the TARGET
+    // workspace, so authorization scope, execution, and audit cannot disagree (AC-8).
+    if (!withinTarget && this.projectProbe(request.workspace)) {
       this.audit(snapshot, undefined, request, {
         exitCode: null,
         outputTruncated: false,
@@ -178,6 +193,7 @@ export class ExecutionService {
         request.cmd,
         request.args,
         {
+          ...(ctx.configPath !== undefined ? { configPath: ctx.configPath } : {}),
           ...(remoteEnv !== undefined ? { remoteEnv } : {}),
           ...(request.signal !== undefined ? { signal: request.signal } : {}),
         },
@@ -231,6 +247,7 @@ export class ExecutionService {
     try {
       result = await this.options.devcontainer.up(request.workspace, {
         ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
+        ...(request.configPath !== undefined ? { configPath: request.configPath } : {}),
         ...(request.signal !== undefined ? { signal: request.signal } : {}),
       });
     } catch (error) {
@@ -264,6 +281,7 @@ export class ExecutionService {
     try {
       result = await this.options.devcontainer.build(request.workspace, {
         ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
+        ...(request.configPath !== undefined ? { configPath: request.configPath } : {}),
         ...(request.noCache === true ? { noCache: true } : {}),
         ...(request.imageName !== undefined ? { imageName: request.imageName } : {}),
         ...(request.signal !== undefined ? { signal: request.signal } : {}),
@@ -407,7 +425,7 @@ export class ExecutionService {
       at: this.clock(),
       operation: request.operation,
       initiator: request.initiator,
-      ...(request.workspace !== undefined ? { workspace: request.workspace } : {}),
+      ...this.workspaceIdentity(ctx, request),
       ...(targetId !== undefined ? { targetId } : {}),
       policyAuthorized: snapshot.authorized,
       ...(snapshot.denialReason !== undefined ? { policyDenialReason: snapshot.denialReason } : {}),
@@ -419,6 +437,30 @@ export class ExecutionService {
       ...(extra.errorSummary !== undefined ? { errorSummary: extra.errorSummary } : {}),
     };
     this.options.audit.write(record);
+  }
+
+  /** Is this workspace itself a DevContainer project? (injectable for tests) */
+  private projectProbe(workspace: string): boolean {
+    return (this.options.workspaceHasConfig ?? workspaceHasConfig)(workspace);
+  }
+
+  /**
+   * What the record says about *where* the operation happened: the executed workspace
+   * is the bound target, and the request's cwd is recorded alongside it when the caller
+   * stood somewhere else. Without a bound context (pre-bind denials) the request's
+   * workspace is all there is.
+   */
+  private workspaceIdentity(
+    ctx: ExecutionContext | undefined,
+    request: { workspace?: string },
+  ): { workspace?: string; requestedCwd?: string } {
+    if (ctx === undefined) {
+      return request.workspace !== undefined ? { workspace: request.workspace } : {};
+    }
+    if (request.workspace === undefined || canonicalWorkspaceKey(request.workspace) === canonicalWorkspaceKey(ctx.workspaceKey)) {
+      return { workspace: ctx.workspaceKey };
+    }
+    return { workspace: ctx.workspaceKey, requestedCwd: request.workspace };
   }
 
   private commandIdentity(request: {

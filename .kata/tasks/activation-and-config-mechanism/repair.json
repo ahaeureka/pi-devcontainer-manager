@@ -1,0 +1,20 @@
+{
+  "taskId": "activation-and-config-mechanism",
+  "fromPhase": "review",
+  "toPhase": "implement",
+  "actor": {
+    "id": "kata-agent",
+    "role": "implementer"
+  },
+  "reason": "review_findings",
+  "baselineRevisionId": "revision-2aeb66f7-64c4-4684-8876-a0d108ac2de6",
+  "baselineManifestHash": "5c6d6c0ed51be857b0fc922d3ac5828d646644112727fd50420cce27baf5f61f",
+  "findings": [
+    {
+      "message": "`/devcontainer up` and `/devcontainer build` never carry the selected `--config`, so AC-2 is only half met. `handlers[\"up\"]` (src/commands.ts) calls `services.execution.up({ operation: \"up\", initiator: \"slash-command\", workspace })` and `handlers[\"build\"]` does the same, while `configPath` reaches the adapter only (a) for `exec`, via the frozen bound selection, or (b) when a caller hand-builds an `UpBuildRequest` with it — which no command-layer caller does. Consequence: in a workspace whose only configuration is a named `.devcontainer/<name>/devcontainer.json` or the legacy root `devcontainer.json`, `/devcontainer up` sends the CLI nothing it can resolve and the start fails, which is the very defect this change set out to fix. My own unit test (container-config-routing.test.ts, \"passes an explicit configPath through up and build\") drives the SERVICE with a literal request, so it pinned the seam rather than the wiring. Fix: resolve the configuration for the requested workspace in the `up`/`build` handlers (registry entry → selected candidate, or the entry's default candidate) and pass `configPath`, then assert it by invoking the command handler."
+    }
+  ],
+  "createdAt": "2026-09-14T14:36:56.610Z",
+  "resolvedAt": "2026-09-14T14:42:00.479Z",
+  "resolvedRevisionId": "revision-8e6c0670-8d39-47d5-89d7-d7fdc4738853"
+}

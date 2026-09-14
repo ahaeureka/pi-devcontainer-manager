@@ -3,6 +3,7 @@
   "dockerPath": "docker",
   "devcontainerPath": "devcontainer",
   "routeMode": "container-required",
+  "activation": "workspace",
   "allowedWorkspaceRoots": [
     "/home/me/code"
   ],

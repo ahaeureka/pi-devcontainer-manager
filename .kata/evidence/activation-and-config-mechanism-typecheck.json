@@ -1,0 +1,25 @@
+{
+  "id": "evidence-0a8a2d32-7ca2-4604-9a42-9cb10189b84a",
+  "taskId": "activation-and-config-mechanism",
+  "name": "typecheck",
+  "kind": "typecheck",
+  "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/typescript/lib/tsc.js --noEmit",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-14T14:41:42.302Z",
+  "finishedAt": "2026-09-14T14:41:48.429Z",
+  "diffHash": "c84de5718e6e405af8745fc64c6503366085756f54fd0370857423d2f8c70316",
+  "revisionId": "revision-8e6c0670-8d39-47d5-89d7-d7fdc4738853",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "docs",
+      "examples",
+      "extensions",
+      "src",
+      "tests"
+    ],
+    "hash": "d20b3174e5dd1523004aa8b415f8e4765b1238475c2c8c927ecc6a7c373b70e5"
+  }
+}

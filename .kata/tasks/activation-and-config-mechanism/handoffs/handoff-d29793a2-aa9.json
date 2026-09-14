@@ -1,0 +1,115 @@
+{
+  "protocolVersion": 1,
+  "id": "handoff-d29793a2-aa9",
+  "taskId": "activation-and-config-mechanism",
+  "createdAt": "2026-09-14T14:42:00.492Z",
+  "from": {
+    "role": "implementer"
+  },
+  "to": {
+    "role": "reviewer"
+  },
+  "phase": "hardVerify",
+  "repository": {
+    "head": "d425e5662dac1139c18022c4ffca676247fab217",
+    "branch": "feature/activation-and-config-mechanism",
+    "diffHash": "d20b3174e5dd1523004aa8b415f8e4765b1238475c2c8c927ecc6a7c373b70e5",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-8e6c0670-8d39-47d5-89d7-d7fdc4738853",
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "docs",
+        "examples",
+        "extensions",
+        "src",
+        "tests"
+      ],
+      "hash": "d20b3174e5dd1523004aa8b415f8e4765b1238475c2c8c927ecc6a7c373b70e5"
+    },
+    "worktreeRoot": "."
+  },
+  "task": {
+    "id": "activation-and-config-mechanism",
+    "title": "Change activation-and-config-mechanism",
+    "phase": "intake",
+    "acceptance": [
+      {
+        "id": "AC-1",
+        "statement": "Implement the change successfully."
+      }
+    ],
+    "branch": "main",
+    "createdAt": "2026-09-14T11:27:24.890Z",
+    "updatedAt": "2026-09-14T11:27:24.890Z",
+    "workflowProfile": {
+      "version": 1,
+      "isolationMode": "git_flow",
+      "developmentMode": "tdd",
+      "reviewMode": "security",
+      "comet": {
+        "projectInit": "not_requested",
+        "openStatus": "acknowledged"
+      },
+      "gitFlow": {
+        "strategy": "manual",
+        "branch": "feature/activation-and-config-mechanism",
+        "baseBranch": "main",
+        "status": "active"
+      }
+    },
+    "ownedPaths": [
+      "CHANGELOG.md",
+      "README.md",
+      "docs/",
+      "examples/",
+      "extensions/",
+      "src/",
+      "tests/"
+    ]
+  },
+  "context": {
+    "requiredReads": [
+      "AGENTS.md",
+      ".llmwiki/SCHEMA.md",
+      ".llmwiki/index.md",
+      ".llmwiki/log.md",
+      ".kata/tasks/activation-and-config-mechanism/task.json",
+      ".kata/tasks/activation-and-config-mechanism/current-state.json",
+      "openspec/changes/activation-and-config-mechanism/design.md"
+    ],
+    "designRefs": [
+      "openspec/changes/activation-and-config-mechanism/design.md"
+    ],
+    "sourceRefs": [
+      "AC-1"
+    ],
+    "authoritativeWiki": [],
+    "excludedWiki": [],
+    "evidencePaths": [
+      ".kata/evidence/activation-and-config-mechanism-hard.json",
+      ".kata/evidence/activation-and-config-mechanism-test.json",
+      ".kata/evidence/activation-and-config-mechanism-typecheck.json"
+    ],
+    "priorArtifacts": [
+      ".kata/tasks/activation-and-config-mechanism/review.json",
+      ".kata/tasks/activation-and-config-mechanism/judge.json",
+      ".kata/tasks/activation-and-config-mechanism/repair.json"
+    ]
+  },
+  "permissions": {
+    "allowedWrites": [
+      ".kata/tasks/activation-and-config-mechanism/review.json"
+    ],
+    "guardInstructions": [
+      "You may only write review findings to review.json.",
+      "Check that acceptance criteria are met by the implementation.",
+      "Assign severity: blocking (must fix), major, minor, note.",
+      "Fresh evidence must be collected after any repair.",
+      "Work on feature/activation-and-config-mechanism; do not start, finish, or switch Git Flow branches outside the recorded task action.",
+      "Security review: inspect trust boundaries, secrets, dependency changes, input validation, and authorization effects."
+    ]
+  },
+  "nextAction": "Perform reviewer work after verifying this handoff."
+}

@@ -19,8 +19,9 @@ import type { SelectionRecord } from "./selection-state.js";
 import { RuntimeError, errorKindOf } from "./errors.js";
 import { isWorkspaceAllowed, isEnvironmentAllowed } from "./policy.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
-import type { EffectiveConfig } from "./types.js";
+import type { ConfigCandidate, EffectiveConfig, RegistryEntry } from "./types.js";
 import { SELECTION_ENTRY_KIND, SELECTION_PAYLOAD_VERSION } from "./selection-state.js";
+import { needsExplicitConfig } from "./runtime/devcontainer-adapter.js";
 
 /** UI primitives the command layer needs (structural subset of Pi's). */
 export interface CommandUI {
@@ -139,8 +140,19 @@ export async function applySelection(
 export function selectionFor(
   entry: import("./types.js").RegistryEntry,
   candidateId: string | undefined,
+  configPath?: string,
 ): TargetSelection {
   const state = entry.containerState ?? "exited";
+  // A named configuration (or the legacy root form) is invisible to the CLI's own
+  // lookup, so it must travel with the operation. Only a DISCOVERED path is ever
+  // carried — a caller cannot smuggle an arbitrary `--config` into the argv — and the
+  // default-lookup forms stay flag-free so today's argv is unchanged.
+  const resolvedConfig =
+    configPath !== undefined
+      ? candidatesOf(entry).find((candidate) => candidate.configPath === configPath)?.configPath
+      : needsExplicitConfig(entry.configKind) && entry.configPath.length > 0
+        ? entry.configPath
+        : undefined;
   // More than one running container for this workspace: Docker result order
   // must never decide the target. Fail closed until an explicit id is given.
   if (entry.ambiguous === true && candidateId === undefined) {
@@ -158,6 +170,7 @@ export function selectionFor(
         workspaceKey: entry.workspacePath,
         state,
         status: state === "running" ? "running" : "stopped",
+        ...(resolvedConfig !== undefined ? { configPath: resolvedConfig } : {}),
       }
     : undefined;
   return {
@@ -181,8 +194,14 @@ export async function reconcileSelection(
   services: Pick<CommandServices, "targetStore" | "registry">,
   ctx: Pick<CommandContextLike, "persistSelection">,
   hint: { workspaceKey: string; candidateId?: string },
+  /**
+   * Registry entries the caller already fetched. `/devcontainer up` resolves the target
+   * through the registry before starting, so discovering again here would run the host
+   * scan and `docker ps` twice for one command (review finding on revision-8e6c0670).
+   */
+  preloaded?: readonly RegistryEntry[],
 ): Promise<TargetSelection> {
-  const { entries } = await services.registry();
+  const entries = preloaded ?? (await services.registry()).entries;
   const key = canonicalWorkspaceKey(hint.workspaceKey);
   const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
   if (entry === undefined) {
@@ -208,6 +227,73 @@ export async function reconcileSelection(
   return selection;
 }
 
+/** Split `/devcontainer use <selector> [--config <name|path>]`. */
+export function parseUseArgs(args: string): { selector: string; config?: string } {
+  const match = /(?:^|\s)--config(?:=|\s+)(\S+)/.exec(args);
+  const config = match?.[1];
+  const selector = args.replace(/(?:^|\s)--config(?:=|\s+)\S+/g, " ").trim();
+  return { selector, ...(config !== undefined ? { config } : {}) };
+}
+
+export type ConfigResolution =
+  | { readonly ok: true; readonly configPath?: string }
+  | { readonly ok: false; readonly text: string };
+
+/** Operator-facing name: `<name>` for a named configuration, else `default`. */
+function selectorNameOf(candidate: ConfigCandidate): string {
+  if (candidate.configKind !== ".devcontainer/<name>/devcontainer.json") return "default";
+  const parts = candidate.configPath.split("/");
+  return parts[parts.length - 2] ?? "default";
+}
+
+/** Every configuration discovered for one workspace (primary form when unlisted). */
+function candidatesOf(entry: RegistryEntry): readonly ConfigCandidate[] {
+  return entry.configCandidates ?? (entry.configPath.length > 0 ? [{ configPath: entry.configPath, configKind: entry.configKind }] : []);
+}
+
+/**
+ * The configuration `up`/`build` should hand the CLI, most explicit source first: the
+ * operator's `--config` selector, the configuration already selected for that
+ * workspace, then the workspace's highest-priority discovered form.
+ *
+ * Every path returned comes from the discovered candidate set, so no caller can put an
+ * arbitrary path into the CLI's `--config`.
+ */
+export function configPathFor(
+  entry: RegistryEntry,
+  requested: { selector?: string; selectedWorkspaceKey?: string; selectedConfigPath?: string },
+): ConfigResolution {
+  if (requested.selector !== undefined) return resolveConfigCandidate(entry, requested.selector);
+  const { selectedConfigPath, selectedWorkspaceKey } = requested;
+  if (
+    selectedConfigPath !== undefined &&
+    selectedWorkspaceKey !== undefined &&
+    canonicalWorkspaceKey(selectedWorkspaceKey) === canonicalWorkspaceKey(entry.workspacePath)
+  ) {
+    const validated = resolveConfigCandidate(entry, selectedConfigPath);
+    if (validated.ok) return validated;
+  }
+  return {
+    ok: true,
+    ...(needsExplicitConfig(entry.configKind) && entry.configPath.length > 0 ? { configPath: entry.configPath } : {}),
+  };
+}
+
+/** Resolve a `--config` selector against every configuration of one workspace. */
+export function resolveConfigCandidate(entry: RegistryEntry, requested: string): ConfigResolution {
+  const discovered: readonly ConfigCandidate[] = candidatesOf(entry);
+  for (const candidate of discovered) {
+    if (candidate.configPath === requested || selectorNameOf(candidate) === requested) {
+      return { ok: true, configPath: candidate.configPath };
+    }
+  }
+  const available = discovered.map((candidate) => selectorNameOf(candidate));
+  return {
+    ok: false,
+    text: `[no-candidate] Unknown configuration \`${requested}\` for \`${entry.workspacePath}\`.\nAvailable: ${available.length > 0 ? available.map((name) => `\`${name}\``).join(", ") : "(none)"}.`,
+  };
+}
+
 /** Namespaced command handler surface. */
 export function createCommandHandlers(services: CommandServices): Record<string, (args: string, ctx: CommandContextLike) => Promise<CommandResult>> {
   const handlers: Record<string, (args: string, ctx: CommandContextLike) => Promise<CommandResult>> = {};
@@ -231,15 +317,35 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     return { text: renderStatus(snapshot, entries, services.config) };
   };
 
+  /**
+   * Return to the dormant state: clear the target so the session's execution
+   * surfaces belong to the host again (AC-5).
+   */
+  handlers["off"] = async (_args, _ctx) => {
+    await services.targetStore.clear();
+    return {
+      text: "DevContainer target cleared. `bash`, `!`/`!!`, and the file tools are host surfaces again.\nRun /devcontainer use to take over a container again.",
+    };
+  };
+
   handlers["use"] = async (args, ctx) => {
     const { entries } = await services.registry();
-    const wanted = args.trim();
+    const { selector: wanted, config: configSelector } = parseUseArgs(args);
+    // Resolve the requested configuration before committing any selection, so an
+    // unknown name never changes the target.
+    const select = async (entry: RegistryEntry, candidateId: string | undefined): Promise<string | undefined> => {
+      const resolved = configSelector === undefined ? { ok: true as const } : resolveConfigCandidate(entry, configSelector);
+      if (resolved.ok === false) return resolved.text;
+      await applySelection(services, selectionFor(entry, candidateId, resolved.configPath), ctx);
+      return undefined;
+    };
     // An explicit CONTAINER id selects that candidate of an ambiguous workspace
     // (the only way to resolve 2+ running containers for one workspace).
     if (wanted.length > 0) {
       const byCandidate = entries.find((e) => (e.containerCandidates ?? []).some((c) => c.id === wanted));
       if (byCandidate !== undefined) {
-        await applySelection(services, selectionFor(byCandidate, wanted), ctx);
+        const failure = await select(byCandidate, wanted);
+        if (failure !== undefined) return { text: failure };
         return { text: `Selected \`${byCandidate.workspacePath}\` → container \`${wanted}\`.` };
       }
     }
@@ -260,7 +366,8 @@ export function createCommandHandlers(services: CommandServices): Record<string,
           text: `[ambiguous-candidate] Multiple running containers for \`${only.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`,
         };
       }
-      await applySelection(services, selectionFor(only, only.containerId), ctx);
+      const failure = await select(only, only.containerId);
+      if (failure !== undefined) return { text: failure };
       return { text: `Selected \`${only.workspacePath}\` (${only.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
     }
     const labels = candidates.map((e) => `${e.workspacePath} [${e.containerState ?? "config-only"}]`);
@@ -269,15 +376,66 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     const idx = labels.indexOf(choice);
     if (idx === -1) return { text: "[unexpected] Unknown selection." };
     const picked = candidates[idx]!;
-    await applySelection(services, selectionFor(picked, picked.ambiguous === true ? undefined : picked.containerId), ctx);
+    const pickedFailure = await select(picked, picked.ambiguous === true ? undefined : picked.containerId);
+    if (pickedFailure !== undefined) return { text: pickedFailure };
     return { text: `Selected \`${picked.workspacePath}\` (${picked.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
   };
 
+  /**
+   * Resolve which workspace and which configuration an `/devcontainer up`/`build`
+   * invocation targets. Shared by both verbs so their argument handling cannot drift,
+   * and resolved through the registry so every path handed to the CLI is a discovered
+   * one (AC-2).
+   */
+  const resolveUpBuildTarget = async (
+    args: string,
+    ctx: CommandContextLike,
+  ): Promise<
+    | { ok: true; workspace: string; configPath?: string; entries: readonly RegistryEntry[] }
+    | { ok: false; text: string }
+  > => {
+    const { selector, config } = parseUseArgs(args);
+    const workspace = selector.length > 0 ? selector : ctx.cwd;
+    const { entries } = await services.registry();
+    const key = canonicalWorkspaceKey(workspace);
+    const entry = entries.find((candidate) => canonicalWorkspaceKey(candidate.workspacePath) === key);
+    if (entry === undefined) {
+      // Nothing discovered for this path: keep the CLI's own lookup and its own error,
+      // unless a configuration was requested explicitly — then nothing can resolve it.
+      return config === undefined
+        ? { ok: true, workspace, entries }
+        : {
+            ok: false,
+            text: `[no-candidate] No registry entry matches \`${workspace}\`.\nRun /devcontainer list to see available targets.`,
+          };
+    }
+    const snapshot = services.targetStore.snapshot();
+    const resolved = configPathFor(entry, {
+      ...(config !== undefined ? { selector: config } : {}),
+      ...(snapshot.workspaceKey !== undefined ? { selectedWorkspaceKey: snapshot.workspaceKey } : {}),
+      ...(snapshot.configPath !== undefined ? { selectedConfigPath: snapshot.configPath } : {}),
+    });
+    if (resolved.ok === false) return { ok: false, text: resolved.text };
+    return {
+      ok: true,
+      workspace,
+      entries,
+      ...(resolved.configPath !== undefined ? { configPath: resolved.configPath } : {}),
+    };
+  };
+
   handlers["up"] = async (args, ctx) => {
-    const workspace = args.trim().length > 0 ? args.trim() : ctx.cwd;
+    const target = await resolveUpBuildTarget(args, ctx);
+    if (target.ok === false) return { text: target.text };
+    const { workspace } = target;
     let outcome: UpBuildOutcome;
     try {
-      outcome = await services.execution.up({ operation: "up", initiator: "slash-command", workspace });
+      outcome = await services.execution.up({
+        operation: "up",
+        initiator: "slash-command",
+        workspace,
+        ...(target.configPath !== undefined ? { configPath: target.configPath } : {}),
+      });
     } catch (error) {
       return { text: describeError(error) };
     }
@@ -287,7 +445,7 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     // after a successful start (config-only / previously-missing selections).
     let reconciled = "";
     try {
-      const selection = await reconcileSelection(services, ctx, { workspaceKey: workspace });
+      const selection = await reconcileSelection(services, ctx, { workspaceKey: workspace }, target.entries);
       reconciled = `\nselection: ${selection.status}`;
     } catch (error) {
       reconciled = `\nselection: (reconcile failed: ${error instanceof Error ? error.message : String(error)})`;
@@ -296,10 +454,17 @@ export function createCommandHandlers(services: CommandServices): Record<string,
   };
 
   handlers["build"] = async (args, ctx) => {
-    const workspace = args.trim().length > 0 ? args.trim() : ctx.cwd;
+    const target = await resolveUpBuildTarget(args, ctx);
+    if (target.ok === false) return { text: target.text };
+    const { workspace } = target;
     let outcome: UpBuildOutcome;
     try {
-      outcome = await services.execution.build({ operation: "build", initiator: "slash-command", workspace });
+      outcome = await services.execution.build({
+        operation: "build",
+        initiator: "slash-command",
+        workspace,
+        ...(target.configPath !== undefined ? { configPath: target.configPath } : {}),
+      });
     } catch (error) {
       return { text: describeError(error) };
     }

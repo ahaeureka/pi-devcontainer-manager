@@ -320,6 +320,12 @@ describe("buildWorkspaceRegistry", () => {
         containerId: "aa11",
         containerState: "running",
         containerCandidates: [{ id: "aa11", state: "running" }],
+        configCandidates: [
+          {
+            configPath: "/work/a/.devcontainer/devcontainer.json",
+            configKind: ".devcontainer/devcontainer.json",
+          },
+        ],
       },
     ]);
     expect(result.configOnly).toEqual([]);
@@ -336,6 +342,9 @@ describe("buildWorkspaceRegistry", () => {
         configPath: "/work/a/devcontainer.json",
         configKind: "root/devcontainer.json",
         discoveredFrom: "host-config",
+        configCandidates: [
+          { configPath: "/work/a/devcontainer.json", configKind: "root/devcontainer.json" },
+        ],
       },
     ]);
     expect(result.configOnly).toEqual(["/work/a"]);
@@ -374,6 +383,12 @@ describe("buildWorkspaceRegistry", () => {
         containerId: "c1",
         containerState: "running",
         containerCandidates: [{ id: "c1", state: "running" }],
+        configCandidates: [
+          {
+            configPath: "/work/real/a/.devcontainer/devcontainer.json",
+            configKind: ".devcontainer/devcontainer.json",
+          },
+        ],
       },
     ]);
     expect(result.configOnly).toEqual([]);

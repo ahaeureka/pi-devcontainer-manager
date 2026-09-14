@@ -1,0 +1,39 @@
+{
+  "id": "activation-and-config-mechanism",
+  "title": "Change activation-and-config-mechanism",
+  "phase": "intake",
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "statement": "Implement the change successfully."
+    }
+  ],
+  "branch": "main",
+  "createdAt": "2026-09-14T11:27:24.890Z",
+  "updatedAt": "2026-09-14T11:27:24.890Z",
+  "workflowProfile": {
+    "version": 1,
+    "isolationMode": "git_flow",
+    "developmentMode": "tdd",
+    "reviewMode": "security",
+    "comet": {
+      "projectInit": "not_requested",
+      "openStatus": "acknowledged"
+    },
+    "gitFlow": {
+      "strategy": "manual",
+      "branch": "feature/activation-and-config-mechanism",
+      "baseBranch": "main",
+      "status": "active"
+    }
+  },
+  "ownedPaths": [
+    "CHANGELOG.md",
+    "README.md",
+    "docs/",
+    "examples/",
+    "extensions/",
+    "src/",
+    "tests/"
+  ]
+}
