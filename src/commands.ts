@@ -19,8 +19,9 @@ import type { SelectionRecord } from "./selection-state.js";
 import { RuntimeError, errorKindOf } from "./errors.js";
 import { isWorkspaceAllowed, isEnvironmentAllowed } from "./policy.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
-import type { EffectiveConfig } from "./types.js";
+import type { ConfigCandidate, EffectiveConfig, RegistryEntry } from "./types.js";
 import { SELECTION_ENTRY_KIND, SELECTION_PAYLOAD_VERSION } from "./selection-state.js";
+import { needsExplicitConfig } from "./runtime/devcontainer-adapter.js";
 
 /** UI primitives the command layer needs (structural subset of Pi's). */
 export interface CommandUI {
@@ -139,8 +140,14 @@ export async function applySelection(
 export function selectionFor(
   entry: import("./types.js").RegistryEntry,
   candidateId: string | undefined,
+  configPath?: string,
 ): TargetSelection {
   const state = entry.containerState ?? "exited";
+  // A named configuration (or the legacy root form) is invisible to the CLI's own
+  // lookup, so it must travel with the operation. The default forms stay
+  // flag-free so today's argv is unchanged.
+  const resolvedConfig =
+    configPath ?? (needsExplicitConfig(entry.configKind) && entry.configPath.length > 0 ? entry.configPath : undefined);
   // More than one running container for this workspace: Docker result order
   // must never decide the target. Fail closed until an explicit id is given.
   if (entry.ambiguous === true && candidateId === undefined) {
@@ -158,6 +165,7 @@ export function selectionFor(
         workspaceKey: entry.workspacePath,
         state,
         status: state === "running" ? "running" : "stopped",
+        ...(resolvedConfig !== undefined ? { configPath: resolvedConfig } : {}),
       }
     : undefined;
   return {
@@ -208,6 +216,42 @@ export async function reconcileSelection(
   return selection;
 }
 
+/** Split `/devcontainer use <selector> [--config <name|path>]`. */
+export function parseUseArgs(args: string): { selector: string; config?: string } {
+  const match = /(?:^|\s)--config(?:=|\s+)(\S+)/.exec(args);
+  const config = match?.[1];
+  const selector = args.replace(/(?:^|\s)--config(?:=|\s+)\S+/g, " ").trim();
+  return { selector, ...(config !== undefined ? { config } : {}) };
+}
+
+export type ConfigResolution =
+  | { readonly ok: true; readonly configPath?: string }
+  | { readonly ok: false; readonly text: string };
+
+/** Operator-facing name: `<name>` for a named configuration, else `default`. */
+function selectorNameOf(candidate: ConfigCandidate): string {
+  if (candidate.configKind !== ".devcontainer/<name>/devcontainer.json") return "default";
+  const parts = candidate.configPath.split("/");
+  return parts[parts.length - 2] ?? "default";
+}
+
+/** Resolve a `--config` selector against every configuration of one workspace. */
+export function resolveConfigCandidate(entry: RegistryEntry, requested: string): ConfigResolution {
+  const discovered: readonly ConfigCandidate[] =
+    entry.configCandidates ??
+    (entry.configPath.length > 0 ? [{ configPath: entry.configPath, configKind: entry.configKind }] : []);
+  for (const candidate of discovered) {
+    if (candidate.configPath === requested || selectorNameOf(candidate) === requested) {
+      return { ok: true, configPath: candidate.configPath };
+    }
+  }
+  const available = discovered.map((candidate) => selectorNameOf(candidate));
+  return {
+    ok: false,
+    text: `[no-candidate] Unknown configuration \`${requested}\` for \`${entry.workspacePath}\`.\nAvailable: ${available.length > 0 ? available.map((name) => `\`${name}\``).join(", ") : "(none)"}.`,
+  };
+}
+
 /** Namespaced command handler surface. */
 export function createCommandHandlers(services: CommandServices): Record<string, (args: string, ctx: CommandContextLike) => Promise<CommandResult>> {
   const handlers: Record<string, (args: string, ctx: CommandContextLike) => Promise<CommandResult>> = {};
@@ -233,13 +277,22 @@ export function createCommandHandlers(services: CommandServices): Record<string,
 
   handlers["use"] = async (args, ctx) => {
     const { entries } = await services.registry();
-    const wanted = args.trim();
+    const { selector: wanted, config: configSelector } = parseUseArgs(args);
+    // Resolve the requested configuration before committing any selection, so an
+    // unknown name never changes the target.
+    const select = async (entry: RegistryEntry, candidateId: string | undefined): Promise<string | undefined> => {
+      const resolved = configSelector === undefined ? { ok: true as const } : resolveConfigCandidate(entry, configSelector);
+      if (resolved.ok === false) return resolved.text;
+      await applySelection(services, selectionFor(entry, candidateId, resolved.configPath), ctx);
+      return undefined;
+    };
     // An explicit CONTAINER id selects that candidate of an ambiguous workspace
     // (the only way to resolve 2+ running containers for one workspace).
     if (wanted.length > 0) {
       const byCandidate = entries.find((e) => (e.containerCandidates ?? []).some((c) => c.id === wanted));
       if (byCandidate !== undefined) {
-        await applySelection(services, selectionFor(byCandidate, wanted), ctx);
+        const failure = await select(byCandidate, wanted);
+        if (failure !== undefined) return { text: failure };
         return { text: `Selected \`${byCandidate.workspacePath}\` → container \`${wanted}\`.` };
       }
     }
@@ -260,7 +313,8 @@ export function createCommandHandlers(services: CommandServices): Record<string,
           text: `[ambiguous-candidate] Multiple running containers for \`${only.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`,
         };
       }
-      await applySelection(services, selectionFor(only, only.containerId), ctx);
+      const failure = await select(only, only.containerId);
+      if (failure !== undefined) return { text: failure };
       return { text: `Selected \`${only.workspacePath}\` (${only.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
     }
     const labels = candidates.map((e) => `${e.workspacePath} [${e.containerState ?? "config-only"}]`);
@@ -269,7 +323,8 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     const idx = labels.indexOf(choice);
     if (idx === -1) return { text: "[unexpected] Unknown selection." };
     const picked = candidates[idx]!;
-    await applySelection(services, selectionFor(picked, picked.ambiguous === true ? undefined : picked.containerId), ctx);
+    const pickedFailure = await select(picked, picked.ambiguous === true ? undefined : picked.containerId);
+    if (pickedFailure !== undefined) return { text: pickedFailure };
     return { text: `Selected \`${picked.workspacePath}\` (${picked.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
   };
 

@@ -11,7 +11,8 @@ export type ContainerState = "running" | "exited" | "created" | "paused" | "unkn
 export type DevcontainerConfigKind =
   | "root/devcontainer.json"
   | "root/.devcontainer.json"
-  | ".devcontainer/devcontainer.json";
+  | ".devcontainer/devcontainer.json"
+  | ".devcontainer/<name>/devcontainer.json";
 
 export interface DiscoveredProject {
   readonly workspacePath: string;
@@ -25,6 +26,12 @@ export interface RegistryCandidate {
   readonly state: ContainerState;
 }
 
+/** One discovered DevContainer configuration for a workspace. */
+export interface ConfigCandidate {
+  readonly configPath: string;
+  readonly configKind: DevcontainerConfigKind;
+}
+
 export interface RegistryEntry {
   readonly workspacePath: string;
   readonly configPath: string;
@@ -35,6 +42,8 @@ export interface RegistryEntry {
   readonly containerState?: ContainerState;
   /** ALL containers discovered for this workspace (never collapsed away). */
   readonly containerCandidates?: readonly RegistryCandidate[];
+  /** EVERY configuration discovered for this workspace (never collapsed away). */
+  readonly configCandidates?: readonly ConfigCandidate[];
   /**
    * True when MORE THAN ONE running container matches this workspace. Such a
    * target must never be auto-selected by Docker result order; the operator

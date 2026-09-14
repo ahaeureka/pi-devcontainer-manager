@@ -77,6 +77,8 @@ export interface UpBuildRequest {
   readonly initiator: Initiator;
   readonly workspace: string;
   readonly dockerPath?: string;
+  /** Named configuration to start/build (`--config`); absent uses the CLI default. */
+  readonly configPath?: string;
   readonly noCache?: boolean;
   readonly imageName?: string;
   readonly signal?: AbortSignal;
@@ -178,6 +180,7 @@ export class ExecutionService {
         request.cmd,
         request.args,
         {
+          ...(ctx.configPath !== undefined ? { configPath: ctx.configPath } : {}),
           ...(remoteEnv !== undefined ? { remoteEnv } : {}),
           ...(request.signal !== undefined ? { signal: request.signal } : {}),
         },
@@ -231,6 +234,7 @@ export class ExecutionService {
     try {
       result = await this.options.devcontainer.up(request.workspace, {
         ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
+        ...(request.configPath !== undefined ? { configPath: request.configPath } : {}),
         ...(request.signal !== undefined ? { signal: request.signal } : {}),
       });
     } catch (error) {
@@ -264,6 +268,7 @@ export class ExecutionService {
     try {
       result = await this.options.devcontainer.build(request.workspace, {
         ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
+        ...(request.configPath !== undefined ? { configPath: request.configPath } : {}),
         ...(request.noCache === true ? { noCache: true } : {}),
         ...(request.imageName !== undefined ? { imageName: request.imageName } : {}),
         ...(request.signal !== undefined ? { signal: request.signal } : {}),

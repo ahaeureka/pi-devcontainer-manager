@@ -9,19 +9,38 @@
  * single JSON document on stdout regardless of log format, which we parse.
  *
  * Verified against @devcontainers/cli 0.88.0 bundled source:
- * - `up`   -> `devcontainer up --workspace-folder <ws> [--docker-path <d>]`
+ * - `up`   -> `devcontainer up --workspace-folder <ws> [--docker-path <d>] [--config <p>]`
  *   stdout JSON `{outcome, containerId, composeProjectName, remoteUser,
  *   remoteWorkspaceFolder}`; error outcome exits 1.
- * - `build`-> `devcontainer build [--workspace-folder <ws>] [--docker-path <d>]`
+ * - `build`-> `devcontainer build [--workspace-folder <ws>] [--docker-path <d>] [--config <p>]`
  *   stdout JSON `{outcome, imageName}`; error outcome exits 1.
  * - `exec` -> `devcontainer exec --workspace-folder <ws> --container-id <id>
- *   [--remote-env N=V]... -- <cmd> [args...]`; exit code is the container-side
+ *   [--config <p>] [--remote-env N=V]... -- <cmd> [args...]`; exit code is the container-side
  *   command's exit code; `--remote-env` may be repeated (yargs accumulates
  *   duplicates into an array; the CLI normalizes a single value to a
  *   one-element array), so EVERY allowlisted variable is forwarded.
  */
 import type { ProcessRunner, ProcessResult } from "./process-runner.js";
+import type { DevcontainerConfigKind } from "../types.js";
 import { RuntimeError } from "../errors.js";
+
+/**
+ * Forms the pinned CLI resolves on its own, in this order:
+ * `.devcontainer/devcontainer.json`, then `.devcontainer.json` — verified with
+ * `devcontainer read-configuration --workspace-folder <dir>` on 0.88.0. Every
+ * other discovered form (a named `.devcontainer/<name>/devcontainer.json`, or the
+ * legacy root `devcontainer.json`) is invisible to that lookup and must be handed
+ * over with `--config`.
+ */
+const CLI_DEFAULT_CONFIG_KINDS: ReadonlySet<DevcontainerConfigKind> = new Set([
+  ".devcontainer/devcontainer.json",
+  "root/.devcontainer.json",
+]);
+
+/** Whether a discovered configuration has to be passed to the CLI explicitly. */
+export function needsExplicitConfig(kind: DevcontainerConfigKind): boolean {
+  return !CLI_DEFAULT_CONFIG_KINDS.has(kind);
+}
 
 /** Success payload of `devcontainer up` (0.88.0), minus dispose/functions. */
 export interface UpResult {
@@ -38,18 +57,20 @@ export interface BuildResult {
 
 export interface ExecOptions {
   readonly dockerPath?: string;
+  /** Named configuration to resolve: `.devcontainer/<name>/devcontainer.json`. */
+  readonly configPath?: string;
   readonly remoteEnv?: Readonly<Record<string, string>>;
   readonly signal?: AbortSignal;
 }
 
 export interface DevcontainerAdapter {
   /** `devcontainer up --workspace-folder <workspace>`. Reuses an existing container by default. */
-  up(workspace: string, options?: { dockerPath?: string; signal?: AbortSignal }): Promise<UpResult>;
+  up(workspace: string, options?: { dockerPath?: string; configPath?: string; signal?: AbortSignal }): Promise<UpResult>;
 
   /** `devcontainer build [--workspace-folder <workspace>] [--no-cache]`. */
   build(
     workspace: string,
-    options?: { dockerPath?: string; noCache?: boolean; imageName?: string; signal?: AbortSignal },
+    options?: { dockerPath?: string; configPath?: string; noCache?: boolean; imageName?: string; signal?: AbortSignal },
   ): Promise<BuildResult>;
 
   /**
@@ -100,22 +121,24 @@ export class NodeDevcontainerAdapter implements DevcontainerAdapter {
 
   public async up(
     workspace: string,
-    options: { dockerPath?: string; signal?: AbortSignal } = {},
+    options: { dockerPath?: string; configPath?: string; signal?: AbortSignal } = {},
   ): Promise<UpResult> {
     const args: string[] = ["up", "--workspace-folder", workspace];
     if (options.dockerPath !== undefined) args.push("--docker-path", options.dockerPath);
+    if (options.configPath !== undefined) args.push("--config", options.configPath);
     const { result, stdout, stderr } = await this.runCli(args, options.signal);
     return this.parseUp(result, stdout, stderr);
   }
 
   public async build(
     workspace: string,
-    options: { dockerPath?: string; noCache?: boolean; imageName?: string; signal?: AbortSignal } = {},
+    options: { dockerPath?: string; configPath?: string; noCache?: boolean; imageName?: string; signal?: AbortSignal } = {},
   ): Promise<BuildResult> {
     const args: string[] = ["build", "--workspace-folder", workspace];
     if (options.dockerPath !== undefined) args.push("--docker-path", options.dockerPath);
     if (options.noCache === true) args.push("--no-cache");
     if (options.imageName !== undefined) args.push("--image-name", options.imageName);
+    if (options.configPath !== undefined) args.push("--config", options.configPath);
     const { result, stdout, stderr } = await this.runCli(args, options.signal);
     return this.parseBuild(result, stdout, stderr);
   }
@@ -135,6 +158,7 @@ export class NodeDevcontainerAdapter implements DevcontainerAdapter {
     }
     const argv: string[] = ["exec", "--workspace-folder", workspace, "--container-id", containerId];
     if (options.dockerPath !== undefined) argv.push("--docker-path", options.dockerPath);
+    if (options.configPath !== undefined) argv.push("--config", options.configPath);
     const remoteEnv = options.remoteEnv ?? {};
     // CLI 0.88.0 accepts repeated `--remote-env name=value` flags: yargs
     // accumulates duplicate flags into an array and the CLI normalizes a single

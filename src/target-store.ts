@@ -25,6 +25,8 @@ export interface TargetCandidate {
   readonly workspaceKey: string;
   readonly state: string;
   readonly status: string;
+  /** Configuration the operator selected for this workspace, when named. */
+  readonly configPath?: string;
   /** Original labelled path retained for diagnostics. */
   readonly localFolder?: string;
 }
@@ -44,6 +46,8 @@ export interface ExecutionContext {
   readonly workspaceKey: string;
   readonly candidateId: string;
   readonly candidateName: string;
+  /** Selected configuration (`--config`); absent means the CLI default lookup. */
+  readonly configPath?: string;
   /** Frozen at bind time; a later selection switch cannot change it. */
   readonly boundAt: string;
 }
@@ -173,6 +177,7 @@ export class TargetStore {
       workspaceKey: selection.workspaceKey ?? candidate.workspaceKey,
       candidateId: candidate.id,
       candidateName: candidate.name,
+      ...(candidate.configPath !== undefined ? { configPath: candidate.configPath } : {}),
       boundAt: this.options.clock?.() ?? new Date().toISOString(),
     };
   }
