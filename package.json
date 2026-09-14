@@ -11,8 +11,27 @@
       "import": "./dist/extensions/index.js"
     }
   },
-  "files": ["dist", "README.md", "LICENSE", "CHANGELOG.md", "docs", "examples"],
+  "files": [
+    "dist",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "docs",
+    "examples"
+  ],
   "keywords": ["pi-package", "pi-extension", "devcontainer", "docker"],
+  "author": "pi-devcontainer-manager contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ahaeureka/pi-devcontainer-manager.git"
+  },
+  "homepage": "https://github.com/ahaeureka/pi-devcontainer-manager#readme",
+  "bugs": {
+    "url": "https://github.com/ahaeureka/pi-devcontainer-manager/issues"
+  },
   "pi": {
     "extensions": ["./dist/extensions/index.js"]
   },
