@@ -1,0 +1,24 @@
+{
+  "id": "llmwiki-arch-review-p2-failure-observability",
+  "statement": "Failure observability (Phase 2 build notes)",
+  "scope": [
+    "concepts/arch-review-p2-failure-observability.md"
+  ],
+  "kind": "llmwiki-summary",
+  "sourceRefs": [
+    ".llmwiki/raw/docs/arch-review-p2-failure-observability.md",
+    ".llmwiki/concepts/arch-review-p2-failure-observability.md"
+  ],
+  "sourceHashes": {
+    ".llmwiki/raw/docs/arch-review-p2-failure-observability.md": "ae28d22a8302dc61bfed6fe5421e282ec62c419c28d04dbfde71bf570cbf006b",
+    ".llmwiki/concepts/arch-review-p2-failure-observability.md": "8ab47cc605c256297b12088114cf287bfaf05889758d40ac8f7c6dc475c7624b"
+  },
+  "validationTaskId": "llmwiki-ingest",
+  "evidenceIds": [
+    "llmwiki-ae28d22a8302"
+  ],
+  "status": "candidate",
+  "lastVerifiedAt": "2026-09-15T09:13:35.187Z",
+  "createdAt": "2026-09-15T09:13:35.187Z",
+  "updatedAt": "2026-09-15T09:13:35.187Z"
+}

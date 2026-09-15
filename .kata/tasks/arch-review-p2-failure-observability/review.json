@@ -1,0 +1,39 @@
+{
+  "revisionId": "revision-078eb341-0ccf-42af-b58b-4c639510d2d8",
+  "status": "approved",
+  "reviewEvidence": "Security review of revision-078eb341 (head b520a3a, clean tree at acknowledgement). All six acceptance criteria were re-checked against the code rather than against the summary. AC-1: `src/setup-cli.ts` writes exactly one `setup` record on every path — the install spawn returning (exitCode recorded, stderr as the handler-visible error), the install spawn rejecting (exitCode null plus the failure as errorSummary, then `{installed:false, error}`), and never a record for the probe; `SETUP_ARGV` is still the fixed `npm install -g @devcontainers/cli`, the interactive confirm and the `hasUI` guard in the handler are unchanged, and `errorSummary` is redacted by the same writer (`src/audit.ts:31`) so the new failure summaries cannot leak a registry token from npm stderr. AC-2: `combineCommandOutput` feeds `formatToolOutput`, so the displayed text, the truncation tail and the persisted `fullOutputPath` copy all carry both streams, and the nonzero-exit error uses the same combiner; the routed bash path (already complete) was not touched. AC-3: both schemas declare `exclusiveMinimum: 0` and the new tests compile the schemas the way Pi validates tool arguments. AC-4: `authorize()` runs at src/execution-service.ts:140, before the audited bind block at :155, so `policyAuthorized: true` on a refusal record is truthful; the typed error is rethrown unchanged and its text is redacted on the way into the trail. AC-5: the sink dedupes and reports once per session, `refreshRegistry` is the same `registry()` function so both paths feed it, the diagnostic reaches only the operator's UI (`ctx.ui.notify`, not the model context and not the audit file), the activation probe contributes but never notifies, and a healthy tree yields no lines at all. AC-6: typecheck, 326 unit tests (31 files), verify-package gates, a rebuilt-and-committed dist with a clean `git diff --exit-code -- dist`, the packed smoke run and `install:local --check` are all green. Trust boundary: no shell interpolation was added anywhere (`SETUP_ARGV` plus `runner.exec` argv), no dependency files changed in either commit, no new environment is passed to the child, and the new audit records grant nothing — they only make refusals visible. RED evidence was independently reproduced for the claims that matter: stashing `src/execution-service.ts` makes both refusal tests fail with an empty audit trail, and stashing the slice-5 sources makes the registry-shape test fail with the two dead fields still present. Non-blocking findings are recorded below.",
+  "findings": [
+    {
+      "id": "finding-spawn-error-drops-errno",
+      "taskId": "arch-review-p2-failure-observability",
+      "acceptanceId": "AC-6",
+      "severity": "major",
+      "message": "Pre-existing, not introduced by this revision, but it defeats the phase's own goal in the field: `toSpawnError` handles `ENOENT` (executable-missing) and `EACCES`/`EPERM` (spawn-permission-denied) and maps every other errno to `unexpected` with the message `Failed to spawn: <file>`, dropping `cause.code`. Observed on 2026-09-15: a host-wide `ENOTCONN` condition (a dead Orca AppImage FUSE mount occupying PATH ahead of the real binaries, which makes glibc `execvp` abort the search) surfaced as exactly the same opaque text as a missing binary, pointing diagnosis at \"the devcontainer CLI is not installed\" while `devcontainer --version` reported 0.89.0 and the container was up. Include the errno in the message/remedy (and consider naming `ENOTCONN` explicitly as a host-environment fault). Scheduled as a follow-up tweak agreed with the operator after this verify, so it does not block AC-1..AC-6.",
+      "path": "src/runtime/process-runner.ts"
+    },
+    {
+      "id": "finding-diagnostics-expose-host-paths",
+      "taskId": "arch-review-p2-failure-observability",
+      "acceptanceId": "AC-5",
+      "severity": "note",
+      "message": "The newly surfaced diagnostics include host filesystem paths (`cannot read directory <dir>`, `max depth N reached; not traversing <dir>`, `not traversing <dir>: resolves outside allowed workspace root`). The disclosure is bounded and deliberate: the lines go to the operator's UI only, never into the model context and never into the audit file, and the same paths are already visible through `/devcontainer list` and the status tool. Recorded so the choice stays explicit; if a future change routes these into model context, this must be revisited.",
+      "path": "extensions/index.ts"
+    },
+    {
+      "id": "finding-drain-skipped-when-handler-throws",
+      "taskId": "arch-review-p2-failure-observability",
+      "acceptanceId": "AC-5",
+      "severity": "note",
+      "message": "The drain sits immediately after `await handler(...)`, so a verb handler that throws leaves its diagnostics queued until the next successful `/devcontainer` command. Nothing is lost (the sink is deduped and keeps pending lines) but a failure-path diagnostic is delivered one command late; moving the drain into a `finally` would report it immediately. No security or correctness effect.",
+      "path": "extensions/index.ts"
+    },
+    {
+      "id": "finding-cli-version-vs-documented-contract",
+      "taskId": "arch-review-p2-failure-observability",
+      "acceptanceId": "AC-6",
+      "severity": "note",
+      "message": "The host now resolves the Dev Containers CLI at 0.89.0, while the architecture review's host-contract constraints were recorded against 0.88.0 (argv shape and exit-code semantics for `up`/`build`/`exec`). Nothing in this revision depends on the difference, and the smoke run and the real `devcontainer exec --workspace-folder <ws> -- echo alive` invocation both succeed against the installed version; the documented contract should be re-confirmed at 0.89.0 during the next phase.",
+      "path": "docs/troubleshooting.md"
+    }
+  ]
+}
