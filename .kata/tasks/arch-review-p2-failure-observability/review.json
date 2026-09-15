@@ -1,126 +1,38 @@
 {
   "revisionId": "revision-99abdc7f-1ab7-4612-aedc-f43c28707857",
   "status": "approved",
-  "reviewEvidence": "Third pass, on the repair revision. PASS 1 (verify) re-checked every acceptance criterion against the code and reproduced both RED claims by stashing source. PASS 2 was an independent adversarial review by a fresh-context agent with no memory of the implementation, told to falsify the two strongest claims, check each AC against code rather than tests, sweep for regressions from the two deleted registry fields, and run the security profile; it verified the security surface clean (no dependency changes, fixed installer argv, unchanged confirm/hasUI gate, audit redaction covering the new failure paths, diagnostics reaching only the operator UI) and the regression sweep clean, but falsified the broader \"no path drops stderr\" claim and surfaced eight further gaps. PASS 3 is this repair: all thirteen findings were fixed under TDD (each slice began with a test whose RED output is the defect itself — `'Failed to spawn: devcontainer'` without the errno, `'host-out\\n'` without `--- stderr ---`, `'docker remove failed with exit 1.'` without the daemon message, `'container out\\n'` without the container's stderr half, `'npm install exited null'` instead of the signal, an undefined `errorSummary` on the non-zero-exit and failed-probe records, `'supersecret-token-value'` returned unredacted, `expected true to be false` for a sub-millisecond timeout that aborted at 0 ms, and `displayCommandResult is not a function`), and one further defect was found while fixing them: `/devcontainer <verb>` produced no output at all, because Pi's command dispatcher ignores a handler's return value (`_tryExecuteExtensionCommand` is `return await command.handler(args, ctx), true`) and nothing rendered `CommandResult.text`. Verification of the repair: `npm run typecheck`; `npm run test:unit` (31 files, 344 tests, 23 added by this repair); `verify-package.mjs --unit-tests` (all gates); a rebuilt and committed `dist/` that matches a fresh build; the packed `smoke-pi-package.mjs --no-model`; and `npm run install:local -- --check`. The Dev Containers CLI contract was re-confirmed against the version this host actually resolves, 0.89.0: every flag the adapter passes (`up`/`build`/`exec`, `--workspace-folder`, `--docker-path`, `--config`, `--container-id`, `--remote-env`) still exists in the installed help output, so the 0.88.0 pin documented in the repository remains conservative rather than wrong. Two seams remain outside unit-test reach and are reported as such rather than claimed covered: the delivery of a command handler's rendered result and the drain of discovery diagnostics both live in the extension's command dispatch, which this repository has no unit harness for (the same limitation the Phase 1 review recorded); their policy halves are unit-tested (`displayCommandResult`, `reportDiscoveryDiagnostics`) and the wiring is exercised by the packed smoke run. The previous revision's approval was withdrawn when the repair landed (recorded below as a note) and is restored here against revision-99abdc7f.",
+  "reviewEvidence": "Approved against revision-99abdc7f (the repair revision). Three passes. PASS 1 (verify) re-checked every acceptance criterion against the code and reproduced both RED claims by stashing source only. PASS 2 was an INDEPENDENT adversarial review by a fresh-context agent with no memory of the implementation: told to falsify the two strongest claims (\"exactly one setup record on every path\", \"no structured execution path drops stderr any more\"), to check each AC against code rather than tests, to sweep for regressions from the two deleted registry fields, and to run the security profile. It verified the security surface clean (no dependency changes in either commit, the installer still runs the fixed SETUP_ARGV behind the unchanged confirm/hasUI gate, the audit writer's redaction covers the new failure paths, and diagnostics reach only the operator UI — never model context, never the audit file) and the regression sweep clean (no remaining configOnly/orphanDockerCandidates/hostCommandIdentity consumer anywhere in code, docs, tests or dist; the new symbols are present in dist). It DID falsify the broader stderr claim and surfaced eight further gaps, every one of which was re-verified against the source before being recorded. PASS 3 is the repair, done under TDD where each slice began with a test whose RED output IS the defect: 'Failed to spawn: devcontainer' without the errno; 'host-out\\n' without '--- stderr ---'; 'docker remove failed with exit 1.' without the daemon's own message; 'container out\\n' carrying only the stdout half of docker logs; 'npm install exited null' instead of the signal; an undefined errorSummary on both the non-zero-exit and the failed-probe setup records; 'supersecret-token-value' returned unredacted to the operator and the model; 'expected true to be false' for a sub-millisecond timeout that aborted at 0 ms of virtual time; and 'reportDiscoveryDiagnostics is not a function' for the untested drain. All thirteen findings from PASS 2 are fixed and verified: (1) toSpawnError now names the OS error code on every branch and explains ENOTCONN as a PATH-transport fault with a remedy, which is the misdiagnosis this whole phase exists to prevent — four new mapper tests plus a troubleshooting entry; (2) the L2-02 stderr class is closed repo-wide — the /devcontainer host-exec COMMAND, docker logs (whose onStderr count was literally 0, so half of every log read was discarded) and stop/remove failures, which now carry a bounded one-line rendering of what Docker said instead of only the exit code — three new tests; (3) a positive sub-millisecond timeout is floored to 1 ms at both entry points through one resolveTimeoutMs, and sub-second deadlines render in milliseconds rather than as 'timed out after 0s' — fake-timer tests at both layers; (4) a signal-killed install names the signal; (5) the setup record is written once, after the outcome is known, so a failed probe cannot leave a success-shaped record; (6) a failing audit sink is surfaced in the returned result instead of escaping unnormalized; (7) the failure text handed back to the operator and the model is redacted like the audit copy; (8) the discovery drain became a tested policy (reportDiscoveryDiagnostics) and moved into a finally so a throwing verb still reports; (9) the shipped README.zh-CN and the stale tool-output comment are back in sync; (10) three vacuous assertions were deleted and the fourth now states what it pins; (11) the host-path disclosure is documented as operator-only; (12) the drain-skip note is fixed; (13) the documented CLI contract was re-confirmed against the version this host resolves, 0.89.0 — every flag the adapter passes (up/build/exec with --workspace-folder, --docker-path, --config, --container-id, --remote-env) still exists, so the 0.88.0 pin remains conservative rather than wrong. A fourteenth defect was found while fixing those and is fixed too: /devcontainer <verb> produced NO output at all, because Pi's command dispatcher ignores a handler's return value (_tryExecuteExtensionCommand is `return await command.handler(args, ctx), true`) and nothing rendered CommandResult.text, so list/status/logs and friends were silent even though the type documents the text as 'Markdown rendered into the TUI'. Repair verification: npm run typecheck; npm run test:unit (31 files, 344 tests — 23 added); verify-package.mjs --unit-tests (all gates); a rebuilt dist committed and confirmed to match a fresh build; the packed smoke-pi-package.mjs --no-model run; and npm run install:local -- --check. Two seams stay outside unit-test reach and are reported as limitations (below) rather than claimed covered. The previous revision's approval was withdrawn when the repair landed — an approval is bound to a revision id, so editing code after one is approved invalidates it even when the findings themselves were non-blocking — and is restored here against revision-99abdc7f. No blocking or major finding remains open against this revision; the notes below are records and limitations, not defects awaiting repair.",
   "findings": [
     {
-      "id": "finding-spawn-error-drops-errno",
-      "taskId": "arch-review-p2-failure-observability",
-      "acceptanceId": "AC-6",
-      "severity": "major",
-      "message": "FIXED. `toSpawnError` named no errno for anything other than ENOENT/EACCES/EPERM, so a host-side transport failure (`ENOTCONN` from a half-dead filesystem mount sitting in PATH, which makes glibc's execvp abort the whole search) was indistinguishable from a missing binary — the misdiagnosis this phase is about. Every branch now carries the code, and ENOTCONN gets its own message and remedy. Verified by four new unit tests that call the mapper directly, and by the `docs/troubleshooting.md` entry describing the symptom, the cause and the one-line fix. Not previously introduced by this phase; it is the reason the phase's own goal failed in the field.",
-      "path": "src/runtime/process-runner.ts"
-    },
-    {
-      "id": "finding-stderr-dropped-on-remaining-surfaces",
-      "taskId": "arch-review-p2-failure-observability",
-      "acceptanceId": "AC-2",
-      "severity": "major",
-      "message": "FIXED. AC-2 was satisfied as worded (it names `devcontainer_exec`, and the host tool was fixed with it), but the L2-02 class was not closed repo-wide. Now closed: `/devcontainer host-exec` (the command surface) uses the shared combiner; `docker logs` captures the container's stderr half — `grep -c onStderr src/runtime/docker-lifecycle.ts` was 0 before this repair and the adapter returned only the stdout half of every log read; and `stop`/`remove` failures carry a bounded, flattened one-line rendering of what Docker actually said instead of only the exit code. Verified by three new tests (command surface mixed streams, logs with both streams, destructive failure carrying the daemon message), each shown RED first.",
-      "path": "src/commands.ts"
-    },
-    {
-      "id": "finding-sub-millisecond-timeout-rounds-to-zero",
-      "taskId": "arch-review-p2-failure-observability",
-      "acceptanceId": "AC-3",
-      "severity": "minor",
-      "message": "FIXED. `Math.round(seconds * 1000)` turned a positive sub-millisecond timeout into `setTimeout(..., 0)`, i.e. an immediate abort reported as a timeout — the failure `exclusiveMinimum: 0` cannot express. Both entry points (`src/tools.ts` and the routed bash router, which takes Pi's own unbounded `timeout`) now go through one `resolveTimeoutMs` that floors at 1 ms, and sub-second deadlines render in milliseconds rather than as `timed out after 0s`. Verified by fake-timer tests at both layers that advance virtual time by 0 ms and assert the promise has NOT settled, then by 1 ms and assert the typed timeout — the RED for which was literally `expected true to be false`.",
-      "path": "src/tools.ts"
-    },
-    {
-      "id": "finding-signal-killed-install-not-normalized",
-      "taskId": "arch-review-p2-failure-observability",
-      "acceptanceId": "AC-1",
-      "severity": "minor",
-      "message": "FIXED. A signal-killed install resolves with `exitCode: null`, and the result read `npm install exited null`, discarding the one field that says what happened. The failure now names the signal (and appends any captured stderr), and the audit record carries the same text as its error summary.",
-      "path": "src/setup-cli.ts"
-    },
-    {
-      "id": "finding-setup-record-can-look-successful",
-      "taskId": "arch-review-p2-failure-observability",
-      "acceptanceId": "AC-1",
-      "severity": "minor",
-      "message": "FIXED. The record was written for the install stage before the verification probe, so a failed probe left `exitCode: 0` with no error summary in the trail while the operator was told `[setup-failed]`. The record is now written once, after the outcome is known, carrying the failure reason as its error summary — one attempt, one record, and the record says how the attempt ended. Verified by a test that fails a probe and asserts exactly one record whose error summary reports it.",
-      "path": "src/setup-cli.ts"
-    },
-    {
-      "id": "finding-audit-write-failure-escapes-unnormalized",
-      "taskId": "arch-review-p2-failure-observability",
-      "acceptanceId": "AC-1",
-      "severity": "minor",
-      "message": "FIXED. `audit.write` was unguarded, so a failing sink (read-only state directory, disk full, permissions) threw out of the setup path while producing no record at all. It is now caught and surfaced in the returned result — appended to the failure text, or carried as `error` alongside a successful install — so the operator learns the trail is incomplete instead of losing either the record or the result. Verified by a test whose audit write throws `EROFS`.",
-      "path": "src/setup-cli.ts"
-    },
-    {
-      "id": "finding-raw-npm-stderr-returned-unredacted",
-      "taskId": "arch-review-p2-failure-observability",
-      "acceptanceId": "AC-1",
-      "severity": "minor",
-      "message": "FIXED (security). The audit copy was redacted but the string returned as `error` was raw npm stderr, and that value is both shown to the operator and handed to the model as the command result — a registry token echoed by npm would have landed in model context. The returned text now goes through the same `redactText` as the audit copy. Verified by a test that feeds `_authToken=supersecret-token-value` through a failing install and asserts the result contains `[REDACTED]` and not the secret.",
-      "path": "src/setup-cli.ts"
-    },
-    {
-      "id": "finding-discovery-wiring-untested",
-      "taskId": "arch-review-p2-failure-observability",
-      "acceptanceId": "AC-5",
-      "severity": "minor",
-      "message": "ADDRESSED IN PART, limitation stated. Deleting the drain used to keep the suite green because only the sink was tested. The drain-and-notify policy is now `reportDiscoveryDiagnostics` in the tested module (two new tests cover the count, the once-per-line contract and the silence of a clean scan), and the drain moved into a `finally` so a throwing verb handler still reports. What remains outside unit-test reach is the call site itself: the extension's command dispatch has no unit harness in this repository (the same limitation the Phase 1 review recorded for the engagement path), so the wiring rests on the packed smoke run. Reported as a limitation rather than claimed covered.",
-      "path": "extensions/index.ts"
-    },
-    {
-      "id": "finding-command-output-never-displayed",
-      "taskId": "arch-review-p2-failure-observability",
-      "acceptanceId": "AC-6",
-      "severity": "major",
-      "message": "FOUND WHILE FIXING the others, and FIXED. `/devcontainer <verb>` produced no output at all: Pi's command dispatcher ignores a handler's return value (`_tryExecuteExtensionCommand` is `return await command.handler(args, ctx), true`, verified in the installed bundle) and nothing in the extension rendered `CommandResult.text`, so `list`, `status`, `logs` and the rest were silent even though the type documents the text as \"Markdown rendered into the TUI\". The dispatch now delivers the result through the same channel the handlers' own messages use; the policy half (`displayCommandResult`) is unit-tested, the wiring is smoke-covered. Not introduced by this phase and not part of its acceptance criteria, but it is the same defect family as the phase itself — output the code produces never reaching the operator.",
-      "path": "extensions/index.ts"
-    },
-    {
-      "id": "finding-docs-drift-after-timeout-contract",
-      "taskId": "arch-review-p2-failure-observability",
-      "acceptanceId": "AC-3",
-      "severity": "minor",
-      "message": "FIXED. The shipped `README.zh-CN.md` documented `timeoutSeconds` without the new positive-value contract (the file is in `package.json` `files`, so the two READMEs disagreed in the published tarball), and `src/tool-output.ts` still described its parameter as \"combined stdout (callers choose stdout-or-stderr precedence)\", which became wrong when callers started passing `combineCommandOutput`'s result. Both corrected.",
-      "path": "README.zh-CN.md"
-    },
-    {
-      "id": "finding-vacuous-diagnostics-assertions",
+      "id": "finding-command-dispatch-seams-untested",
       "taskId": "arch-review-p2-failure-observability",
       "acceptanceId": "AC-5",
       "severity": "note",
-      "message": "FIXED. Four assertions rewritten from the deleted registry fields into `expect(result.diagnostics).toEqual([])` asserted nothing about the removal and would have passed against the pre-change code. Three were deleted as redundant with the strong `entries` assertions directly above them; the fourth is kept, because a healthy scan reporting nothing is a real claim, and now says so and points at the registry-shape test that actually pins the field removal.",
-      "path": "tests/unit/host-discovery.test.ts"
+      "message": "Limitation, stated rather than papered over. Two behaviours delivered by this phase live in the extension's command dispatch, which this repository has no unit harness for (the same limitation the Phase 1 review recorded for the engagement path): delivering a handler's rendered result, and draining discovery diagnostics after a verb runs. Their POLICY halves are unit-tested now (`displayCommandResult`, `reportDiscoveryDiagnostics`), and the wiring is exercised by the packed smoke run, which loads the real extension in a real Pi session. Deleting either call site would still leave the suite green, so a future change to the dispatch should be smoke-checked rather than trusting the unit suite.",
+      "path": "extensions/index.ts"
+    },
+    {
+      "id": "finding-acceptance-matrix-not-machine-readable",
+      "taskId": "arch-review-p2-failure-observability",
+      "acceptanceId": "AC-6",
+      "severity": "note",
+      "message": "`kata-cli verify` reports `missingAcceptanceMatrix: true` for this task: the six acceptance criteria exist in `task.json` and each is evaluated, but the machine-readable `acceptanceMatrix` field (implementationPaths / testPaths / evidence / verificationLevel per criterion) was never populated — the real matrix lives in `openspec/changes/arch-review-p2-failure-observability/design.md` §4. This is the same gap the first Kata task recorded in this repository, and it does not block verify or judge, but the judge should decide against the design matrix rather than against the placeholder-free-but-unstructured field.",
+      "path": ".kata/tasks/arch-review-p2-failure-observability/task.json"
     },
     {
       "id": "finding-diagnostics-expose-host-paths",
       "taskId": "arch-review-p2-failure-observability",
       "acceptanceId": "AC-5",
       "severity": "note",
-      "message": "RESOLVED BY DOCUMENTATION. The diagnostics name host paths (unreadable directory, `maxDepth` pruning, a path that resolves outside the allowed root, a container without the Dev Container label). The disclosure is deliberate and bounded — operator UI only, never model context, never the audit file — and is now stated in `docs/troubleshooting.md` along with the once-per-session dedupe, so a future change that routes these into model context has to contradict the documentation rather than slip through.",
+      "message": "Deliberate, and now documented. The discovery diagnostics name host paths (an unreadable directory, `maxDepth` pruning, a path resolving outside the allowed root, a container without the Dev Container label). They are operator-UI only — never model context, never the audit file — and are reported once per distinct line per session. `docs/troubleshooting.md` states all of that, so a future change that routes these into model context has to contradict the documentation rather than slip through unnoticed.",
       "path": "docs/troubleshooting.md"
     },
     {
-      "id": "finding-drain-skipped-when-handler-throws",
-      "taskId": "arch-review-p2-failure-observability",
-      "acceptanceId": "AC-5",
-      "severity": "note",
-      "message": "FIXED. The drain ran after `await handler(...)`, so a throwing verb handler delayed its diagnostics by one command. It now runs in a `finally`, which is the property the new policy-level test pins.",
-      "path": "extensions/index.ts"
-    },
-    {
-      "id": "finding-cli-version-vs-documented-contract",
+      "id": "finding-revision-supersession-lesson",
       "taskId": "arch-review-p2-failure-observability",
       "acceptanceId": "AC-6",
       "severity": "note",
-      "message": "CLOSED BY VERIFICATION. The host resolves `devcontainer` 0.89.0 while the repository pins and documents 0.88.0. Checked the installed 0.89.0 help output for every flag the adapter passes (`up`/`build`/`exec` with `--workspace-folder`, `--docker-path`, `--config`, `--container-id`, `--remote-env`): all still present, so the documented pin remains conservative rather than wrong and no documentation change is warranted.",
-      "path": "docs/compatibility.md"
-    },
-    {
-      "id": "finding-revision-superseded-by-repair",
-      "taskId": "arch-review-p2-failure-observability",
-      "acceptanceId": "AC-6",
-      "severity": "note",
-      "message": "RESOLVED. This was recorded as a blocking finding when the repair changed task-owned paths after the seal: approval for revision-078eb341 could not cover a tree it no longer described, and re-running verify reported all six acceptance criteria FAIL with repairScope `revision_superseded` — the documented \"an owned file changed, build the next revision\" signal rather than an acceptance failure. The repair was re-sealed as revision-99abdc7f and re-verified clean, which is why this finding is now a note. Kept instead of deleted because the sequence is the durable lesson: a review approval is bound to a revision id, so editing code after one is approved invalidates it even when the findings themselves are non-blocking.",
+      "message": "Workflow lesson, kept on purpose. When the repair changed task-owned paths after the seal, re-running verify reported all six criteria FAIL with `repairScope: revision_superseded` — the documented \"an owned file changed, build the next revision\" signal rather than an acceptance failure — and the CLI then refused `build` from the review phase unless the review recorded a blocking finding, so the supersession was written up as exactly that and the task went review -> implement -> a new seal (revision-99abdc7f) -> verify PASS -> this approval. The transferable part: an approval is bound to a revision id and gate choices are single-use, so any post-approval edit costs a full re-seal/re-verify/re-review cycle even when every finding was non-blocking.",
       "path": ".kata/tasks/arch-review-p2-failure-observability/review.json"
     }
   ]
