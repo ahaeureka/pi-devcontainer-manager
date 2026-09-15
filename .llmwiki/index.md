@@ -7,6 +7,8 @@
 
 ## Concepts
 
+- [[concepts/activation-and-config-mechanism.md]] — Activation, config alignment, and dormancy — distilled task knowledge
+
 ## Comparisons
 
 ## Queries

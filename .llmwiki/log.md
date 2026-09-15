@@ -12,3 +12,13 @@
 - raw/docs/README.md
 - raw/docs/security.md
 - raw/docs/troubleshooting.md
+
+## [2026-09-15] ingest | activation-and-config-mechanism.md
+
+- Imported: raw/docs/activation-and-config-mechanism.md
+- Updated: concepts/activation-and-config-mechanism.md
+- Governed record: llmwiki-activation-and-config-mechanism
+
+## [2026-09-15] query | activation dormancy merge precedence
+
+- Citations: concepts/activation-and-config-mechanism.md

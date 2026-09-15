@@ -1,0 +1,29 @@
+{
+  "id": "llmwiki-activation-and-config-mechanism",
+  "statement": "Activation, config alignment, and dormancy — distilled task knowledge",
+  "scope": [
+    "concepts/activation-and-config-mechanism.md"
+  ],
+  "kind": "llmwiki-summary",
+  "sourceRefs": [
+    ".llmwiki/raw/docs/activation-and-config-mechanism.md",
+    ".llmwiki/concepts/activation-and-config-mechanism.md"
+  ],
+  "sourceHashes": {
+    ".llmwiki/raw/docs/activation-and-config-mechanism.md": "8114fa486d65e2ddb118c753148d30c2d42c25d1825feba4c31b185269b3efad",
+    ".llmwiki/concepts/activation-and-config-mechanism.md": "6c2ce51f132ac0c2e47d27e0fa0fb44ba67ae78b49c8b5b2d4620487210b6053"
+  },
+  "validationTaskId": "llmwiki-ingest",
+  "evidenceIds": [
+    "llmwiki-8114fa486d65"
+  ],
+  "status": "verified",
+  "lastVerifiedAt": "2026-09-15T02:28:42.499Z",
+  "createdAt": "2026-09-15T02:28:33.067Z",
+  "updatedAt": "2026-09-15T02:28:42.501Z",
+  "approvalEvent": {
+    "approvedBy": "geebytes",
+    "role": "distiller",
+    "approvedAt": "2026-09-15T02:28:42.499Z"
+  }
+}
