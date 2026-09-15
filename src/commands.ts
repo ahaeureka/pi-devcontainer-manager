@@ -15,7 +15,7 @@
 import type { ExecutionService, LifecycleServiceResult, UpBuildOutcome } from "./execution-service.js";
 import type { TargetStore, TargetStoreSnapshot, TargetSelection } from "./target-store.js";
 import type { DockerContainer } from "./runtime/docker-adapter.js";
-import type { SelectionRecord } from "./selection-state.js";
+import type { SelectionIntent, SelectionRecord } from "./selection-state.js";
 import { RuntimeError, errorKindOf } from "./errors.js";
 import { isWorkspaceAllowed, isEnvironmentAllowed } from "./policy.js";
 import { combineCommandOutput } from "./tool-output.js";
@@ -40,8 +40,8 @@ export interface CommandContextLike {
   readonly ui: CommandUI;
   /** Persist selection intent to the session. */
   readonly persistSelection?: (record: SelectionRecord) => void;
-  /** Restore a previously persisted selection record, if any. */
-  readonly restoreSelection?: () => SelectionRecord | undefined;
+  /** Restore the previously persisted selection INTENT, if any (an opt-out is one). */
+  readonly restoreSelection?: () => SelectionIntent | undefined;
 }
 
 export interface CommandServices {
@@ -158,11 +158,17 @@ export async function applySelection(
   // Persist selection intent whenever the workspace key is known (running,
   // stopped, config-only, or missing) so `/reload` restores the target even
   // before it is running (End-State `use project-b` flow).
-  if (snapshot.workspaceKey === undefined) return undefined;
+  const workspaceKey = snapshot.workspaceKey;
+  if (workspaceKey === undefined) return undefined;
   ctx.persistSelection?.({
     version: SELECTION_PAYLOAD_VERSION,
-    workspaceKey: snapshot.workspaceKey,
+    state: "selected",
+    workspaceKey,
     ...(snapshot.candidateId !== undefined ? { candidateId: snapshot.candidateId } : {}),
+    // Persist the configuration the operator selected: without it a reload silently fell back to
+    // the workspace's primary config for the mapping, the prompt context and the host-path guard
+    // (review finding L1-04).
+    ...(snapshot.configPath !== undefined ? { configPath: snapshot.configPath } : {}),
     selectedAt: new Date().toISOString(),
   });
   return establishedTarget(snapshot);
@@ -249,7 +255,7 @@ export function selectionFor(
 export async function reconcileSelection(
   services: Pick<CommandServices, "targetStore" | "registry">,
   ctx: Pick<CommandContextLike, "persistSelection">,
-  hint: { workspaceKey: string; candidateId?: string },
+  hint: { workspaceKey: string; candidateId?: string; configPath?: string },
   /**
    * Registry entries the caller already fetched. `/devcontainer up` resolves the target
    * through the registry before starting, so discovering again here would run the host
@@ -278,13 +284,18 @@ export async function reconcileSelection(
     persisted !== undefined && (entry.containerCandidates ?? []).some((candidate) => candidate.id === persisted);
   const usableId =
     entry.ambiguous === true ? undefined : offered ? persisted : entry.containerId;
-  const selection = selectionFor(entry, usableId);
+  // `selectionFor` validates the requested configuration against the workspace's DISCOVERED
+  // candidates, so a configuration that was renamed or removed since the record was written drops
+  // back to the discovered primary instead of travelling into the CLI's argv (L1-04).
+  const selection = selectionFor(entry, usableId, hint.configPath);
   await services.targetStore.select(selection);
   if (selection.workspaceKey !== undefined) {
     ctx.persistSelection?.({
       version: SELECTION_PAYLOAD_VERSION,
+      state: "selected",
       workspaceKey: selection.workspaceKey,
       ...(selection.candidate?.id !== undefined ? { candidateId: selection.candidate.id } : {}),
+      ...(selection.candidate?.configPath !== undefined ? { configPath: selection.candidate.configPath } : {}),
       selectedAt: new Date().toISOString(),
     });
   }
@@ -385,8 +396,12 @@ export function createCommandHandlers(services: CommandServices): Record<string,
    * Return to the dormant state: clear the target so the session's execution
    * surfaces belong to the host again (AC-5).
    */
-  handlers["off"] = async (_args, _ctx) => {
+  handlers["off"] = async (_args, ctx) => {
     await services.targetStore.clear();
+    // Clearing memory is not enough: the append-only session record still holds the earlier
+    // selection, so a reload would undo the opt-out. Append the tombstone that supersedes it
+    // (review finding L1-02).
+    ctx.persistSelection?.({ version: SELECTION_PAYLOAD_VERSION, state: "cleared", selectedAt: new Date().toISOString() });
     return {
       text: "DevContainer target cleared. `bash`, `!`/`!!`, and the file tools are host surfaces again.\nRun /devcontainer use to take over a container again.",
     };

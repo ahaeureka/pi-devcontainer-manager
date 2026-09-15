@@ -66,7 +66,12 @@ import {
 import { createCommandHandlers, displayCommandResult, selectionFor, type CommandContextLike, type CommandServices } from "../src/commands.js";
 import { reconcileSelection } from "../src/commands.js";
 import { canonicalWorkspaceKey } from "../src/workspace-path.js";
-import { SELECTION_ENTRY_KIND, recoverLatestSelection, type SelectionRecord } from "../src/selection-state.js";
+import {
+  SELECTION_ENTRY_KIND,
+  recoverSelectionIntent,
+  type SelectionIntent,
+  type SelectionRecord,
+} from "../src/selection-state.js";
 import { evaluatePolicy, commandIdentity } from "../src/policy.js";
 import { createSetupCli } from "../src/setup-cli.js";
 import type { EffectiveConfig } from "../src/types.js";
@@ -172,6 +177,22 @@ function composeRuntime(
   const discoveryDiagnostics = createDiagnosticSink();
 
   /**
+   * The configuration that should drive the mapping, the prompt context and the host container-path
+   * guard for a workspace: the one the operator SELECTED when it belongs to that workspace, else the
+   * workspace's discovered primary.
+   *
+   * Before this, a selected named configuration only reached the CLI's argv; the derived views kept
+   * using the registry primary, so the two disagreed (review finding L1-04).
+   */
+  const effectiveConfigPath = (workspaceKey: string, discovered: string): string => {
+    const snapshot = targetStore.snapshot();
+    if (snapshot.configPath === undefined || snapshot.workspaceKey === undefined) return discovered;
+    return canonicalWorkspaceKey(snapshot.workspaceKey) === canonicalWorkspaceKey(workspaceKey)
+      ? snapshot.configPath
+      : discovered;
+  };
+
+  /**
    * Surface a configuration the extension could not parse.
    *
    * The host container-path guard only runs when a mapping was derived, so an unreadable config
@@ -223,7 +244,7 @@ function composeRuntime(
     const key = canonicalWorkspaceKey(hostWorkspace);
     const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
     if (entry === undefined || entry.configPath.length === 0) return undefined;
-    const mapping = readWorkspaceMapping(entry.configPath, reportUnparsableConfig);
+    const mapping = readWorkspaceMapping(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig);
     if (mapping === undefined) return undefined;
     return hostToContainer(entry.workspacePath, mapping) ?? undefined;
   };
@@ -292,7 +313,7 @@ function composeRuntime(
         const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
         const guardMapping =
           entry !== undefined && entry.configPath.length > 0
-            ? readWorkspaceMapping(entry.configPath, reportUnparsableConfig)
+            ? readWorkspaceMapping(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig)
             : undefined;
         const violation = guardMapping !== undefined ? findContainerPath(argv, guardMapping.containerPath) : undefined;
         if (violation !== undefined) {
@@ -424,7 +445,7 @@ function composeRuntime(
       const key = canonicalWorkspaceKey(snapshot.workspaceKey);
       const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
       if (entry !== undefined && entry.configPath.length > 0) {
-        mapping = readWorkspaceMapping(entry.configPath, reportUnparsableConfig);
+        mapping = readWorkspaceMapping(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig);
       }
     }
     return renderExecutionContext({
@@ -515,7 +536,7 @@ function persistSelection(pi: ExtensionAPI, record: SelectionRecord): void {
 }
 
 /** Recover the last persisted selection record from session custom entries. */
-function restoreSelection(ctx: ExtensionContext): SelectionRecord | undefined {
+function restoreSelection(ctx: ExtensionContext): SelectionIntent | undefined {
   const entries = ctx.sessionManager.getEntries();
   const mapped = entries
     .filter(
@@ -532,7 +553,7 @@ function restoreSelection(ctx: ExtensionContext): SelectionRecord | undefined {
       kind: entry.customType,
       payload: typeof entry.data === "string" ? entry.data : JSON.stringify(entry.data),
     }));
-  return recoverLatestSelection(mapped);
+  return recoverSelectionIntent(mapped);
 }
 
 export default function (pi: ExtensionAPI): void {
@@ -544,7 +565,7 @@ export default function (pi: ExtensionAPI): void {
     const loaded = loadConfigWithDiagnostics(paths, { projectTrusted: ctx.isProjectTrusted() });
     const config = composeRuntimeConfig(ctx.cwd, loaded.config);
 
-    const recovered = restoreSelection(ctx);
+    const restoredIntent = restoreSelection(ctx);
     const activation: ActivationState = { decision: { active: false, reason: "no-evidence" } };
     // Honor audit.enabled and audit.directory: the configured directory is used
     // when set, and `enabled: false` accepts records but persists nothing.
@@ -565,7 +586,10 @@ export default function (pi: ExtensionAPI): void {
       activation: config.activation,
       workspaceHasConfig: workspaceHasConfig(ctx.cwd),
       workspaceHasRunningContainer: false,
-      hasExplicitSelection: recovered !== undefined,
+      // A tombstone is an explicit "no": it is not selection evidence, and it suppresses the
+      // workspace evidence so the opt-out survives the reload (L1-02).
+      hasExplicitSelection: restoredIntent !== undefined && restoredIntent.kind === "selected",
+      optedOut: restoredIntent !== undefined && restoredIntent.kind === "cleared",
     };
     let decision = decideActivation(evidence);
     if (!decision.active && decision.reason === "no-evidence") {
@@ -595,16 +619,22 @@ export default function (pi: ExtensionAPI): void {
       ctx.ui.notify(`[devcontainer-manager] ${line}`, "warning");
     }
 
-    if (recovered !== undefined && decision.active) {
-      // Re-resolve against the live registry instead of parking the selection in
-      // `selected-missing` forever: a still-running target becomes usable again
-      // without a manual re-`use`.
-      await runtime.reconcileSelection({
-        workspaceKey: recovered.workspaceKey,
-        ...(recovered.candidateId !== undefined ? { candidateId: recovered.candidateId } : {}),
-      });
-      const restoredStatus = runtime.targetStore.snapshot().status;
-      ctx.ui.notify(`Restored DevContainer selection ${recovered.workspaceKey} (${restoredStatus}).`, "info");
+    if (restoredIntent !== undefined && restoredIntent.kind === "selected" && decision.active) {
+      const record = restoredIntent.record;
+      if (record.workspaceKey !== undefined) {
+        // Re-resolve against the live registry instead of parking the selection in
+        // `selected-missing` forever: a still-running target becomes usable again
+        // without a manual re-`use`. The selected CONFIGURATION travels with it, so the mapping,
+        // the prompt context and the host-path guard are built from the configuration the
+        // operator chose rather than the workspace's primary one (L1-04).
+        await runtime.reconcileSelection({
+          workspaceKey: record.workspaceKey,
+          ...(record.candidateId !== undefined ? { candidateId: record.candidateId } : {}),
+          ...(record.version === 2 && record.configPath !== undefined ? { configPath: record.configPath } : {}),
+        });
+        const restoredStatus = runtime.targetStore.snapshot().status;
+        ctx.ui.notify(`Restored DevContainer selection ${record.workspaceKey} (${restoredStatus}).`, "info");
+      }
     }
   });
 

@@ -232,3 +232,40 @@ describe("/devcontainer off", () => {
     expect(result.text).toContain("host");
   });
 });
+
+describe("decideActivation with a persisted opt-out (L1-02)", () => {
+  const dormantEvidence = {
+    activation: "workspace" as const,
+    workspaceHasConfig: false,
+    workspaceHasRunningContainer: false,
+    hasExplicitSelection: false,
+  };
+
+  it("stays dormant when the operator turned the extension off, even in a DevContainer workspace", () => {
+    // `/devcontainer off` is persisted as an intent. Without this the reload would re-engage from
+    // the workspace evidence and silently undo the opt-out.
+    expect(
+      decideActivation({
+        ...dormantEvidence,
+        workspaceHasConfig: true,
+        workspaceHasRunningContainer: true,
+        hasExplicitSelection: true,
+        optedOut: true,
+      }),
+    ).toEqual({ active: false, reason: "opted-out" });
+  });
+
+  it("lets `always` outrank the opt-out (the operator's configuration says take over)", () => {
+    expect(decideActivation({ ...dormantEvidence, activation: "always", optedOut: true })).toEqual({
+      active: true,
+      reason: "config-always",
+    });
+  });
+
+  it("ignores the opt-out when it is not set", () => {
+    expect(decideActivation({ ...dormantEvidence, workspaceHasConfig: true })).toEqual({
+      active: true,
+      reason: "workspace-config",
+    });
+  });
+});

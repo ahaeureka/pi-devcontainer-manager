@@ -75,6 +75,7 @@ function makeServices(overrides: Partial<CommandServices> = {}): CommandServices
           status: target.status,
           workspaceKey: target.workspaceKey,
           candidateId: target.candidate?.id,
+          configPath: target.candidate?.configPath,
 
         });
       }),
@@ -691,5 +692,91 @@ describe("/devcontainer up refresh (L2-01)", () => {
     expect(result.text).toContain("daemon unreachable");
     expect(refreshed).not.toHaveBeenCalled();
     expect(result.target).toBeUndefined();
+  });
+});
+
+describe("persisted selection intent (L1-02 / L1-04)", () => {
+  it("persists an opt-out tombstone when the operator turns the extension off", async () => {
+    const { handlers, targetStore } = makeServices();
+    const ctx = makeCtx();
+
+    const result = await handlers["off"]!("", ctx);
+
+    expect(targetStore.clear).toHaveBeenCalled();
+    expect(result.text).toContain("host surfaces again");
+    // Without the tombstone the append-only log still holds the earlier selection, so `/reload`
+    // would silently undo the operator's opt-out.
+    expect(ctx.persisted).toHaveLength(1);
+    expect(ctx.persisted[0]).toMatchObject({ version: 2, state: "cleared" });
+    expect(ctx.persisted[0]!.workspaceKey).toBeUndefined();
+  });
+
+  it("persists the selected configuration with the selection", async () => {
+    const named: RegistryEntry = {
+      ...entry,
+      configPath: "/ws/project-a/.devcontainer/python/devcontainer.json",
+      configKind: ".devcontainer/<name>/devcontainer.json",
+      configCandidates: [
+        {
+          configPath: "/ws/project-a/.devcontainer/python/devcontainer.json",
+          configKind: ".devcontainer/<name>/devcontainer.json",
+        },
+      ],
+    };
+    const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [named], diagnostics: [] })) });
+    const ctx = makeCtx();
+
+    await handlers["use"]!("project-a", ctx);
+
+    expect(ctx.persisted[0]).toMatchObject({
+      state: "selected",
+      configPath: "/ws/project-a/.devcontainer/python/devcontainer.json",
+    });
+  });
+});
+
+describe("reconcileSelection keeps the selected configuration (L1-04)", () => {
+  function harness(entries: RegistryEntry[]) {
+    const selected: unknown[] = [];
+    const persisted: { configPath?: string }[] = [];
+    const services = {
+      registry: async () => ({ entries, diagnostics: [] }),
+      targetStore: { select: async (target: unknown) => void selected.push(target) },
+    } as unknown as Pick<CommandServices, "targetStore" | "registry">;
+    const ctx = { persistSelection: (record: { configPath?: string }) => void persisted.push(record) };
+    return { services, ctx, persisted };
+  }
+
+  const withConfig = (configPath: string): RegistryEntry =>
+    ({
+      ...entry,
+      containerState: "running",
+      containerId: "c1",
+      containerCandidates: [{ id: "c1", state: "running" }],
+      configPath,
+      configKind: ".devcontainer/<name>/devcontainer.json",
+      configCandidates: [{ configPath, configKind: ".devcontainer/<name>/devcontainer.json" }],
+    }) as RegistryEntry;
+
+  it("restores the configuration the operator had selected", async () => {
+    const path = "/ws/project-a/.devcontainer/python/devcontainer.json";
+    const { services, ctx, persisted } = harness([withConfig(path)]);
+
+    const result = await reconcileSelection(services, ctx, { workspaceKey: entry.workspacePath, configPath: path });
+
+    expect(result.candidate?.configPath).toBe(path);
+    expect(persisted[0]!.configPath).toBe(path);
+  });
+
+  it("drops a configuration the workspace no longer discovers", async () => {
+    const { services, ctx, persisted } = harness([withConfig("/ws/project-a/.devcontainer/python/devcontainer.json")]);
+
+    const result = await reconcileSelection(services, ctx, {
+      workspaceKey: entry.workspacePath,
+      configPath: "/ws/project-a/.devcontainer/removed/devcontainer.json",
+    });
+
+    expect(result.candidate?.configPath).toBeUndefined();
+    expect(persisted[0]!.configPath).toBeUndefined();
   });
 });
