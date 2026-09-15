@@ -1,0 +1,111 @@
+{
+  "protocolVersion": 1,
+  "id": "handoff-051d36ce-31c",
+  "taskId": "activation-and-config-mechanism",
+  "createdAt": "2026-09-15T02:12:47.194Z",
+  "from": {
+    "role": "distiller",
+    "platform": "pi"
+  },
+  "to": {
+    "role": "distiller"
+  },
+  "phase": "archive",
+  "repository": {
+    "head": "caa65255faa90aac7ff8d65583e5b36ec75a3cf3",
+    "branch": "main",
+    "diffHash": "0fcc2913323a6933023d9906cbc5c543337c2cf604c7bd0d6dc86e3c052055c8",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-8e6c0670-8d39-47d5-89d7-d7fdc4738853",
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "docs",
+        "examples",
+        "extensions",
+        "src",
+        "tests"
+      ],
+      "hash": "0fcc2913323a6933023d9906cbc5c543337c2cf604c7bd0d6dc86e3c052055c8"
+    },
+    "worktreeRoot": "."
+  },
+  "task": {
+    "id": "activation-and-config-mechanism",
+    "title": "Change activation-and-config-mechanism",
+    "phase": "intake",
+    "acceptance": [
+      {
+        "id": "AC-1",
+        "statement": "Implement the change successfully."
+      }
+    ],
+    "branch": "main",
+    "createdAt": "2026-09-14T11:27:24.890Z",
+    "updatedAt": "2026-09-14T11:27:24.890Z",
+    "workflowProfile": {
+      "version": 1,
+      "isolationMode": "git_flow",
+      "developmentMode": "tdd",
+      "reviewMode": "security",
+      "comet": {
+        "projectInit": "not_requested",
+        "openStatus": "acknowledged"
+      },
+      "gitFlow": {
+        "strategy": "manual",
+        "branch": "feature/activation-and-config-mechanism",
+        "baseBranch": "main",
+        "status": "active"
+      }
+    },
+    "ownedPaths": [
+      "CHANGELOG.md",
+      "README.md",
+      "docs/",
+      "examples/",
+      "extensions/",
+      "src/",
+      "tests/"
+    ]
+  },
+  "context": {
+    "requiredReads": [
+      "AGENTS.md",
+      ".llmwiki/SCHEMA.md",
+      ".llmwiki/index.md",
+      ".llmwiki/log.md",
+      ".kata/tasks/activation-and-config-mechanism/task.json",
+      ".kata/tasks/activation-and-config-mechanism/current-state.json"
+    ],
+    "designRefs": [],
+    "sourceRefs": [
+      "AC-1"
+    ],
+    "authoritativeWiki": [],
+    "excludedWiki": [],
+    "evidencePaths": [
+      ".kata/evidence/activation-and-config-mechanism-hard.json",
+      ".kata/evidence/activation-and-config-mechanism-test.json",
+      ".kata/evidence/activation-and-config-mechanism-typecheck.json"
+    ],
+    "priorArtifacts": [
+      ".kata/tasks/activation-and-config-mechanism/review.json",
+      ".kata/tasks/activation-and-config-mechanism/judge.json",
+      ".kata/tasks/activation-and-config-mechanism/repair.json"
+    ]
+  },
+  "permissions": {
+    "allowedWrites": [
+      ".kata/tasks/activation-and-config-mechanism/wiki/"
+    ],
+    "guardInstructions": [
+      "You may only write Wiki candidates to .kata/wiki/.",
+      "Only promote candidates from tasks with Judge PASS.",
+      "Include source references, hashes, and evidence links.",
+      "Work on feature/activation-and-config-mechanism; do not start, finish, or switch Git Flow branches outside the recorded task action."
+    ]
+  },
+  "nextAction": "Perform distiller work after verifying this handoff."
+}

@@ -1,0 +1,29 @@
+{
+  "protocolVersion": 1,
+  "taskId": "activation-and-config-mechanism",
+  "handoffId": "handoff-051d36ce-31c",
+  "platform": "pi",
+  "role": "distiller",
+  "packetSha256": "daaf0382aba308b24a7c73c5cac3a9734fe700ed859e8fc31393def33d5b3394",
+  "acknowledgedAt": "2026-09-15T02:13:04.354Z",
+  "repository": {
+    "head": "caa65255faa90aac7ff8d65583e5b36ec75a3cf3",
+    "branch": "main",
+    "diffHash": "0fcc2913323a6933023d9906cbc5c543337c2cf604c7bd0d6dc86e3c052055c8",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-8e6c0670-8d39-47d5-89d7-d7fdc4738853",
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "docs",
+        "examples",
+        "extensions",
+        "src",
+        "tests"
+      ],
+      "hash": "0fcc2913323a6933023d9906cbc5c543337c2cf604c7bd0d6dc86e3c052055c8"
+    },
+    "worktreeRoot": "."
+  }
+}
