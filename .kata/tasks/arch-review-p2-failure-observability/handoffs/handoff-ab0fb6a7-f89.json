@@ -1,0 +1,170 @@
+{
+  "protocolVersion": 1,
+  "id": "handoff-ab0fb6a7-f89",
+  "taskId": "arch-review-p2-failure-observability",
+  "createdAt": "2026-09-15T06:10:57.929Z",
+  "from": {
+    "role": "designer",
+    "platform": "pi"
+  },
+  "to": {
+    "role": "designer"
+  },
+  "phase": "intake",
+  "repository": {
+    "head": "384fa58d00b69fc374b4215c911578f506605f4e",
+    "branch": "feature/arch-review-p2-failure-observability",
+    "diffHash": "a5bcf8358a0df294d56ae52276faee0d880ab6a257ed98d0dcfd2cb7b0787275",
+    "scope": {
+      "kind": "task_context",
+      "paths": [
+        ".kata/tasks/arch-review-p2-failure-observability/task.json",
+        ".kata/tasks/arch-review-p2-failure-observability/current-state.json"
+      ],
+      "hash": "a5bcf8358a0df294d56ae52276faee0d880ab6a257ed98d0dcfd2cb7b0787275"
+    },
+    "worktreeRoot": "."
+  },
+  "task": {
+    "id": "arch-review-p2-failure-observability",
+    "title": "A setup-stage failure is audited and normalized: a rejected install spawn, timeo",
+    "phase": "intake",
+    "acceptance": [
+      {
+        "id": "AC-1",
+        "statement": "A setup-stage failure is audited and normalized: a rejected install spawn, timeout or abort writes the `setup` audit record with the failure as its error summary and returns a structured `{ installed: false, error }` result instead of escaping as an unnormalized handler error."
+      },
+      {
+        "id": "AC-2",
+        "statement": "`devcontainer_exec` presents a complete, unambiguous account of mixed command output: stderr is no longer dropped when stdout exists, both streams are labeled in the displayed and persisted result, and both survive in the nonzero-exit error path, covered by mixed-stream tests."
+      },
+      {
+        "id": "AC-3",
+        "statement": "The public timeout contract is positive at the TypeBox boundary: `timeoutSeconds: 0` is rejected by schema validation rather than becoming an immediate abort timer, and valid whole and fractional timeouts are covered by tests."
+      },
+      {
+        "id": "AC-4",
+        "statement": "Pre-spawn target refusals are auditable: a `bind()` failure (`no-candidate`, `ambiguous-candidate`, `target-stopped`, `target-refreshing`) writes a refusal record whose error summary carries the failure, and the typed error is rethrown unchanged."
+      },
+      {
+        "id": "AC-5",
+        "statement": "Discovery diagnostics reach the operator: host-discovery diagnostics and Docker discovery errors are surfaced as warnings through the existing notify channel (as config-load diagnostics already are), and any registry-result field that stays unconsumed (`configOnly`, `orphanDockerCandidates`) is removed instead of being computed and discarded."
+      },
+      {
+        "id": "AC-6",
+        "statement": "No behaviour regression beyond the intended visibility changes: `npm run typecheck`, the full unit suite and `node scripts/verify-package.mjs --unit-tests` pass, the committed `dist` is rebuilt so CI's freshness check stays green, and the packed smoke still registers the same tool surface."
+      }
+    ],
+    "branch": "main",
+    "createdAt": "2026-09-15T05:44:06.737Z",
+    "updatedAt": "2026-09-15T05:44:06.737Z",
+    "workflowProfile": {
+      "version": 1,
+      "isolationMode": "git_flow",
+      "developmentMode": "tdd",
+      "reviewMode": "security",
+      "comet": {
+        "projectInit": "not_requested",
+        "openStatus": "required"
+      },
+      "gitFlow": {
+        "strategy": "manual",
+        "branch": "feature/arch-review-p2-failure-observability",
+        "baseBranch": "main",
+        "status": "active"
+      }
+    },
+    "ownedPaths": [
+      "CHANGELOG.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "src",
+      "tests"
+    ],
+    "requirements": [
+      {
+        "id": "AC-1",
+        "statement": "A setup-stage failure is audited and normalized: a rejected install spawn, timeout or abort writes the `setup` audit record with the failure as its error summary and returns a structured `{ installed: false, error }` result instead of escaping as an unnormalized handler error.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L0-03",
+        "confirmedAt": "2026-09-15T05:44:06.737Z"
+      },
+      {
+        "id": "AC-2",
+        "statement": "`devcontainer_exec` presents a complete, unambiguous account of mixed command output: stderr is no longer dropped when stdout exists, both streams are labeled in the displayed and persisted result, and both survive in the nonzero-exit error path, covered by mixed-stream tests.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L2-02",
+        "confirmedAt": "2026-09-15T05:44:06.737Z"
+      },
+      {
+        "id": "AC-3",
+        "statement": "The public timeout contract is positive at the TypeBox boundary: `timeoutSeconds: 0` is rejected by schema validation rather than becoming an immediate abort timer, and valid whole and fractional timeouts are covered by tests.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L2-03",
+        "confirmedAt": "2026-09-15T05:44:06.737Z"
+      },
+      {
+        "id": "AC-4",
+        "statement": "Pre-spawn target refusals are auditable: a `bind()` failure (`no-candidate`, `ambiguous-candidate`, `target-stopped`, `target-refreshing`) writes a refusal record whose error summary carries the failure, and the typed error is rethrown unchanged.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L3-02",
+        "confirmedAt": "2026-09-15T05:44:06.737Z"
+      },
+      {
+        "id": "AC-5",
+        "statement": "Discovery diagnostics reach the operator: host-discovery diagnostics and Docker discovery errors are surfaced as warnings through the existing notify channel (as config-load diagnostics already are), and any registry-result field that stays unconsumed (`configOnly`, `orphanDockerCandidates`) is removed instead of being computed and discarded.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L4-01",
+        "confirmedAt": "2026-09-15T05:44:06.737Z"
+      },
+      {
+        "id": "AC-6",
+        "statement": "No behaviour regression beyond the intended visibility changes: `npm run typecheck`, the full unit suite and `node scripts/verify-package.mjs --unit-tests` pass, the committed `dist` is rebuilt so CI's freshness check stays green, and the packed smoke still registers the same tool surface.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#Phase-2-Failure-observability",
+        "confirmedAt": "2026-09-15T05:44:06.737Z"
+      }
+    ]
+  },
+  "context": {
+    "requiredReads": [
+      "AGENTS.md",
+      ".llmwiki/SCHEMA.md",
+      ".llmwiki/index.md",
+      ".llmwiki/log.md",
+      ".kata/tasks/arch-review-p2-failure-observability/task.json",
+      ".kata/tasks/arch-review-p2-failure-observability/current-state.json"
+    ],
+    "designRefs": [],
+    "sourceRefs": [
+      "AC-1",
+      "AC-2",
+      "AC-3",
+      "AC-4",
+      "AC-5",
+      "AC-6"
+    ],
+    "authoritativeWiki": [],
+    "excludedWiki": [
+      {
+        "id": "llmwiki-arch-review-p1-foundation",
+        "reason": "not-authoritative"
+      }
+    ],
+    "evidencePaths": [],
+    "priorArtifacts": [
+      ".kata/tasks/arch-review-p2-failure-observability/review.json",
+      ".kata/tasks/arch-review-p2-failure-observability/judge.json",
+      ".kata/tasks/arch-review-p2-failure-observability/repair.json"
+    ]
+  },
+  "permissions": {
+    "allowedWrites": [
+      "docs/",
+      ".kata/tasks/arch-review-p2-failure-observability/"
+    ],
+    "guardInstructions": [
+      "Write only to task design artifacts, docs/, and task-owned .kata paths.",
+      "Clarify acceptance criteria before implementation.",
+      "Do not modify implementation files during design.",
+      "Work on feature/arch-review-p2-failure-observability; do not start, finish, or switch Git Flow branches outside the recorded task action."
+    ]
+  },
+  "nextAction": "Perform designer work after verifying this handoff."
+}
