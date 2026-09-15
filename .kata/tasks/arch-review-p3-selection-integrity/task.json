@@ -56,13 +56,7 @@
       "strategy": "manual",
       "branch": "feature/arch-review-p3-selection-integrity",
       "baseBranch": "main",
-      "status": "pending_confirmation",
-      "command": [
-        "switch",
-        "-c",
-        "feature/arch-review-p3-selection-integrity",
-        "main"
-      ]
+      "status": "active"
     }
   },
   "requirements": [

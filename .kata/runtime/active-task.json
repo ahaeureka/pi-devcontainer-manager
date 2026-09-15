@@ -3,7 +3,7 @@
   "role": "designer",
   "phase": "intake",
   "platform": "pi",
-  "branch": "main",
-  "origin": "workflow",
-  "activatedAt": "2026-09-15T13:01:20.000Z"
+  "branch": "feature/arch-review-p3-selection-integrity",
+  "origin": "handoff",
+  "activatedAt": "2026-09-15T13:04:00.922Z"
 }
