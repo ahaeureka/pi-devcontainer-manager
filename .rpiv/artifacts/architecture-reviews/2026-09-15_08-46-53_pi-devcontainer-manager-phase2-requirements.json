@@ -1,0 +1,34 @@
+{
+  "requirements": [
+    {
+      "id": "AC-1",
+      "statement": "A setup-stage failure is audited and normalized: a rejected install spawn, timeout or abort writes the `setup` audit record with the failure as its error summary and returns a structured `{ installed: false, error }` result instead of escaping as an unnormalized handler error.",
+      "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L0-03"
+    },
+    {
+      "id": "AC-2",
+      "statement": "`devcontainer_exec` presents a complete, unambiguous account of mixed command output: stderr is no longer dropped when stdout exists, both streams are labeled in the displayed and persisted result, and both survive in the nonzero-exit error path, covered by mixed-stream tests.",
+      "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L2-02"
+    },
+    {
+      "id": "AC-3",
+      "statement": "The public timeout contract is positive at the TypeBox boundary: `timeoutSeconds: 0` is rejected by schema validation rather than becoming an immediate abort timer, and valid whole and fractional timeouts are covered by tests.",
+      "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L2-03"
+    },
+    {
+      "id": "AC-4",
+      "statement": "Pre-spawn target refusals are auditable: a `bind()` failure (`no-candidate`, `ambiguous-candidate`, `target-stopped`, `target-refreshing`) writes a refusal record whose error summary carries the failure, and the typed error is rethrown unchanged.",
+      "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L3-02"
+    },
+    {
+      "id": "AC-5",
+      "statement": "Discovery diagnostics reach the operator: host-discovery diagnostics and Docker discovery errors are surfaced as warnings through the existing notify channel (as config-load diagnostics already are), and any registry-result field that stays unconsumed (`configOnly`, `orphanDockerCandidates`) is removed instead of being computed and discarded.",
+      "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L4-01"
+    },
+    {
+      "id": "AC-6",
+      "statement": "No behaviour regression beyond the intended visibility changes: `npm run typecheck`, the full unit suite and `node scripts/verify-package.mjs --unit-tests` pass, the committed `dist` is rebuilt so CI's freshness check stays green, and the packed smoke still registers the same tool surface.",
+      "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#Phase-2-Failure-observability"
+    }
+  ]
+}
