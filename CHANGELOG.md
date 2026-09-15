@@ -8,6 +8,16 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- `timeoutSeconds` on `devcontainer_exec` and `devcontainer_host_exec` must now be
+  **positive**: `0` and negative values are rejected by the tool schema instead of
+  becoming an immediate abort (`timeout: Command timed out after 0s`). Omitted still
+  means "no tool timeout", and fractional values still work.
+- The host registry no longer returns the `configOnly` / `orphanDockerCandidates`
+  collections (nothing read them — the same information lives in `entries`), and the
+  diagnostics discovery already produced — an unreadable directory, a symlink escaping
+  the allowed root, `maxDepth` pruning, a Docker candidate without its
+  `devcontainer.local_folder` label, an unparsable `docker ps` record — are now surfaced
+  as warnings after a `/devcontainer` command instead of being computed and discarded.
 - Audit redaction replaces a **whole** authentication value instead of the prefix
   that happened to match a character class, so a value containing `,`, `;`, `:` or
   non-ASCII characters no longer leaves its tail in the audit file.
@@ -23,6 +33,21 @@ to [Semantic Versioning](https://semver.org/).
   named `LOGS_MAX_OUTPUT_BYTES`, and the unused `resolveTool` wrapper in
   `extensions/index.ts` is gone. No operator-visible behaviour changes beyond the two
   kinds above and the redaction fix.
+
+### Fixed
+
+- A refused `/devcontainer setup` install (npm missing, the install timing out, an abort) is
+  now audited and reported through the structured `[setup-failed] …` path. The install stage
+  used to run without a `try`/`catch`, so it skipped its `setup` audit record entirely and
+  reached the handler as an unnormalized error — while the version probe below it was already
+  normalized. One attempt now always writes exactly one `setup` record.
+- A structured execution no longer drops stderr when the command also wrote stdout.
+  `devcontainer_exec` and `devcontainer_host_exec` show both streams, with the stderr
+  section labelled `--- stderr ---`, instead of falling back to stdout alone.
+- A refused execution is audited. No target selected, an ambiguous or stopped target, a
+  store mid-refresh, or a failing auto-select now writes a record carrying the failure
+  (policy authorized, target state refused) before the typed error is rethrown, matching
+  how policy denials were already recorded.
 
 ## [1.0.0] - Unreleased
 

@@ -33,6 +33,7 @@ import { homedir } from "node:os";
 import { readFileSync } from "node:fs";
 import { createBashToolDefinition, createLocalBashOperations } from "@earendil-works/pi-coding-agent";
 import { defaultConfigPaths, loadConfigWithDiagnostics } from "../src/config.js";
+import { createDiagnosticSink } from "../src/discovery-diagnostics.js";
 import { decideActivation, surfacesFor } from "../src/activation.js";
 import { JsonlAuditWriter, defaultAuditDirectory } from "../src/audit.js";
 import { NodeProcessRunner } from "../src/runtime/process-runner.js";
@@ -50,7 +51,8 @@ import { createCommandHandlers, selectionFor } from "../src/commands.js";
 import { reconcileSelection } from "../src/commands.js";
 import { canonicalWorkspaceKey } from "../src/workspace-path.js";
 import { SELECTION_ENTRY_KIND, recoverLatestSelection } from "../src/selection-state.js";
-import { evaluatePolicy, commandFingerprint } from "../src/policy.js";
+import { evaluatePolicy, commandIdentity } from "../src/policy.js";
+import { createSetupCli } from "../src/setup-cli.js";
 import { RuntimeError } from "../src/errors.js";
 import { renderExecutionContext } from "../src/execution-context.js";
 function composeRuntime(config, audit, sessionWorkspace, activation) {
@@ -92,10 +94,17 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
             traversal,
         },
     });
+    // Discovery diagnostics are computed on every pass and were previously dropped on the floor.
+    // Queue them here (the sink dedupes and never re-reports) and let the /devcontainer dispatch
+    // below surface them through the same warning channel the config-load diagnostics use. The
+    // activation probe also calls registry(); it only ever contributes, never notifies.
+    const discoveryDiagnostics = createDiagnosticSink();
     const registry = async () => {
         const traversal = nodeTraversal();
-        const dockerCandidates = (await docker.listDevContainers()).containers;
-        return buildWorkspaceRegistry({ ...discoveryInput(traversal), dockerCandidates });
+        const dockerResult = await docker.listDevContainers();
+        const result = buildWorkspaceRegistry({ ...discoveryInput(traversal), dockerCandidates: dockerResult.containers });
+        discoveryDiagnostics.add([...result.diagnostics, ...dockerResult.errors]);
+        return result;
     };
     /**
      * Auto-select the session-cwd workspace as the default target when none is
@@ -177,7 +186,7 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
                     ...(snapshot.denialReason !== undefined ? { policyDenialReason: snapshot.denialReason } : {}),
                     outputTruncated: false,
                     commandCapture: config.audit.commandCapture,
-                    ...hostCommandIdentity(argv, config.audit.commandCapture),
+                    ...commandIdentity(argv, config.audit.commandCapture),
                 });
                 throw new RuntimeError({
                     kind: "policy-denied",
@@ -206,7 +215,7 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
                         policyDenialReason: "container-path-on-host",
                         outputTruncated: false,
                         commandCapture: config.audit.commandCapture,
-                        ...hostCommandIdentity(argv, config.audit.commandCapture),
+                        ...commandIdentity(argv, config.audit.commandCapture),
                     });
                     throw new RuntimeError({
                         kind: "policy-denied",
@@ -251,7 +260,7 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
                     durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6,
                     outputTruncated: false,
                     commandCapture: config.audit.commandCapture,
-                    ...hostCommandIdentity(argv, config.audit.commandCapture),
+                    ...commandIdentity(argv, config.audit.commandCapture),
                     errorSummary: error instanceof Error ? error.message : String(error),
                 });
                 throw error;
@@ -266,7 +275,7 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
                 ...(result.exitCode !== undefined ? { exitCode: result.exitCode } : {}),
                 outputTruncated: result.truncated,
                 commandCapture: config.audit.commandCapture,
-                ...hostCommandIdentity(argv, config.audit.commandCapture),
+                ...commandIdentity(argv, config.audit.commandCapture),
             });
             return {
                 exitCode: result.exitCode,
@@ -285,58 +294,7 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
         refreshRegistry: registry,
         logs: (container, options) => dockerLifecycle.logs(container.id, options),
         hostRunner,
-        setupCli: async (opts) => {
-            const startedAt = process.hrtime.bigint();
-            const stdoutChunks = [];
-            const stderrChunks = [];
-            const argv = ["npm", "install", "-g", "@devcontainers/cli"];
-            const runResult = await runner.exec(argv[0], [...argv.slice(1)], {
-                cwd: sessionWorkspace,
-                env: { ...env },
-                maxOutputBytes: config.maxOutputBytes,
-                timeoutMs: 300_000,
-                ...(opts?.signal !== undefined ? { signal: opts.signal } : {}),
-                onData: (chunk) => stdoutChunks.push(chunk),
-                onStderr: (chunk) => stderrChunks.push(chunk),
-            });
-            const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
-            const exitCode = runResult.exitCode;
-            audit.write({
-                version: 1,
-                at: new Date().toISOString(),
-                operation: "setup",
-                initiator: "slash-command",
-                policyAuthorized: true,
-                ...(durationMs !== undefined ? { durationMs } : {}),
-                ...(exitCode !== undefined ? { exitCode } : {}),
-                outputTruncated: runResult.truncated,
-                commandCapture: config.audit.commandCapture,
-                ...hostCommandIdentity(argv, config.audit.commandCapture),
-            });
-            if (exitCode !== 0) {
-                const err = Buffer.concat(stderrChunks).toString("utf8").trim();
-                return { installed: false, version: undefined, error: err || `npm install exited ${exitCode}` };
-            }
-            // Verify the freshly installed CLI is resolvable on PATH.
-            const versionChunks = [];
-            try {
-                const probe = await runner.exec(config.devcontainerPath, ["--version"], {
-                    cwd: sessionWorkspace,
-                    env: { ...env },
-                    maxOutputBytes: 16 * 1024,
-                    timeoutMs: 30_000,
-                    onData: (chunk) => versionChunks.push(chunk),
-                });
-                if (probe.exitCode === 0) {
-                    const version = Buffer.concat(versionChunks).toString("utf8").trim().split(/\s+/).pop();
-                    return { installed: true, version: version || undefined };
-                }
-                return { installed: false, version: undefined, error: "npm install succeeded but `" + config.devcontainerPath + " --version` failed; check PATH." };
-            }
-            catch (error) {
-                return { installed: false, version: undefined, error: `npm install succeeded but verifying the CLI failed: ${error instanceof Error ? error.message : String(error)}` };
-            }
-        },
+        setupCli: createSetupCli({ runner, audit, config, sessionWorkspace, env }),
     };
     const tools = {
         exec: createDevcontainerExecTool({
@@ -392,6 +350,7 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
         tools,
         commandHandlers: createCommandHandlers(commandServices),
         registry,
+        discoveryDiagnostics,
         activation,
         executionContext,
         // One shared implementation for session restore and /devcontainer up.
@@ -416,17 +375,6 @@ function renderSelectionSummary(snapshot, config) {
  * Host-command identity for audit records, mirroring the execution
  * service's capture policy (none / fingerprint-only / redacted-text).
  */
-function hostCommandIdentity(argv, capture) {
-    if (capture === "none")
-        return {};
-    const parts = argv.filter((p) => p.length > 0);
-    if (parts.length === 0)
-        return {};
-    const fingerprint = commandFingerprint(parts);
-    if (capture === "fingerprint-only")
-        return { commandFingerprint: fingerprint };
-    return { commandFingerprint: fingerprint, commandText: parts.join(" ") };
-}
 /**
  * Read a workspace's devcontainer.json and derive a host<->container path
  * mapping (workspaceMount preferred, workspaceFolder fallback). Returns
@@ -617,6 +565,12 @@ export default function (pi) {
                     restoreSelection: () => restoreSelection(ctx),
                 };
                 const result = await handler(rest, cmdCtx);
+                // Surface anything the discovery pass could not do. Silent degradation (a scan that
+                // stopped early, a Docker record that failed to parse) is indistinguishable from an
+                // empty workspace, which is exactly how a broken setup used to look healthy.
+                for (const line of rt.discoveryDiagnostics.drain()) {
+                    ctx.ui.notify(`[devcontainer-manager] ${line}`, "warning");
+                }
                 // `/devcontainer use|up` engages this session's container surfaces;
                 // `/devcontainer off` hands them back to the host. `activation: "never"` is
                 // the one thing an explicit use cannot override (AC-5).

@@ -219,9 +219,9 @@ If the Dev Containers CLI is missing, run `/devcontainer setup` once.
 
 | Tool | Surface | Parameters |
 |---|---|---|
-| `devcontainer_exec` | Container | `argv` (required), `cwd`, `timeoutSeconds` |
+| `devcontainer_exec` | Container | `argv` (required), `cwd`, `timeoutSeconds` (positive; omitted = no tool timeout) |
 | `devcontainer_status` | Read-only | — |
-| `devcontainer_host_exec` | Host (policy-gated, audited) | `argv` (required), `timeoutSeconds` |
+| `devcontainer_host_exec` | Host (policy-gated, audited) | `argv` (required), `timeoutSeconds` (positive; omitted = no tool timeout) |
 
 The built-in `bash` tool is **replaced** by a container-routed version registered
 with `exposeSessionEnvironment: false`, and `!`/`!!` share the same operations

@@ -42,10 +42,11 @@ export interface DiscoveryInput {
 
 export interface RegistryResult {
   readonly entries: readonly RegistryEntry[];
-  /** Workspace keys that have host configuration but no Docker candidate. */
-  readonly configOnly: readonly string[];
-  /** Docker candidates whose workspace has no host configuration, kept for diagnostics. */
-  readonly orphanDockerCandidates: readonly DockerContainer[];
+  /**
+   * Everything the scan could not do (unreadable directory, symlink escape, `maxDepth`
+   * pruning, a Docker candidate without its `devcontainer.local_folder` label). Consumers must
+   * surface these; a field nothing reads is not a diagnostic.
+   */
   readonly diagnostics: readonly string[];
 }
 
@@ -280,9 +281,9 @@ function isExistingFile(path: string, traversal: DirectoryTraversal): boolean {
  * single workspace registry keyed by the canonicalized real workspace path.
  *
  * - host + docker on the same key -> `"both"` with the first candidate's id/state
- * - host only -> `"host-config"` and listed in `configOnly`
+ * - host only -> `"host-config"`
  * - docker only -> `"docker-label"` placeholder retained with its full candidate
- *   in `orphanDockerCandidates` for diagnostics (the locked `RegistryEntry`
+ *   list in `containerCandidates` (the locked `RegistryEntry`
  *   requires `configPath`/`configKind`, so a placeholder kind is recorded;
  *   `discoveredFrom: "docker-label"` is the authoritative discriminator)
  * - a candidate without a `devcontainer.local_folder` label has no workspace
@@ -341,11 +342,9 @@ export function buildWorkspaceRegistry(input: DiscoveryInput): RegistryResult {
   }
 
   const entries: RegistryEntry[] = [];
-  const configOnly: string[] = [];
   for (const [key, hostEntry] of byKey) {
     const dockerList = dockerByKey.get(key);
     if (dockerList === undefined || dockerList.length === 0) {
-      configOnly.push(key);
       entries.push(hostEntry);
       continue;
     }
@@ -367,10 +366,8 @@ export function buildWorkspaceRegistry(input: DiscoveryInput): RegistryResult {
     });
   }
 
-  const orphanDockerCandidates: DockerContainer[] = [];
   for (const [key, list] of dockerByKey) {
     if (byKey.has(key)) continue;
-    orphanDockerCandidates.push(...list);
     const first = list[0];
     if (first === undefined) continue;
     entries.push({
@@ -385,7 +382,7 @@ export function buildWorkspaceRegistry(input: DiscoveryInput): RegistryResult {
   }
 
   entries.sort((a, b) => a.workspacePath.localeCompare(b.workspacePath));
-  return { entries, configOnly, orphanDockerCandidates, diagnostics };
+  return { entries, diagnostics };
 }
 
 /** Deterministic candidate order: CLI lookup priority first, then path. */

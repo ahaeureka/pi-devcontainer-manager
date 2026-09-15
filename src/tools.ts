@@ -23,7 +23,7 @@ import { Type, type Static } from "typebox";
 import { RuntimeError, errorKindOf } from "./errors.js";
 import type { ExecutionService, ExecRequest } from "./execution-service.js";
 import { executeWithTimeout } from "./bash-router.js";
-import { formatToolOutput } from "./tool-output.js";
+import { combineCommandOutput, formatToolOutput } from "./tool-output.js";
 /** argv form accepted by `devcontainer_exec`. */
 export const DEV_CONTAINER_EXEC_TOOL = "devcontainer_exec";
 export const DEV_CONTAINER_STATUS_TOOL = "devcontainer_status";
@@ -32,7 +32,7 @@ export const DEV_CONTAINER_HOST_EXEC_TOOL = "devcontainer_host_exec";
 export const devcontainerExecParams = Type.Object({
   argv: Type.Array(Type.String(), { minItems: 1 }),
   cwd: Type.Optional(Type.String()),
-  timeoutSeconds: Type.Optional(Type.Number({ minimum: 0 })),
+  timeoutSeconds: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
 });
 
 export type DevcontainerExecParams = Static<typeof devcontainerExecParams>;
@@ -41,7 +41,7 @@ export const devcontainerStatusParams = Type.Object({});
 
 export const devcontainerHostExecParams = Type.Object({
   argv: Type.Array(Type.String(), { minItems: 1 }),
-  timeoutSeconds: Type.Optional(Type.Number({ minimum: 0 })),
+  timeoutSeconds: Type.Optional(Type.Number({ exclusiveMinimum: 0 })),
 });
 
 export type DevcontainerHostExecParams = Static<typeof devcontainerHostExecParams>;
@@ -129,8 +129,8 @@ export function createDevcontainerExecTool(options: ToolOptions): ToolDefinition
       // Nonzero container-side exit is surfaced like Pi's bash tool: throw
       // with the captured output appended so the failure is visible.
       if (outcome.exitCode !== 0 && outcome.exitCode !== null) {
-        const output =
-          outcome.stdout.length > 0 ? outcome.stdout : outcome.stderr.length > 0 ? outcome.stderr : "(no output)";
+        const combined = combineCommandOutput(outcome.stdout, outcome.stderr);
+        const output = combined.length > 0 ? combined : "(no output)";
         const errFormatted = formatToolOutput(output === "(no output)" ? "" : output);
         const errText = output === "(no output)"
           ? `Command exited with code ${outcome.exitCode}: ${summary}`.trimEnd()
@@ -145,8 +145,7 @@ export function createDevcontainerExecTool(options: ToolOptions): ToolDefinition
         void errFormatted.fullOutputPath; // the path is already embedded in errText's truncation notice
         throw err;
       }
-      const captured =
-        outcome.stdout.length > 0 ? outcome.stdout : outcome.stderr.length > 0 ? outcome.stderr : "";
+      const captured = combineCommandOutput(outcome.stdout, outcome.stderr);
       // Present output the way Pi's bash tool does: keep the tail within
       // 50KB / 2000 lines, persist the full output to a temp file when
       // truncated, and tell the LLM where the full copy lives so it never
@@ -226,8 +225,8 @@ export function createDevcontainerHostExecTool(options: ToolOptions): ToolDefini
         ...(params.timeoutSeconds !== undefined ? { timeoutMs: Math.round(params.timeoutSeconds * 1000) } : {}),
         ...(signal !== undefined ? { signal } : {}),
       });
-      const rawText =
-        result.stdout.length > 0 ? result.stdout : result.stderr.length > 0 ? result.stderr : `(no output, exit ${result.exitCode})`;
+      const combined = combineCommandOutput(result.stdout, result.stderr);
+      const rawText = combined.length > 0 ? combined : `(no output, exit ${result.exitCode})`;
       // Same presentation as devcontainer_exec / Pi's bash tool: tail within
       // 50KB/2000 lines, full output persisted to a temp file when truncated.
       const formatted = formatToolOutput(rawText === `(no output, exit ${result.exitCode})` ? "" : rawText);

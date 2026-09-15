@@ -86,6 +86,25 @@ export function commandFingerprint(parts) {
     return createHash("sha256").update(parts.join("\u0000"), "utf8").digest("hex");
 }
 /**
+ * Audit command identity for one invocation.
+ *
+ * Single-sourced so every audited surface (the extension's host-exec and setup paths, the
+ * execution service, the extracted setup install) derives fingerprint/plaintext the same way:
+ * `none` records nothing, `fingerprint-only` records the fingerprint, `redacted-text` also
+ * records the joined command text (the audit writer redacts it on the way out).
+ */
+export function commandIdentity(parts, capture) {
+    if (capture === "none")
+        return {};
+    const nonEmpty = parts.filter((part) => part.length > 0);
+    if (nonEmpty.length === 0)
+        return {};
+    const fingerprint = commandFingerprint(nonEmpty);
+    if (capture === "fingerprint-only")
+        return { commandFingerprint: fingerprint };
+    return { commandFingerprint: fingerprint, commandText: nonEmpty.join(" ") };
+}
+/**
  * Best-effort credential scrubbing for audit command text.
  *
  * This is deliberately conservative and layered, but it is NOT a guarantee:

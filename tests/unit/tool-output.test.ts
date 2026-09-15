@@ -6,6 +6,7 @@ import {
   persistFullOutput,
   TOOL_OUTPUT_MAX_BYTES,
   TOOL_OUTPUT_MAX_LINES,
+  combineCommandOutput,
 } from "../../src/tool-output.js";
 
 describe("formatToolOutput", () => {
@@ -62,6 +63,21 @@ describe("formatToolOutput", () => {
     expect(out.fullOutputPath).toBeDefined();
     expect(existsSync(out.fullOutputPath!)).toBe(true);
     rmSync(dirname(out.fullOutputPath!), { recursive: true, force: true });
+  });
+});
+
+describe("combineCommandOutput", () => {
+  it("returns an empty string when neither stream produced output", () => {
+    expect(combineCommandOutput("", "")).toBe("");
+  });
+
+  it("passes a single stream through without adding a label", () => {
+    expect(combineCommandOutput("out\n", "")).toBe("out\n");
+    expect(combineCommandOutput("", "err\n")).toBe("err\n");
+  });
+
+  it("labels stderr after stdout when both streams produced output", () => {
+    expect(combineCommandOutput("out\n", "err\n")).toBe("out\n\n--- stderr ---\nerr\n");
   });
 });
 

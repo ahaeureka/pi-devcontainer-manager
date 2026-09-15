@@ -2,7 +2,7 @@ import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { RuntimeError } from "./errors.js";
-import type { EffectiveConfig, OperationPolicySnapshot, PolicyInput } from "./types.js";
+import type { CommandCaptureMode, EffectiveConfig, OperationPolicySnapshot, PolicyInput } from "./types.js";
 
 const SECRET_NAME = /(?:^|_)(?:api[_-]?key|token|secret|password|credential|auth|bearer)(?:$|_)/i;
 const PI_NAME = /^PI_/i;
@@ -100,6 +100,26 @@ export function buildChildEnvironment(
 
 export function commandFingerprint(parts: readonly string[]): string {
   return createHash("sha256").update(parts.join("\u0000"), "utf8").digest("hex");
+}
+
+/**
+ * Audit command identity for one invocation.
+ *
+ * Single-sourced so every audited surface (the extension's host-exec and setup paths, the
+ * execution service, the extracted setup install) derives fingerprint/plaintext the same way:
+ * `none` records nothing, `fingerprint-only` records the fingerprint, `redacted-text` also
+ * records the joined command text (the audit writer redacts it on the way out).
+ */
+export function commandIdentity(
+  parts: readonly string[],
+  capture: CommandCaptureMode,
+): { commandFingerprint?: string; commandText?: string } {
+  if (capture === "none") return {};
+  const nonEmpty = parts.filter((part) => part.length > 0);
+  if (nonEmpty.length === 0) return {};
+  const fingerprint = commandFingerprint(nonEmpty);
+  if (capture === "fingerprint-only") return { commandFingerprint: fingerprint };
+  return { commandFingerprint: fingerprint, commandText: nonEmpty.join(" ") };
 }
 
 /**

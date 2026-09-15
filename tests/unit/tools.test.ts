@@ -11,6 +11,7 @@
  *   the audited success path through the shared hostRunner.
  */
 import { describe, expect, it, vi } from "vitest";
+import { Compile } from "typebox/compile";
 import {
   createDevcontainerExecTool,
   createDevcontainerHostExecTool,
@@ -62,6 +63,23 @@ describe("devcontainerExecParams schema", () => {
     expect(devcontainerExecParams.properties?.cwd).toMatchObject({ type: "string" });
     expect(devcontainerExecParams.properties?.timeoutSeconds).toBeDefined();
     expect(devcontainerExecParams.required).toContain("argv");
+  });
+
+  it("rejects a non-positive timeout at the boundary and keeps fractional timeouts legal", () => {
+    // Pi validates tool arguments with TypeBox's compiler, so the schema IS the contract.
+    const check = Compile(devcontainerExecParams);
+    expect(check.Check({ argv: ["ls"] })).toBe(true);
+    expect(check.Check({ argv: ["ls"], timeoutSeconds: 0 })).toBe(false);
+    expect(check.Check({ argv: ["ls"], timeoutSeconds: -1 })).toBe(false);
+    expect(check.Check({ argv: ["ls"], timeoutSeconds: 0.5 })).toBe(true);
+    expect(check.Check({ argv: ["ls"], timeoutSeconds: 900 })).toBe(true);
+  });
+
+  it("applies the same positive-timeout contract to the host escape hatch", () => {
+    const check = Compile(devcontainerHostExecParams);
+    expect(check.Check({ argv: ["df"] })).toBe(true);
+    expect(check.Check({ argv: ["df"], timeoutSeconds: 0 })).toBe(false);
+    expect(check.Check({ argv: ["df"], timeoutSeconds: 2 })).toBe(true);
   });
 
   it("devcontainer_host_exec also requires argv minItems 1", () => {
@@ -120,6 +138,28 @@ describe("createDevcontainerExecTool", () => {
     await expect(promise).rejects.toThrow(/boom/);
   });
 
+  it("keeps stderr when the command also wrote stdout (mixed streams)", async () => {
+    const { execution } = execWith(okOutcome({ stdout: "out\n", stderr: "warn\n" }));
+    const tool = createDevcontainerExecTool(makeOptions({ execution }));
+
+    const result = await tool.execute("t1", { argv: ["ls"] }, undefined, undefined, { cwd: "/session" });
+
+    expect(result.content[0]!.text).toContain("out\n");
+    expect(result.content[0]!.text).toContain("--- stderr ---");
+    expect(result.content[0]!.text).toContain("warn\n");
+  });
+
+  it("includes stderr in the nonzero-exit error as well", async () => {
+    const { execution } = execWith(okOutcome({ exitCode: 2, stdout: "boom\n", stderr: "detail\n" }));
+    const tool = createDevcontainerExecTool(makeOptions({ execution }));
+
+    const promise = tool.execute("t1", { argv: ["false"] }, undefined, undefined, { cwd: "/session" });
+
+    await expect(promise).rejects.toThrow(/boom/);
+    await expect(promise).rejects.toThrow(/--- stderr ---/);
+    await expect(promise).rejects.toThrow(/detail/);
+  });
+
   it("forwards the abort signal and typed errors from the service", async () => {
     const execution = {
       exec: vi.fn(async () => {
@@ -162,6 +202,19 @@ describe("createDevcontainerHostExecTool", () => {
     expect(hostRunner.run).toHaveBeenCalledWith(["hostname"], {});
     expect(result.content[0]!.text).toBe("host-out");
     expect(result.details).toMatchObject({ host: true, exitCode: 0 });
+  });
+
+  it("keeps stderr in the host result when both streams produced output", async () => {
+    const hostRunner = {
+      run: vi.fn(async () => ({ exitCode: 0, signal: null, stdout: "host-out\n", stderr: "host-warn\n", truncated: false })),
+    };
+    const tool = createDevcontainerHostExecTool(makeOptions({ hostExecutionAllowed: true, hostRunner }));
+
+    const result = await tool.execute("t1", { argv: ["hostname"] }, undefined, undefined, { cwd: "/session" });
+
+    expect(result.content[0]!.text).toContain("host-out");
+    expect(result.content[0]!.text).toContain("--- stderr ---");
+    expect(result.content[0]!.text).toContain("host-warn");
   });
 
   it("passes timeoutSeconds and the abort signal to the host runner", async () => {
