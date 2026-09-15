@@ -49,6 +49,8 @@
   },
   "ownedPaths": [
     "CHANGELOG.md",
+    "README.md",
+    "README.zh-CN.md",
     "dist",
     "docs",
     "extensions",

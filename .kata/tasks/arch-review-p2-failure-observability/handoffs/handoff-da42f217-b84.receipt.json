@@ -1,0 +1,31 @@
+{
+  "protocolVersion": 1,
+  "taskId": "arch-review-p2-failure-observability",
+  "handoffId": "handoff-da42f217-b84",
+  "platform": "pi",
+  "role": "implementer",
+  "packetSha256": "6bd8db5406d696f4d1c4f2b18269ae254d861346eca025d3ce47f3c3c7d72028",
+  "acknowledgedAt": "2026-09-15T09:59:35.321Z",
+  "repository": {
+    "head": "8aa9a0d021a59e449ac7b70056a57b2bbdd6e87b",
+    "branch": "feature/arch-review-p2-failure-observability",
+    "diffHash": "8aa7999d1579011df548b05e7a14d3fb8215f82e22ede6e078492f02d6775c01",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-078eb341-0ccf-42af-b58b-4c639510d2d8",
+      "paths": [
+        "CHANGELOG.md",
+        "dist",
+        "docs",
+        "extensions",
+        "openspec",
+        "package.json",
+        "scripts",
+        "src",
+        "tests"
+      ],
+      "hash": "8aa7999d1579011df548b05e7a14d3fb8215f82e22ede6e078492f02d6775c01"
+    },
+    "worktreeRoot": "."
+  }
+}
