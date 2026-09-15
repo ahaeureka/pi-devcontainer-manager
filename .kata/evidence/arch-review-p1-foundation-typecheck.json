@@ -1,0 +1,25 @@
+{
+  "id": "evidence-78e8d422-3df2-4ae9-97b7-a6c9564cdb38",
+  "taskId": "arch-review-p1-foundation",
+  "name": "typecheck",
+  "kind": "typecheck",
+  "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/typescript/lib/tsc.js --noEmit",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-15T05:16:48.168Z",
+  "finishedAt": "2026-09-15T05:16:54.216Z",
+  "diffHash": "f9c730a9896da67e5e324287a3de451a66eb51613ceb0d1aaf557acc88ce73a1",
+  "revisionId": "revision-b4342430-7d44-4ca3-831b-7bd70a38b8e8",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "src",
+      "tests"
+    ],
+    "hash": "7c9fda72c7f4f35d10e66670a36ea5467fce290257b154fc7fbe27bc40deab6b"
+  }
+}

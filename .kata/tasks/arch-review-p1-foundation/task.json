@@ -62,7 +62,9 @@
   "ownedPaths": [
     "CHANGELOG.md",
     "dist",
+    "docs",
     "extensions",
+    "openspec",
     "src",
     "tests"
   ],

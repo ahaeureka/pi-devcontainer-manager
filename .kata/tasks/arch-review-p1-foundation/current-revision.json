@@ -1,0 +1,15 @@
+{
+  "id": "revision-b4342430-7d44-4ca3-831b-7bd70a38b8e8",
+  "taskId": "arch-review-p1-foundation",
+  "ownedPaths": [
+    "CHANGELOG.md",
+    "dist",
+    "docs",
+    "extensions",
+    "openspec",
+    "src",
+    "tests"
+  ],
+  "manifestHash": "7c9fda72c7f4f35d10e66670a36ea5467fce290257b154fc7fbe27bc40deab6b",
+  "createdAt": "2026-09-15T05:16:48.167Z"
+}
