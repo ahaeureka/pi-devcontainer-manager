@@ -1,8 +1,22 @@
 import { RuntimeError, errorKindOf } from "./errors.js";
 import { isWorkspaceAllowed, isEnvironmentAllowed } from "./policy.js";
+import { combineCommandOutput } from "./tool-output.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
 import { SELECTION_ENTRY_KIND, SELECTION_PAYLOAD_VERSION } from "./selection-state.js";
 import { needsExplicitConfig } from "./runtime/devcontainer-adapter.js";
+/**
+ * Deliver a command handler's rendered result to the operator.
+ *
+ * Pi's command dispatcher ignores a handler's return value — `_tryExecuteExtensionCommand` is
+ * `return await command.handler(args, ctx), true` — so a handler that only returns `{ text }`
+ * produced no output whatsoever: `/devcontainer list`, `status`, `logs` and the rest were silent
+ * even though `CommandResult` is documented as "Markdown rendered into the TUI". The extension
+ * owns the UI, so it renders the text through the same channel the handlers' own messages use.
+ */
+export function displayCommandResult(result, notify) {
+    if (result.text.length > 0)
+        notify(result.text, "info");
+}
 /** Generate a fresh opaque confirmation token for a destructive action. */
 export function generateConfirmationToken() {
     return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -422,7 +436,7 @@ export function createCommandHandlers(services) {
         try {
             const result = await services.hostRunner.run(argv, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
             return {
-                text: result.stdout.length > 0 ? result.stdout : result.stderr.length > 0 ? result.stderr : `(no output, exit ${result.exitCode})`,
+                text: combineCommandOutput(result.stdout, result.stderr) || `(no output, exit ${result.exitCode})`,
             };
         }
         catch (error) {

@@ -11,9 +11,18 @@ export interface ToolOutputResult {
 /** Human-readable byte size (e.g. "50KB", "1.2MB"), matching Pi's formatSize. */
 export declare function formatToolSize(bytes: number): string;
 /**
+ * Combine the two captured streams of one command into the text the LLM sees.
+ *
+ * A structured execution used to pick stdout whenever it existed and drop stderr entirely, so a
+ * command that wrote anything to stdout hid its warnings and errors. Both streams are preserved
+ * now: single-stream output passes through unchanged (it is already unambiguous), and when both
+ * exist the stderr section is labelled so the two cannot be mistaken for one buffer.
+ */
+export declare function combineCommandOutput(stdout: string, stderr: string): string;
+/**
  * Format captured command output for LLM consumption.
  *
- * @param output combined stdout (callers choose stdout-or-stderr precedence)
+ * @param output the text to present (callers pass `combineCommandOutput` for a captured process)
  * @param opts maxBytes / maxLines budgets
  * @returns the tail to show, plus full-output path when truncated
  */

@@ -35,6 +35,13 @@ output and tool output both use the shape:
 | `parse-failure` | A CLI/Docker response could not be parsed. | Usually a CLI version mismatch — check the pinned `@devcontainers/cli@0.88.0`. |
 | `unexpected` | Anything else, including a **nonzero container-side exit code**. | For a nonzero exit, read the command output printed with the error; the exit code is intentional, not a bug. |
 
+Every spawn failure names the OS error code, so the three ways a command can fail to start are
+distinguishable from the error text alone: `executable-missing` (`ENOENT`) means the binary is
+not resolvable, `authorization-denied` (`EACCES`/`EPERM`) means it cannot be executed, and
+`unexpected` with an errno in the message means the process could not start for another reason —
+see [the host cannot start any executable](#the-host-cannot-start-any-executable-enotconn) for
+the one that looks least like a spawn problem.
+
 ## Common situations
 
 ### `DevContainer runtime not initialized; run /reload or restart pi.`
@@ -156,6 +163,44 @@ path (see [Configuration → `audit`](configuration.md#audit)). Retention
 (`audit.retentionDays`) is only applied by the writer's `prune` method; the
 shipped extension does not schedule pruning, so rotate the dated `.jsonl` files
 yourself if you need bounded disk usage.
+
+### `/devcontainer` prints `[devcontainer-manager] …` warnings
+
+Those are discovery diagnostics: the host scan could not finish, or a Docker record could not be
+parsed. Typical lines are `cannot read directory <dir>`, `max depth N reached; not traversing
+<dir>`, `not traversing <dir>: resolves outside allowed workspace root`, and `no
+devcontainer.local_folder label`. Each distinct line is reported **once per session** (the sink
+dedupes, because the registry is re-read on every command), and they are shown to you only — they
+never enter the model's context and are never written to the audit file. An empty workspace scan
+and a scan that stopped half way used to look identical; now they do not. Fix the reported cause
+(permissions on a workspace root, a `discovery.maxDepth` that is too shallow, a container started
+without the Dev Container label) or ignore the line if the workspace it names is irrelevant.
+
+### The host cannot start any executable (`ENOTCONN`)
+
+Symptom: a container is up and running, yet `devcontainer_exec` and the routed `bash` fail, and
+the error text carries `ENOTCONN` — for example
+`Failed to spawn: devcontainer (ENOTCONN) — the host cannot traverse part of PATH`. Other
+extensions report `spawn ENOTCONN` at the same time, and a host shell can still run commands.
+
+Cause: a **filesystem mount inside `PATH` is half-dead**. The usual offender on Linux desktops is
+an AppImage launcher (for example Orca) whose runtime mount under `/tmp/.mount_*` was left behind
+after an unclean exit or a restart: the daemon is gone but the mount stays, so `ls` on it reports
+`Transport endpoint is not connected`. glibc's `execvp` **aborts the whole `PATH` search** when it
+reaches such a directory, which is why bare-name spawns fail while absolute paths still work and
+why a shell — which skips the bad entry — makes the binary look resolvable.
+
+Fix (no root needed; it also repairs processes that are already running, because the leftover
+mount point becomes an ordinary empty directory):
+
+```bash
+for d in /tmp/.mount_*; do [ -d "$d" ] && ! ls "$d" >/dev/null 2>&1 && fusermount3 -u "$d"; done
+```
+
+Verify with `env node --version` and `devcontainer --version` in the same terminal Pi was started
+from — the first one reproduces the failure and the second proves the CLI itself was never the
+problem. Then retry: Pi does not need a restart, because the fix is in the filesystem, not in the
+environment it inherited.
 
 ### My global configuration seems to be ignored
 

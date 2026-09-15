@@ -20,7 +20,7 @@
  *
  * Nonzero target exits are carried in the result, never thrown.
  */
-import { commandFingerprint, evaluatePolicy, buildChildEnvironment } from "./policy.js";
+import { commandIdentity as commandIdentityFor, evaluatePolicy, buildChildEnvironment } from "./policy.js";
 import { workspaceHasConfig } from "./runtime/host-discovery.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
 import { RuntimeError } from "./errors.js";
@@ -43,10 +43,22 @@ export class ExecutionService {
         // only; an explicit prior /devcontainer use always wins). The hook is a
         // no-op for workspaces that do not exactly match the session cwd, so the
         // fail-closed no-candidate behavior is preserved elsewhere.
-        if (this.options.targetStore.snapshot().status === "none") {
-            await this.options.autoSelect?.(request.workspace);
+        // A refusal that happens BEFORE the audited region below (no target at all, an ambiguous
+        // or stopped target, a mid-refresh store, or a failing auto-select) used to leave no
+        // trace, while policy denials are recorded precisely so refusals are not "silently
+        // absent". Bind inside an audit boundary: the record says policy allowed the operation
+        // and the target state refused it, and the typed error is rethrown unchanged.
+        let ctx;
+        try {
+            if (this.options.targetStore.snapshot().status === "none") {
+                await this.options.autoSelect?.(request.workspace);
+            }
+            ctx = this.options.targetStore.bind();
         }
-        const ctx = this.options.targetStore.bind();
+        catch (error) {
+            this.audit(snapshot, undefined, { operation: request.operation, initiator: request.initiator, workspace: request.workspace }, { outputTruncated: false, errorSummary: this.asAuditError(error).message });
+            throw error;
+        }
         // Target/workspace integrity: the Dev Containers CLI would receive
         // `--workspace-folder <request.workspace>` while the container id comes from
         // the bound target. If those disagree, policy was evaluated for one
@@ -321,17 +333,7 @@ export class ExecutionService {
         return { workspace: ctx.workspaceKey, requestedCwd: request.workspace };
     }
     commandIdentity(request) {
-        const capture = this.options.config.audit.commandCapture;
-        if (capture === "none")
-            return {};
-        const parts = [request.cmd ?? "", ...(request.args ?? [])].filter((p) => p.length > 0);
-        if (parts.length === 0)
-            return {};
-        const fingerprint = commandFingerprint(parts);
-        if (capture === "fingerprint-only")
-            return { commandFingerprint: fingerprint };
-        // redacted-text: the audit writer redacts secret-looking patterns.
-        return { commandFingerprint: fingerprint, commandText: parts.join(" ") };
+        return commandIdentityFor([request.cmd ?? "", ...(request.args ?? [])], this.options.config.audit.commandCapture);
     }
     asAuditError(error) {
         return error instanceof Error ? error : new Error(String(error));

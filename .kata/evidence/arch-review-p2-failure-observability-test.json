@@ -1,0 +1,30 @@
+{
+  "id": "evidence-4e4067ba-446f-4930-b973-14e149b8f123",
+  "taskId": "arch-review-p2-failure-observability",
+  "name": "test",
+  "kind": "test",
+  "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/vitest/dist/cli.js run",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-15T10:00:06.141Z",
+  "finishedAt": "2026-09-15T10:00:30.978Z",
+  "diffHash": "814f06bbc32394337eed347b96116eac196db67fa5c0e5a1a5d240ee4e6fcce3",
+  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n\n Test Files  34 passed (34)\n      Tests  360 passed (360)\n   Start at  18:00:06\n   Duration  24.43s (transform 7.37s, setup 0ms, import 13.42s, tests 54.87s, environment 7ms)\n\n",
+  "revisionId": "revision-99abdc7f-1ab7-4612-aedc-f43c28707857",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "39495c7f4b1b4980a18d6434f7621876f2c275f2afd4b7467356daa345a8c9cc"
+  }
+}

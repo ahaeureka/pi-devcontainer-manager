@@ -101,6 +101,16 @@ export interface CommandResult {
     /** Markdown rendered into the TUI. */
     readonly text: string;
 }
+/**
+ * Deliver a command handler's rendered result to the operator.
+ *
+ * Pi's command dispatcher ignores a handler's return value — `_tryExecuteExtensionCommand` is
+ * `return await command.handler(args, ctx), true` — so a handler that only returns `{ text }`
+ * produced no output whatsoever: `/devcontainer list`, `status`, `logs` and the rest were silent
+ * even though `CommandResult` is documented as "Markdown rendered into the TUI". The extension
+ * owns the UI, so it renders the text through the same channel the handlers' own messages use.
+ */
+export declare function displayCommandResult(result: CommandResult, notify: (message: string, type?: "info" | "warning" | "error") => void): void;
 /** Generate a fresh opaque confirmation token for a destructive action. */
 export declare function generateConfirmationToken(): string;
 /** Render the selection + registry state as a compact status block. */

@@ -328,8 +328,10 @@ describe("buildWorkspaceRegistry", () => {
         ],
       },
     ]);
-    expect(result.configOnly).toEqual([]);
-    expect(result.orphanDockerCandidates).toEqual([]);
+    // A healthy scan reports nothing — the diagnostics channel is for degraded scans only. (The
+    // removed `configOnly`/`orphanDockerCandidates` fields are pinned by the registry-shape test
+    // at the end of this file, not here.)
+    expect(result.diagnostics).toEqual([]);
   });
 
   it("keeps config-only projects as first-class entries", () => {
@@ -347,7 +349,6 @@ describe("buildWorkspaceRegistry", () => {
         ],
       },
     ]);
-    expect(result.configOnly).toEqual(["/work/a"]);
   });
 
   it("retains docker-only candidates as placeholder entries plus diagnostics candidates", () => {
@@ -365,7 +366,6 @@ describe("buildWorkspaceRegistry", () => {
       containerId: "dd22",
       containerState: "exited",
     });
-    expect(result.orphanDockerCandidates).toEqual([docker[0]]);
   });
 
   it("unifies symlinked roots with Docker label real paths", () => {
@@ -391,7 +391,6 @@ describe("buildWorkspaceRegistry", () => {
         ],
       },
     ]);
-    expect(result.configOnly).toEqual([]);
   });
 
   it("flags ambiguity when more than one container for a workspace is running", () => {
@@ -436,8 +435,20 @@ describe("buildWorkspaceRegistry", () => {
     // both duplicates are diagnostics material when no host config exists
     const fs2 = fsTree();
     const result2 = registry(fs2, docker);
-    expect(result2.orphanDockerCandidates.map((c) => c.id)).toEqual(["aa11", "aa12"]);
+    expect(result2.entries.filter((e) => e.discoveredFrom === "docker-label").map((e) => e.containerId)).toEqual([
+      "aa11",
+    ]);
     expect(result2.entries.filter((e) => e.discoveredFrom === "docker-label")).toHaveLength(1);
+  });
+
+  it("returns only the fields its consumers read, so a dropped diagnostic cannot hide", () => {
+    const fs = fsTree();
+    addFile(fs, "/work/a/devcontainer.json");
+    const result = registry(fs, [dockerCandidate({ id: "dd22", workspaceKey: "/work/foreign" })]);
+
+    // The removed `configOnly` / `orphanDockerCandidates` collections encoded the same
+    // information as `entries` plus `diagnostics`; keeping them meant a field nobody read.
+    expect(Object.keys(result).sort()).toEqual(["diagnostics", "entries"]);
   });
 
   it("maps restarting to unknown and omits containerState for empty state", () => {

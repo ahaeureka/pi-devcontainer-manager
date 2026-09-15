@@ -158,9 +158,9 @@ bash "pytest -q"
 
 | 工具 | 执行位置 | 参数 |
 |---|---|---|
-| `devcontainer_exec` | 容器 | `argv`（必填）、`cwd`、`timeoutSeconds` |
+| `devcontainer_exec` | 容器 | `argv`（必填）、`cwd`、`timeoutSeconds`（必须为正数；省略则不设工具超时） |
 | `devcontainer_status` | 只读 | — |
-| `devcontainer_host_exec` | 宿主机（受策略管控、被审计） | `argv`（必填）、`timeoutSeconds` |
+| `devcontainer_host_exec` | 宿主机（受策略管控、被审计） | `argv`（必填）、`timeoutSeconds`（必须为正数；省略则不设工具超时） |
 
 内置 `bash` 工具会被**替换**为容器路由版本，注册时使用
 `exposeSessionEnvironment: false`；`!`/`!!` 共用同一个 operations 实例，

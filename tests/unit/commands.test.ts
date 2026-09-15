@@ -7,7 +7,12 @@
  * logs, and host-exec (explicit, policy-gated escape hatch).
  */
 import { describe, expect, it, vi } from "vitest";
-import { createCommandHandlers, type CommandContextLike, type CommandServices } from "../../src/commands.js";
+import {
+  createCommandHandlers,
+  displayCommandResult,
+  type CommandContextLike,
+  type CommandServices,
+} from "../../src/commands.js";
 import { RuntimeError } from "../../src/errors.js";
 import type { EffectiveConfig } from "../../src/types.js";
 import type { RegistryEntry } from "../../src/types.js";
@@ -397,6 +402,26 @@ describe("/devcontainer logs", () => {
   });
 });
 
+describe("displayCommandResult", () => {
+  it("notifies the handler's rendered text", () => {
+    const notify = vi.fn();
+
+    displayCommandResult({ text: "**Registry (1):** /ws/project-a" }, notify);
+
+    // Pi's command dispatcher ignores a handler's return value, so without this call the
+    // operator saw nothing at all for `/devcontainer list` and friends.
+    expect(notify).toHaveBeenCalledWith("**Registry (1):** /ws/project-a", "info");
+  });
+
+  it("stays silent for an empty result", () => {
+    const notify = vi.fn();
+
+    displayCommandResult({ text: "" }, notify);
+
+    expect(notify).not.toHaveBeenCalled();
+  });
+});
+
 describe("/devcontainer host-exec", () => {
   it("denies by policy without invoking the host runner", async () => {
     const hostRunner = { run: vi.fn() };
@@ -420,6 +445,32 @@ describe("/devcontainer host-exec", () => {
     const ctx = makeCtx();
     await handlers["host-exec"]!("printf \"hello world\"", ctx);
     expect(hostRunner!.run).toHaveBeenCalledWith(["printf", "hello world"], undefined);
+  });
+
+  it("keeps stderr when the host command also wrote stdout", async () => {
+    // The tool surface stopped dropping stderr in this phase; the command surface kept the
+    // old stdout-or-stderr ternary, so `/devcontainer host-exec` still hid half the output.
+    const hostRunner = {
+      run: vi.fn(async () => ({ exitCode: 0, signal: null, stdout: "host-out\n", stderr: "host-warn\n", truncated: false })),
+    };
+    const { handlers } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }), hostRunner });
+
+    const result = await handlers["host-exec"]!("hostname", makeCtx());
+
+    expect(result.text).toContain("host-out");
+    expect(result.text).toContain("--- stderr ---");
+    expect(result.text).toContain("host-warn");
+  });
+
+  it("still reports stderr alone without a label", async () => {
+    const hostRunner = {
+      run: vi.fn(async () => ({ exitCode: 0, signal: null, stdout: "", stderr: "only-stderr\n", truncated: false })),
+    };
+    const { handlers } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }), hostRunner });
+
+    const result = await handlers["host-exec"]!("hostname", makeCtx());
+
+    expect(result.text).toBe("only-stderr\n");
   });
 });
 

@@ -1,4 +1,5 @@
 import type { ExtensionAPI, BashOperations, UserBashEventResult } from "@earendil-works/pi-coding-agent";
+import { type DiagnosticSink } from "../src/discovery-diagnostics.js";
 import { type ActivationDecision } from "../src/activation.js";
 import { TargetStore } from "../src/target-store.js";
 import { ExecutionService } from "../src/execution-service.js";
@@ -37,6 +38,11 @@ interface Runtime {
         workspaceKey: string;
         candidateId?: string;
     }) => Promise<void>;
+    /**
+     * Discovery diagnostics queued since the last drain. The /devcontainer dispatch surfaces
+     * them after each command; nothing else reports them, and the activation probe only adds.
+     */
+    readonly discoveryDiagnostics: DiagnosticSink;
 }
 /**
  * Mutable holder for the session's activation decision: `/devcontainer use|up`

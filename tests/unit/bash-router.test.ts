@@ -102,6 +102,35 @@ describe("createRoutedBashOperations.exec", () => {
     await expect(pending).rejects.toMatchObject({ kind: "timeout" });
   });
 
+  it("floors a sub-millisecond Pi timeout instead of aborting at 0 ms", async () => {
+    // `Math.round(0.0004 * 1000)` is 0, and `setTimeout(..., 0)` aborts the command at once and
+    // reports it as a timeout — the failure mode a positive `timeout` is supposed to avoid.
+    vi.useFakeTimers();
+    try {
+      const { router, execution } = makeRouter();
+      const pending = router.exec("sleep 1", "/ws/project-a", { onData: () => undefined, timeout: 0.0004 });
+      let settled = false;
+      void pending.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+      expect(execution.calls[0]!.signal).toBeDefined();
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(pending).rejects.toMatchObject({ kind: "timeout" });
+      await expect(pending).rejects.toThrow(/1ms/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not create an abort signal when no timeout is provided", async () => {
     const { router, execution } = makeRouter();
     const pending = router.exec("ls", "/ws/project-a", { onData: () => undefined });

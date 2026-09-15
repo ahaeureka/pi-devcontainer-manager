@@ -46,7 +46,8 @@
     "test:unit": "vitest --run tests/unit",
     "pack:check": "npm pack --dry-run",
     "prepack": "npm run build",
-    "prepare": "node scripts/prepare-package.mjs"
+    "prepare": "node scripts/prepare-package.mjs",
+    "install:local": "node scripts/install-local.mjs"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

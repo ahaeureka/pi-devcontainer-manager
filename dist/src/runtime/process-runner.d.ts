@@ -1,4 +1,5 @@
 import type { ChildProcessByStdio } from "node:child_process";
+import { RuntimeError } from "../errors.js";
 import { type SpawnErrorSpec } from "./spawn-error.js";
 export interface ProcessResult {
     readonly exitCode: number | null;
@@ -60,6 +61,17 @@ export declare function killProcessTree(child: SpawnedChild): void;
 export declare class NodeProcessRunner implements ProcessRunner {
     exec(file: string, args: readonly string[], options: ProcessRunnerOptions): Promise<ProcessResult>;
 }
+/**
+ * Classify a failed spawn into the process-boundary kinds the adapters translate.
+ *
+ * Every branch names the errno. Anything that was not ENOENT/EACCES/EPERM used to collapse
+ * into `Failed to spawn: <file>`, which made a host-side transport fault indistinguishable
+ * from a missing binary: on 2026-09-15 a dead AppImage FUSE mount sitting in PATH made glibc's
+ * `execvp` abort the whole lookup with ENOTCONN, and the operator was told only
+ * `Failed to spawn: devcontainer` while the container was up and the CLI was installed.
+ * ENOTCONN now says what it is and what to do about it.
+ */
+export declare function toSpawnError(file: string, error: unknown): RuntimeError;
 /**
  * Run one bounded child process on behalf of a runtime adapter.
  *

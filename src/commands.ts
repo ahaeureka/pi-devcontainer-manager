@@ -18,6 +18,7 @@ import type { DockerContainer } from "./runtime/docker-adapter.js";
 import type { SelectionRecord } from "./selection-state.js";
 import { RuntimeError, errorKindOf } from "./errors.js";
 import { isWorkspaceAllowed, isEnvironmentAllowed } from "./policy.js";
+import { combineCommandOutput } from "./tool-output.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
 import type { ConfigCandidate, EffectiveConfig, RegistryEntry } from "./types.js";
 import { SELECTION_ENTRY_KIND, SELECTION_PAYLOAD_VERSION } from "./selection-state.js";
@@ -81,6 +82,22 @@ export interface CommandServices {
 export interface CommandResult {
   /** Markdown rendered into the TUI. */
   readonly text: string;
+}
+
+/**
+ * Deliver a command handler's rendered result to the operator.
+ *
+ * Pi's command dispatcher ignores a handler's return value — `_tryExecuteExtensionCommand` is
+ * `return await command.handler(args, ctx), true` — so a handler that only returns `{ text }`
+ * produced no output whatsoever: `/devcontainer list`, `status`, `logs` and the rest were silent
+ * even though `CommandResult` is documented as "Markdown rendered into the TUI". The extension
+ * owns the UI, so it renders the text through the same channel the handlers' own messages use.
+ */
+export function displayCommandResult(
+  result: CommandResult,
+  notify: (message: string, type?: "info" | "warning" | "error") => void,
+): void {
+  if (result.text.length > 0) notify(result.text, "info");
 }
 
 
@@ -540,7 +557,7 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     try {
       const result = await services.hostRunner.run(argv, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
       return {
-        text: result.stdout.length > 0 ? result.stdout : result.stderr.length > 0 ? result.stderr : `(no output, exit ${result.exitCode})`,
+        text: combineCommandOutput(result.stdout, result.stderr) || `(no output, exit ${result.exitCode})`,
       };
     } catch (error) {
       return { text: describeError(error) };

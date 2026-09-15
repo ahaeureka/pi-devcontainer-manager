@@ -38,27 +38,25 @@
     "reviewMode": "security",
     "comet": {
       "projectInit": "not_requested",
-      "openStatus": "required"
+      "openStatus": "acknowledged"
     },
     "gitFlow": {
       "strategy": "manual",
       "branch": "feature/arch-review-p2-failure-observability",
       "baseBranch": "main",
-      "status": "pending_confirmation",
-      "command": [
-        "switch",
-        "-c",
-        "feature/arch-review-p2-failure-observability",
-        "main"
-      ]
+      "status": "active"
     }
   },
   "ownedPaths": [
     "CHANGELOG.md",
+    "README.md",
+    "README.zh-CN.md",
     "dist",
     "docs",
     "extensions",
     "openspec",
+    "package.json",
+    "scripts",
     "src",
     "tests"
   ],

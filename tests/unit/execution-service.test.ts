@@ -55,6 +55,16 @@ function fakeTargetStore(snapshotStatus: string = "selected-valid"): { store: Ta
   };
 }
 
+/** A store whose bind() refuses the way the real one does for a non-selectable status. */
+function refusingTargetStore(snapshotStatus: string, error: RuntimeError): TargetStore {
+  return {
+    bind: () => {
+      throw error;
+    },
+    snapshot: () => ({ status: snapshotStatus, workspaceKey: undefined, candidateId: undefined, detail: undefined }),
+  } as unknown as TargetStore;
+}
+
 interface ExecCall {
   workspace: string;
   containerId: string;
@@ -105,7 +115,7 @@ function fakeDockerLifecycle(): { adapter: DockerLifecycleAdapter; calls: Array<
 }
 
 function makeService(
-  parts: { devcontainer?: DevcontainerAdapter; dockerLifecycle?: DockerLifecycleAdapter; config?: EffectiveConfig; audit?: AuditWriter; autoSelect?: (workspace: string) => Promise<void>; snapshotStatus?: string } = {},
+  parts: { devcontainer?: DevcontainerAdapter; dockerLifecycle?: DockerLifecycleAdapter; config?: EffectiveConfig; audit?: AuditWriter; autoSelect?: (workspace: string) => Promise<void>; snapshotStatus?: string; targetStore?: TargetStore } = {},
 ) {
   const devcontainer = parts.devcontainer ?? fakeDevcontainer([]).adapter;
   const dockerLifecycle = parts.dockerLifecycle ?? fakeDockerLifecycle().adapter;
@@ -113,7 +123,10 @@ function makeService(
     write: vi.fn(),
     prune: vi.fn(),
   };
-  const store = fakeTargetStore(parts.snapshotStatus ?? "selected-valid");
+  const store =
+    parts.targetStore !== undefined
+      ? { store: parts.targetStore, bound: fakeTargetStore().bound }
+      : fakeTargetStore(parts.snapshotStatus ?? "selected-valid");
   const service = new ExecutionService({
     config: parts.config ?? makeConfig(),
     targetStore: store.store,
@@ -293,6 +306,44 @@ describe("ExecutionService.exec", () => {
     const record = (audit.write as ReturnType<typeof vi.fn>).mock.calls[0]![0] as AuditRecord;
     expect(record.errorSummary).toBe("gone");
     expect(record.exitCode).toBeNull();
+  });
+
+  it("audits a pre-spawn target refusal and rethrows the typed error", async () => {
+    const refusal = new RuntimeError({
+      kind: "no-candidate",
+      message: "No DevContainer target is selected.",
+      remedy: "Run /devcontainer list then /devcontainer use <workspace>.",
+    });
+    const { service, audit } = makeService({ targetStore: refusingTargetStore("none", refusal) });
+
+    await expect(
+      service.exec({ operation: "container-exec", initiator: "tool", workspace: "/ws/project-a", cmd: "ls", args: [] }),
+    ).rejects.toMatchObject({ kind: "no-candidate" });
+
+    const record = (audit.write as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0] as AuditRecord;
+    expect(record).toMatchObject({
+      operation: "container-exec",
+      initiator: "tool",
+      workspace: "/ws/project-a",
+      policyAuthorized: true,
+      outputTruncated: false,
+    });
+    expect(record.errorSummary).toContain("No DevContainer target is selected.");
+  });
+
+  it("records the transient refresh refusal with its own kind", async () => {
+    const refusal = new RuntimeError({
+      kind: "target-refreshing",
+      message: "Target state is refreshing; retry the operation.",
+    });
+    const { service, audit } = makeService({ targetStore: refusingTargetStore("refreshing", refusal) });
+
+    await expect(
+      service.exec({ operation: "container-exec", initiator: "tool", workspace: "/ws/project-a", cmd: "ls", args: [] }),
+    ).rejects.toMatchObject({ kind: "target-refreshing" });
+
+    const record = (audit.write as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0] as AuditRecord;
+    expect(record.errorSummary).toContain("refreshing");
   });
 
   it("omits --remote-env entirely when no environment is requested", async () => {

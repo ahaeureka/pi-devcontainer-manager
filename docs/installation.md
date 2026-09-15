@@ -77,6 +77,21 @@ pi install /absolute/path/to/pi-devcontainer-manager
 #   pi install ../ahaeureka/pi-devcontainer-manager
 ```
 
+`scripts/install-local.mjs` performs that whole flow in one step — it checks the manifest
+entry point and `engines.node`, rebuilds `dist/`, warns when the committed `dist/` no longer
+matches the fresh build, registers the checkout with `pi install`, and asserts `pi list`
+resolves it:
+
+```bash
+npm run install:local                      # build + register + assert
+npm run install:local -- --check           # verify only: nothing changed
+npm run install:local -- --dry-run         # print the commands it would run
+npm run install:local -- --verify-runtime  # also boot a real pi (runs tests/e2e)
+```
+
+It never edits `settings.json` itself (it lets `pi install` do that) and exits nonzero with
+a named reason when the checkout would not load.
+
 Pi documents local paths as **added to settings without copying**, so the checkout you
 edit *is* the package Pi loads. Iterate by rebuilding and reloading:
 

@@ -1,0 +1,9 @@
+{
+  "taskId": "arch-review-p2-failure-observability",
+  "decision": "captured",
+  "reason": "Phase 2 establishes reusable project rules (a failure must land in a channel with an audience: refusals audited like denials, host-install spawn failures normalized AND audited, both output streams presented, a public parameter's contract enforced by the schema, diagnostics with no consumer deleted) plus the host ENOTCONN/stale-FUSE-mount triage this work made diagnosable — both captured as .kata/wiki/llmwiki-arch-review-p2-failure-observability via .kata/tasks/arch-review-p2-failure-observability/wiki/arch-review-p2-failure-observability.md.",
+  "candidateIds": [
+    "llmwiki-arch-review-p2-failure-observability"
+  ],
+  "updatedAt": "2026-09-15T09:13:35.310Z"
+}

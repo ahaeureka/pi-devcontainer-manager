@@ -91,6 +91,29 @@ export function createRoutedBashOperations(options: RoutedBashOptions): BashOper
  * `timeout` error is raised. The caller's own `signal` is linked to the
  * controller so both surfaces behave identically.
  */
+/**
+ * Convert a caller-supplied timeout in SECONDS into the enforced millisecond budget.
+ *
+ * Rounding alone is not enough: `Math.round(0.0004 * 1000)` is 0, and `setTimeout(…, 0)` aborts
+ * the command immediately and reports it as a timeout — the exact failure a caller passing a
+ * positive value is trying to avoid, and one the tool schema's `exclusiveMinimum: 0` cannot
+ * express because the schema has no millisecond floor. Flooring at 1 ms keeps "as soon as
+ * possible" meaning "as soon as possible" rather than "abort now".
+ */
+export function resolveTimeoutMs(seconds: number | undefined): number | undefined {
+  if (seconds === undefined) return undefined;
+  return Math.max(1, Math.round(seconds * 1000));
+}
+
+/**
+ * Render an enforced budget for an operator-facing message.
+ *
+ * Sub-second budgets used to render as "after 0s", which reads like a bug in the caller rather
+ * than a real (very short) deadline.
+ */
+function formatTimeout(timeoutMs: number): string {
+  return timeoutMs < 1000 ? `${timeoutMs}ms` : `${Math.round(timeoutMs / 1000)}s`;
+}
 export async function executeWithTimeout(
   request: Omit<ExecRequest, "signal">,
   timeoutMs: number | undefined,
@@ -120,7 +143,7 @@ export async function executeWithTimeout(
       controller.abort();
       done(() => reject(new RuntimeError({
         kind: "timeout",
-        message: `Command timed out after ${Math.round(timeoutMs / 1000)}s`,
+        message: `Command timed out after ${formatTimeout(timeoutMs)}`,
       })));
     }, timeoutMs);
     exec({ ...request, signal: controller.signal }).then(
@@ -156,7 +179,7 @@ class RoutedBashRouter {
         args: [...shell.args],
         ...(environment !== undefined ? { environment } : {}),
       },
-      execOptions.timeout !== undefined ? Math.round(execOptions.timeout * 1000) : undefined,
+      resolveTimeoutMs(execOptions.timeout),
       execOptions.signal,
       (request) => this.options.execution.exec(request),
     );

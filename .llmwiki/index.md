@@ -17,6 +17,8 @@
 
 - [[concepts/kata-task-conventions.md]] — Kata task conventions in this repository
 
+- [[concepts/arch-review-p2-failure-observability.md]] — Failure observability (Phase 2 build notes)
+
 ## Comparisons
 
 ## Queries

@@ -1,1 +1,11 @@
 {"taskId":"arch-review-p2-failure-observability","from":null,"to":"intake","actor":{"id":"system","role":"system"},"at":"2026-09-15T05:44:06.737Z"}
+{"taskId":"arch-review-p2-failure-observability","from":"intake","to":"plan","actor":{"id":"kata-designer","role":"designer"},"at":"2026-09-15T06:18:03.229Z"}
+{"taskId":"arch-review-p2-failure-observability","from":"plan","to":"implement","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-15T06:35:46.441Z"}
+{"taskId":"arch-review-p2-failure-observability","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-15T06:36:09.790Z"}
+{"taskId":"arch-review-p2-failure-observability","from":"hardVerify","to":"review","actor":{"id":"kata-reviewer","role":"reviewer"},"at":"2026-09-15T09:27:59.099Z"}
+{"taskId":"arch-review-p2-failure-observability","from":"review","to":"implement","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-15T09:59:46.001Z"}
+{"taskId":"arch-review-p2-failure-observability","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-15T10:00:31.058Z"}
+{"taskId":"arch-review-p2-failure-observability","from":"hardVerify","to":"review","actor":{"id":"kata-reviewer","role":"reviewer"},"at":"2026-09-15T10:01:30.388Z"}
+{"taskId":"arch-review-p2-failure-observability","from":"review","to":"judge","actor":{"id":"kata-judge","role":"judge"},"at":"2026-09-15T11:06:06.454Z"}
+{"taskId":"arch-review-p2-failure-observability","from":"judge","to":"distill","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-15T11:14:11.018Z"}
+{"taskId":"arch-review-p2-failure-observability","from":"distill","to":"archive","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-15T11:14:11.022Z"}

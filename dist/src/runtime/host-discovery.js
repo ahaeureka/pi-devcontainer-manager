@@ -213,9 +213,9 @@ function isExistingFile(path, traversal) {
  * single workspace registry keyed by the canonicalized real workspace path.
  *
  * - host + docker on the same key -> `"both"` with the first candidate's id/state
- * - host only -> `"host-config"` and listed in `configOnly`
+ * - host only -> `"host-config"`
  * - docker only -> `"docker-label"` placeholder retained with its full candidate
- *   in `orphanDockerCandidates` for diagnostics (the locked `RegistryEntry`
+ *   list in `containerCandidates` (the locked `RegistryEntry`
  *   requires `configPath`/`configKind`, so a placeholder kind is recorded;
  *   `discoveredFrom: "docker-label"` is the authoritative discriminator)
  * - a candidate without a `devcontainer.local_folder` label has no workspace
@@ -271,11 +271,9 @@ export function buildWorkspaceRegistry(input) {
             list.push(candidate);
     }
     const entries = [];
-    const configOnly = [];
     for (const [key, hostEntry] of byKey) {
         const dockerList = dockerByKey.get(key);
         if (dockerList === undefined || dockerList.length === 0) {
-            configOnly.push(key);
             entries.push(hostEntry);
             continue;
         }
@@ -297,11 +295,9 @@ export function buildWorkspaceRegistry(input) {
             ...(runningCount > 1 ? { ambiguous: true } : {}),
         });
     }
-    const orphanDockerCandidates = [];
     for (const [key, list] of dockerByKey) {
         if (byKey.has(key))
             continue;
-        orphanDockerCandidates.push(...list);
         const first = list[0];
         if (first === undefined)
             continue;
@@ -316,7 +312,7 @@ export function buildWorkspaceRegistry(input) {
         });
     }
     entries.sort((a, b) => a.workspacePath.localeCompare(b.workspacePath));
-    return { entries, configOnly, orphanDockerCandidates, diagnostics };
+    return { entries, diagnostics };
 }
 /** Deterministic candidate order: CLI lookup priority first, then path. */
 function compareConfigCandidates(left, right) {

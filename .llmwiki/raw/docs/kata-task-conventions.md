@@ -1,7 +1,7 @@
 ---
 source_path: .kata/tasks/arch-review-p1-foundation/wiki/kata-task-conventions.md
-ingested: 2026-09-15T05:37:19.517Z
-sha256: e7e408cc3cce7df0f7d54abe62f86e15b9b79fbafa2e47737580106aa779dab3
+ingested: 2026-09-15T11:15:57.580Z
+sha256: 9a583232af6e0f7efa8ef8c47670397c048021fa4c0976ce6fef93cc82195dde
 ---
 # Kata task conventions in this repository
 
@@ -76,3 +76,38 @@ evidence envelopes. `verify` then binds every acceptance criterion to that same 
 envelope, so the per-AC mapping exists only in the design's matrix — keep it accurate and check
 it by hand at review time. `missingAcceptanceMatrix` stays true unless the profile is `strict`
 or uses `strictClosure`, which security review mode does not require.
+
+## 8. Repair cycles: an approval is bound to a revision id
+
+Learned by repairing `arch-review-p2-failure-observability` after its review had already passed.
+Every rule below was hit for real during that cycle.
+
+- **Editing a task-owned path after a seal invalidates the seal.** The next `verify` reports each
+  acceptance criterion `FAIL` with `repairScope: "revision_superseded"` — the documented "an owned
+  file changed, build the next revision" signal, *not* an acceptance failure — and `status` then
+  routes to `/kata-build` with reason `rebuild_superseded_revision`. Drift outside the owned paths
+  (for example under `.kata/`) is harmless.
+- **`build` picks its repair entry from `current-state.json.phase`, and the entries are strict.**
+  From `review` it calls `reenterImplementForReviewRepair`, which requires a **blocking** finding in
+  `review.json` (or a `major` one when the profile's review mode is `strict`); from `hardVerify` it
+  reads `verify.json`'s repairable scopes; from `judge` it needs a repairable judge `FAIL`. So a
+  superseded revision discovered *after* review can only be repaired by recording the supersession
+  as a blocking review finding, which lets `build` transition `review → implement` and seal N+1.
+- **`review --approve --review-evidence <summary>` is what concludes a review.** Without `--approve`
+  the task still enters `review`, but the `judge_gate` choice file is never created and `judge`
+  refuses with `judge_gate requires an explicit user choice before continuing` — while `gate approve
+  --boundary judge_gate` then fails with `ENOENT` because the file it updates does not exist.
+- **`review --approve` refuses any finding whose severity is `blocking` or `major`.** Fixed findings
+  therefore belong in `reviewEvidence` (the convention the Phase 1 record already used — "blocking
+  finding verified fixed: …"), and `findings` should hold only what is genuinely open. Downgrading a
+  live defect to `note` to satisfy the guard would be recording a false state; moving a *verified
+  fix* out of `findings` is not.
+- **Gate choice files are single-use** (`consumeUserChoiceGate`) and are created by the phase command
+  that *offers* the next boundary: `design` → `implementation_gate`, `verify` → `review_gate`,
+  `review --approve` → `judge_gate`, `judge` → `archive_gate`. Re-running the offering command with
+  a fresh handoff receipt recreates a consumed gate when the flow needs it again.
+- **Pass long CLI arguments as an argv array, never through a shell string.** The evidence text
+  contains double quotes and backticks; a `--review-evidence "$VAR"` attempt was mangled into
+  `review: command not found`. `python3 -c` with `subprocess.run([...])` is the reliable driver.
+- **`kata-cli` itself is a `#!/usr/bin/env node` script**, so the host `ENOTCONN` trap (§3 of the
+  Phase 2 notes) takes the whole workflow down with it — every kata command fails before it starts.
