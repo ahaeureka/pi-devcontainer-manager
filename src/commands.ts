@@ -230,7 +230,15 @@ export async function reconcileSelection(
     await services.targetStore.select(missing);
     return missing;
   }
-  const usableId = hint.candidateId !== undefined && entry.ambiguous !== true ? hint.candidateId : undefined;
+  // A persisted container ID is a HINT, never an authority: IDs are ephemeral across rebuilds
+  // (the record says so itself). Trust it only while the fresh registry still offers it —
+  // otherwise resolve the workspace's CURRENT candidate instead. Docker result order still never
+  // decides an ambiguous workspace (review finding L1-03).
+  const persisted = hint.candidateId;
+  const offered =
+    persisted !== undefined && (entry.containerCandidates ?? []).some((candidate) => candidate.id === persisted);
+  const usableId =
+    entry.ambiguous === true ? undefined : offered ? persisted : entry.containerId;
   const selection = selectionFor(entry, usableId);
   await services.targetStore.select(selection);
   if (selection.workspaceKey !== undefined) {

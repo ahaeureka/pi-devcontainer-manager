@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createCommandHandlers,
   displayCommandResult,
+  reconcileSelection,
   type CommandContextLike,
   type CommandServices,
 } from "../../src/commands.js";
@@ -522,5 +523,85 @@ describe("/devcontainer setup", () => {
     const ctx = makeCtx();
     const result = await handlers["setup"]!("", ctx);
     expect(result.text).toContain("[unexpected]");
+  });
+});
+
+describe("reconcileSelection identity validation", () => {
+  function harness(entries: RegistryEntry[]) {
+    const selected: unknown[] = [];
+    const persisted: unknown[] = [];
+    const services = {
+      registry: async () => ({ entries, diagnostics: [] }),
+      targetStore: {
+        select: async (target: unknown) => {
+          selected.push(target);
+        },
+      },
+    } as unknown as Pick<CommandServices, "targetStore" | "registry">;
+    const ctx = { persistSelection: (record: unknown) => void persisted.push(record) };
+    return { services, ctx, selected, persisted };
+  }
+
+  const running = (over: Partial<RegistryEntry> = {}): RegistryEntry =>
+    ({
+      ...entry,
+      containerState: "running",
+      containerId: "current-container",
+      containerCandidates: [{ id: "current-container", state: "running" }],
+      ...over,
+    }) as RegistryEntry;
+
+  it("ignores a persisted candidate id the registry no longer offers", async () => {
+    // L1-03: container ids are ephemeral across rebuilds, so a stale one must not be trusted —
+    // the workspace's CURRENT candidate is resolved instead, and that is what gets persisted.
+    const { services, ctx, selected, persisted } = harness([running()]);
+
+    const result = await reconcileSelection(services, ctx, {
+      workspaceKey: entry.workspacePath,
+      candidateId: "stale-container-id",
+    });
+
+    expect(result.status).toBe("selected-valid");
+    expect(result.candidate?.id).toBe("current-container");
+    expect(selected).toHaveLength(1);
+    expect(persisted[0]).toMatchObject({ candidateId: "current-container" });
+  });
+
+  it("keeps a persisted id the registry still offers", async () => {
+    const { services, ctx } = harness([
+      running({
+        containerId: "keep-me",
+        containerCandidates: [
+          { id: "keep-me", state: "running" },
+          { id: "other", state: "exited" },
+        ],
+      }),
+    ]);
+
+    const result = await reconcileSelection(services, ctx, {
+      workspaceKey: entry.workspacePath,
+      candidateId: "keep-me",
+    });
+
+    expect(result.candidate?.id).toBe("keep-me");
+  });
+
+  it("still fails closed when a stale id cannot disambiguate two running containers", async () => {
+    const { services, ctx } = harness([
+      running({
+        ambiguous: true,
+        containerCandidates: [
+          { id: "aa11", state: "running" },
+          { id: "aa12", state: "running" },
+        ],
+      }),
+    ]);
+
+    const result = await reconcileSelection(services, ctx, {
+      workspaceKey: entry.workspacePath,
+      candidateId: "stale-container-id",
+    });
+
+    expect(result.status).toBe("selected-ambiguous");
   });
 });

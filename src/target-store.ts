@@ -93,6 +93,21 @@ export class TargetStore {
     });
   }
 
+  /**
+   * Commit `target` only if nothing is selected, reporting whether it committed.
+   *
+   * The emptiness check and the write are one queued operation, so an explicit
+   * `/devcontainer use` that lands between a caller's snapshot read and this call wins instead of
+   * being overwritten by a later-enqueued auto-selection (review finding L3-05).
+   */
+  public selectIfNone(target: TargetSelection): Promise<boolean> {
+    return this.enqueue(() => {
+      if (this.selection.status !== "none") return false;
+      this.selection = target;
+      return true;
+    });
+  }
+
   public clear(): Promise<void> {
     return this.enqueue(() => {
       this.selection = { status: "none" };

@@ -206,7 +206,10 @@ function composeRuntime(
     if (match === undefined) return;
     // Ambiguous (2+ running containers) must never be auto-picked by Docker
     // order — selectionFor returns selected-ambiguous when no id is supplied.
-    await targetStore.select(selectionFor(match, match.ambiguous === true ? undefined : match.containerId));
+    //
+    // `selectIfNone` commits only if the store is still empty at commit time: an explicit
+    // `/devcontainer use` that landed while this hook was discovering must win (L3-05).
+    await targetStore.selectIfNone(selectionFor(match, match.ambiguous === true ? undefined : match.containerId));
   };
 
   /**
