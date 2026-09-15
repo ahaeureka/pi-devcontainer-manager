@@ -64,3 +64,9 @@
 - Imported: raw/docs/kata-task-conventions.md
 - Updated: concepts/kata-task-conventions.md
 - Governed record: llmwiki-kata-task-conventions
+
+## [2026-09-15] ingest | arch-review-p3-selection-integrity.md
+
+- Imported: raw/docs/arch-review-p3-selection-integrity.md
+- Updated: concepts/arch-review-p3-selection-integrity.md
+- Governed record: llmwiki-arch-review-p3-selection-integrity
