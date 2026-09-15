@@ -1,7 +1,9 @@
 {
   "taskId": "arch-review-p1-foundation",
-  "decision": "deferred",
-  "reason": "Awaiting a knowledge-closure decision.",
-  "candidateIds": [],
-  "updatedAt": "2026-09-15T05:17:09.318Z"
+  "decision": "captured",
+  "reason": "Phase 1 build notes captured as llmwiki-arch-review-p1-foundation: the implementer handoff's role-default allowedWrites conflicts with the task's owned paths (resolved at seal time with --owned-path docs/openspec), and sealing requires a fresh receipt for the current head.",
+  "candidateIds": [
+    "llmwiki-arch-review-p1-foundation"
+  ],
+  "updatedAt": "2026-09-15T05:18:24.277Z"
 }

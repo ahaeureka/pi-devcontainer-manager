@@ -9,6 +9,8 @@
 
 - [[concepts/activation-and-config-mechanism.md]] — Activation, config alignment, and dormancy — distilled task knowledge
 
+- [[concepts/arch-review-p1-foundation.md]] — Kata role defaults vs task ownership (Phase 1 build notes)
+
 ## Comparisons
 
 ## Queries

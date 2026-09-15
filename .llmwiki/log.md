@@ -22,3 +22,9 @@
 ## [2026-09-15] query | activation dormancy merge precedence
 
 - Citations: concepts/activation-and-config-mechanism.md
+
+## [2026-09-15] ingest | arch-review-p1-foundation.md
+
+- Imported: raw/docs/arch-review-p1-foundation.md
+- Updated: concepts/arch-review-p1-foundation.md
+- Governed record: llmwiki-arch-review-p1-foundation
