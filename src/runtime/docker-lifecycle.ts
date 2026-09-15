@@ -12,7 +12,13 @@
  * exist here. The locked {@link DockerAdapter} deliberately has no mutation
  * surface; this module is the sole owner of stop/remove/logs.
  */
-import type { ProcessRunner } from "./process-runner.js";
+import {
+  DEFAULT_MAX_OUTPUT_BYTES,
+  LOGS_MAX_OUTPUT_BYTES,
+  runBounded,
+  type ProcessRunner,
+} from "./process-runner.js";
+import { dockerSpawnErrorSpec } from "./spawn-error.js";
 import { RuntimeError } from "../errors.js";
 import type { DockerContainer } from "./docker-adapter.js";
 
@@ -82,24 +88,20 @@ export class NodeDockerLifecycleAdapter implements DockerLifecycleAdapter {
     }
     const tail = options.tail ?? 200;
     const chunks: Buffer[] = [];
-    try {
-      const result = await this.runner.exec(this.options.dockerPath, ["logs", "--tail", String(tail), id], {
-        cwd: this.options.cwd,
-        env: { ...this.options.env },
-        maxOutputBytes: this.options.maxOutputBytes ?? 256 * 1024,
-        timeoutMs: 30_000,
-        ...(options.signal !== undefined ? { signal: options.signal } : {}),
-        onData: (chunk) => chunks.push(chunk),
-      });
-      return {
-        exitCode: result.exitCode,
-        output: Buffer.concat(chunks).toString("utf8"),
-        truncated: result.truncated,
-      };
-    } catch (error) {
-      this.rethrowMapped(error);
-    }
-    throw new RuntimeError({ kind: "unexpected", message: "unreachable logs path" });
+    const result = await runBounded(this.runner, this.options.dockerPath, ["logs", "--tail", String(tail), id], {
+      cwd: this.options.cwd,
+      env: this.options.env,
+      maxOutputBytes: this.options.maxOutputBytes ?? LOGS_MAX_OUTPUT_BYTES,
+      timeoutMs: 30_000,
+      ...(options.signal !== undefined ? { signal: options.signal } : {}),
+      onData: (chunk) => chunks.push(chunk),
+      spawnError: dockerSpawnErrorSpec(this.options.dockerPath),
+    });
+    return {
+      exitCode: result.exitCode,
+      output: Buffer.concat(chunks).toString("utf8"),
+      truncated: result.truncated,
+    };
   }
 
   public async stop(
@@ -131,26 +133,22 @@ export class NodeDockerLifecycleAdapter implements DockerLifecycleAdapter {
         instruction: `Type "confirm ${action} ${container.id.slice(0, 12)}" to proceed.`,
       };
     }
-    try {
-      const result = await this.runner.exec(this.options.dockerPath, [...argv], {
-        cwd: this.options.cwd,
-        env: { ...this.options.env },
-        maxOutputBytes: this.options.maxOutputBytes ?? 64 * 1024,
-        timeoutMs: 60_000,
+    const result = await runBounded(this.runner, this.options.dockerPath, [...argv], {
+      cwd: this.options.cwd,
+      env: this.options.env,
+      maxOutputBytes: this.options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
+      timeoutMs: 60_000,
+      spawnError: dockerSpawnErrorSpec(this.options.dockerPath),
+    });
+    if (result.exitCode !== 0) {
+      throw new RuntimeError({
+        kind: "docker-cli-failure",
+        message: `docker ${action} failed with exit ${result.exitCode}.`,
+        exitCode: result.exitCode,
+        remedy: "Check Docker daemon reachability and the container state.",
       });
-      if (result.exitCode !== 0) {
-        throw new RuntimeError({
-          kind: "devcontainer-cli-failure",
-          message: `docker ${action} failed with exit ${result.exitCode}.`,
-          exitCode: result.exitCode,
-          remedy: "Check Docker daemon reachability and the container state.",
-        });
-      }
-      return { status: "done", action, containerId: container.id };
-    } catch (error) {
-      this.rethrowMapped(error);
     }
-    throw new RuntimeError({ kind: "unexpected", message: "unreachable destructive path" });
+    return { status: "done", action, containerId: container.id };
   }
 
   /**
@@ -169,25 +167,5 @@ export class NodeDockerLifecycleAdapter implements DockerLifecycleAdapter {
       confirmation.containerId === containerId &&
       confirmation.token.length >= 1
     );
-  }
-
-  private rethrowMapped(error: unknown): never {
-    if (error instanceof RuntimeError && error.kind === "executable-missing") {
-      throw new RuntimeError({
-        kind: "daemon-unavailable",
-        message: `Docker executable '${this.options.dockerPath}' is unavailable.`,
-        cause: error,
-        remedy: "Install Docker or set dockerPath in configuration.",
-      });
-    }
-    if (error instanceof RuntimeError && error.kind === "spawn-permission-denied") {
-      throw new RuntimeError({
-        kind: "authorization-denied",
-        message: `Docker spawn was denied for '${this.options.dockerPath}'.`,
-        cause: error,
-        remedy: "Check operator privileges for the Docker executable.",
-      });
-    }
-    throw error;
   }
 }

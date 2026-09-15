@@ -60,7 +60,7 @@ export class TargetStore {
         }
         if (selection.status === "refreshing") {
             throw new RuntimeError({
-                kind: "target-stopped",
+                kind: "target-refreshing",
                 message: "Target state is refreshing; retry the operation.",
                 remedy: "Retry after the refresh completes.",
             });

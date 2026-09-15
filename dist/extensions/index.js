@@ -810,31 +810,6 @@ function registerNamedTool(pi, getTool, fallbackName, params) {
     };
     pi.registerTool(definition);
 }
-/** Register a tool whose execute resolves the current runtime at call time.
- * The TypeBox `parameters` schema is fixed at registration (Pi validates
- * tool-call args against it), while `execute` defers to the current
- * runtime so session composition stays lazy.
- */
-function resolveTool(getTool, name, label, description, params) {
-    const definition = {
-        name,
-        label,
-        description,
-        parameters: params,
-        execute: async (toolCallId, toolParams, signal, onUpdate, ctx) => {
-            const tool = getTool();
-            if (tool === undefined) {
-                throw new RuntimeError({
-                    kind: "unexpected",
-                    message: `DevContainer runtime is not initialized for ${name}.`,
-                    remedy: "Run /reload or restart pi.",
-                });
-            }
-            return tool.execute(toolCallId, toolParams, signal, onUpdate, ctx);
-        },
-    };
-    return definition;
-}
 /**
  * Lazy BashOperations wrapper resolving the current runtime at exec time.
  *

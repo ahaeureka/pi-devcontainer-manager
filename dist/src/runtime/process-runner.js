@@ -1,6 +1,17 @@
 import { spawn } from "node:child_process";
 import { RuntimeError } from "../errors.js";
-const DEFAULT_MAX_OUTPUT_BYTES = 50 * 1024;
+import { mapSpawnError } from "./spawn-error.js";
+/**
+ * Fallback byte cap for one captured stream when the caller supplies none.
+ *
+ * Production always supplies `config.maxOutputBytes` (the adapters are wired
+ * with it in `extensions/index.ts`), so this is the single documented fallback
+ * rather than a layered policy — the adapters used to carry five literals of
+ * three different sizes (50, 64 and 256 KiB) that disagreed with each other.
+ */
+export const DEFAULT_MAX_OUTPUT_BYTES = 50 * 1024;
+/** `docker logs` is expected to return far more context than a lifecycle command. */
+export const LOGS_MAX_OUTPUT_BYTES = 256 * 1024;
 /**
  * Kill the child AND its descendant processes.
  *
@@ -167,5 +178,30 @@ function toSpawnError(file, error) {
         message: `Failed to spawn: ${file}`,
         cause: error,
     });
+}
+/**
+ * Run one bounded child process on behalf of a runtime adapter.
+ *
+ * Each adapter used to assemble this option block on its own and translate
+ * spawn failures with a private copy of the same two-case branch, which is why
+ * every call site also needed a compile-time-only `unreachable` throw after its
+ * `catch`. Here the option block has one owner and a spawn failure is mapped
+ * before it leaves the call, so the adapters carry neither.
+ */
+export async function runBounded(runner, file, args, options) {
+    try {
+        return await runner.exec(file, [...args], {
+            cwd: options.cwd,
+            env: { ...options.env },
+            maxOutputBytes: options.maxOutputBytes,
+            timeoutMs: options.timeoutMs,
+            ...(options.signal !== undefined ? { signal: options.signal } : {}),
+            ...(options.onData !== undefined ? { onData: options.onData } : {}),
+            ...(options.onStderr !== undefined ? { onStderr: options.onStderr } : {}),
+        });
+    }
+    catch (error) {
+        throw mapSpawnError(error, options.spawnError);
+    }
 }
 //# sourceMappingURL=process-runner.js.map

@@ -85,6 +85,18 @@ describe("TargetStore.bind", () => {
   });
 
 
+  it("throws target-refreshing for the transient refresh state", async () => {
+    const s = store();
+    await s.select({ status: "selected-valid", candidate: candidate(), workspaceKey: "/w/one" });
+    await s.beginRefresh();
+    try {
+      s.bind();
+      expect.unreachable();
+    } catch (error) {
+      expect(errorKindOf(error)).toBe("target-refreshing");
+    }
+  });
+
   it("throws no-candidate for none", () => {
     const s = store();
     try {

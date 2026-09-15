@@ -12,7 +12,7 @@
  * exist here. The locked {@link DockerAdapter} deliberately has no mutation
  * surface; this module is the sole owner of stop/remove/logs.
  */
-import type { ProcessRunner } from "./process-runner.js";
+import { type ProcessRunner } from "./process-runner.js";
 import type { DockerContainer } from "./docker-adapter.js";
 export type LifecycleAction = "stop" | "remove";
 export interface LifecycleConfirmation {
@@ -76,6 +76,5 @@ export declare class NodeDockerLifecycleAdapter implements DockerLifecycleAdapte
      * service generates it interactively and never reuses it).
      */
     private isFreshConfirmation;
-    private rethrowMapped;
 }
 //# sourceMappingURL=docker-lifecycle.d.ts.map

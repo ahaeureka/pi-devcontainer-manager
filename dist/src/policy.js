@@ -1,6 +1,7 @@
 import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import { createHash } from "node:crypto";
+import { RuntimeError } from "./errors.js";
 const SECRET_NAME = /(?:^|_)(?:api[_-]?key|token|secret|password|credential|auth|bearer)(?:$|_)/i;
 const PI_NAME = /^PI_/i;
 export function evaluatePolicy(config, input, now = () => new Date()) {
@@ -71,7 +72,11 @@ export function buildChildEnvironment(requested, allowlist, baseline = {}) {
     }
     for (const [name, value] of Object.entries(requested ?? {})) {
         if (!isEnvironmentAllowed(name, allowlist)) {
-            throw new Error(`Environment variable is not allowed: ${name}`);
+            throw new RuntimeError({
+                kind: "policy-denied",
+                message: `Environment variable is not allowed: ${name}`,
+                remedy: "Add the variable name to environmentAllowlist or drop it from the request.",
+            });
         }
         result[name] = value;
     }
@@ -95,7 +100,14 @@ const SECRET_KEY = "(?:api[_-]?key|access[_-]?key|private[_-]?key|token|secret|p
 export function redactText(text) {
     let out = text;
     // 1. Auth schemes: "Bearer <token>" / "Basic <b64>" / "Token <t>".
-    out = out.replace(/\b(Bearer|Basic|Token)\s+[A-Za-z0-9\-._~+/=]+/gi, "$1 [REDACTED]");
+    out = out.replace(/\b(Bearer|Basic|Token)(\s+)("[^"]*"|'[^']*'|\S+)/gi, (_match, scheme, space, value) => {
+        // Consume the WHOLE value, not just the prefix that happens to match a
+        // character class: a value containing `,` `;` `:` or non-ASCII characters
+        // used to be redacted only up to that character, leaving the credential's
+        // tail in the audit file.
+        const quote = value.startsWith('"') || value.startsWith("'") ? value[0] : "";
+        return `${scheme}${space}${quote}[REDACTED]${quote}`;
+    });
     // 2. key: value / key=value (quoted or bare token).
     out = out.replace(new RegExp(`(${SECRET_KEY})(\\s*[=:]\\s*)("[^"]*"|'[^']*'|[^\\s"']+)`, "gi"), "$1$2[REDACTED]");
     // 3. --secret-flag value / --secret-flag=value.

@@ -1,4 +1,5 @@
-import type { ProcessRunner, ProcessResult } from "./process-runner.js";
+import { DEFAULT_MAX_OUTPUT_BYTES, runBounded, type ProcessRunner, type ProcessResult } from "./process-runner.js";
+import { dockerSpawnErrorSpec } from "./spawn-error.js";
 import { RuntimeError } from "../errors.js";
 import { canonicalWorkspaceKey } from "../workspace-path.js";
 
@@ -114,35 +115,16 @@ export class NodeDockerAdapter implements DockerAdapter {
     signal?: AbortSignal,
   ): Promise<{ result: ProcessResult; stdout: Buffer }> {
     const chunks: Buffer[] = [];
-    try {
-      const result = await this.runner.exec(this.options.dockerPath, [...args], {
-        cwd: this.options.cwd,
-        env: { ...this.options.env },
-        maxOutputBytes: this.options.maxOutputBytes ?? 64 * 1024,
-        timeoutMs: 30_000,
-        ...(signal !== undefined ? { signal } : {}),
-        onData: (chunk) => chunks.push(chunk),
-      });
-      return { result, stdout: Buffer.concat(chunks) };
-    } catch (error) {
-      if (error instanceof RuntimeError && error.kind === "executable-missing") {
-        throw new RuntimeError({
-          kind: "daemon-unavailable",
-          message: `Docker executable '${this.options.dockerPath}' is unavailable.`,
-          cause: error,
-          remedy: "Install Docker or set dockerPath in configuration.",
-        });
-      }
-      if (error instanceof RuntimeError && error.kind === "spawn-permission-denied") {
-        throw new RuntimeError({
-          kind: "authorization-denied",
-          message: `Docker spawn was denied for '${this.options.dockerPath}'.`,
-          cause: error,
-          remedy: "Check operator privileges for the Docker executable.",
-        });
-      }
-      throw error;
-    }
+    const result = await runBounded(this.runner, this.options.dockerPath, args, {
+      cwd: this.options.cwd,
+      env: this.options.env,
+      maxOutputBytes: this.options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
+      timeoutMs: 30_000,
+      ...(signal !== undefined ? { signal } : {}),
+      onData: (chunk) => chunks.push(chunk),
+      spawnError: dockerSpawnErrorSpec(this.options.dockerPath),
+    });
+    return { result, stdout: Buffer.concat(chunks) };
   }
 
   private parsePsAll(result: ProcessResult, stdout: Buffer, source: string): DockerDiscoveryResult {

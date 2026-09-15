@@ -10,10 +10,10 @@ output and tool output both use the shape:
 <remedy, when the error carries one>
 ```
 
-`kind` is one of thirteen values from `src/errors.ts`:
+`kind` is one of fifteen values from `src/errors.ts`:
 `executable-missing`, `spawn-permission-denied`, `daemon-unavailable`,
-`authorization-denied`, `devcontainer-cli-failure`, `no-candidate`,
-`ambiguous-candidate`, `target-stopped`, `policy-denied`, `timeout`,
+`authorization-denied`, `devcontainer-cli-failure`, `docker-cli-failure`, `no-candidate`,
+`ambiguous-candidate`, `target-stopped`, `target-refreshing`, `policy-denied`, `timeout`,
 `cancelled`, `parse-failure`, `unexpected`.
 
 ## Error kinds
@@ -23,11 +23,13 @@ output and tool output both use the shape:
 | `no-candidate` | No registry entry matched the requested workspace, or the workspace itself is not a valid target. | `/devcontainer list`, then `/devcontainer use <path>`. |
 | `ambiguous-candidate` | Two or more **running** containers map to the same workspace. Docker result order is never used to guess. | `/devcontainer use <container-id>` with one of the ids in the message. |
 | `target-stopped` | A target is selected but its container is not running. | `/devcontainer up` (re-resolves the selection for you). |
+| `target-refreshing` | A selection is mid-refresh (a registry re-check has not finished yet). | Retry the operation; the state resolves on its own. |
 | `policy-denied` | A policy gate refused the operation. The message names the reason (`workspace-not-allowed`, `destructive-operation-disabled`, `host-execution-disabled`, `environment-variable-denied`, or a container-only path on a host command). | Fix the specific grant named in the message, or use the surface the policy expects. |
 | `daemon-unavailable` | The Docker executable is missing or the daemon is unreachable. | Start Docker / Docker Desktop; confirm `docker ps` works in a host shell. |
 | `authorization-denied` | The OS refused the Docker or Dev Containers CLI spawn (permissions). | Check the account's permission to run `docker` (for example `docker` group membership on Linux). |
 | `executable-missing` | A configured executable could not be resolved. | Check `dockerPath` / `devcontainerPath`, or install the CLI. |
 | `devcontainer-cli-failure` | The CLI could not be run, or returned a structured failure for `up`/`build`/`exec`. | Re-run the operation; read the CLI output included in the error. |
+| `docker-cli-failure` | The Docker CLI returned a nonzero exit for `stop`/`remove`; the exit code is carried on the error. | Check Docker daemon reachability and the container state. |
 | `timeout` | The operation exceeded its timeout (`maxTimeoutSeconds` ceiling). | Raise `maxTimeoutSeconds`, or narrow the command. |
 | `cancelled` | The operation was cancelled; the whole process group was killed. | Nothing to fix. |
 | `parse-failure` | A CLI/Docker response could not be parsed. | Usually a CLI version mismatch — check the pinned `@devcontainers/cli@0.88.0`. |

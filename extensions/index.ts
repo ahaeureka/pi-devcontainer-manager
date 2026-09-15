@@ -931,37 +931,6 @@ function registerNamedTool<TParams extends import("typebox").TSchema>(
   };
   pi.registerTool(definition as never);
 }
-/** Register a tool whose execute resolves the current runtime at call time.
- * The TypeBox `parameters` schema is fixed at registration (Pi validates
- * tool-call args against it), while `execute` defers to the current
- * runtime so session composition stays lazy.
- */
-function resolveTool<TParams extends import("typebox").TSchema>(
-  getTool: () => ToolDefinitionLike<unknown> | undefined,
-  name: string,
-  label: string,
-  description: string,
-  params: TParams,
-): ToolDefinitionLike<TParams> {
-  const definition: ToolDefinitionLike<TParams> = {
-    name,
-    label,
-    description,
-    parameters: params,
-    execute: async (toolCallId: string, toolParams: TParams, signal: AbortSignal | undefined, onUpdate: ((partial: import("../src/tools.js").ToolResultLike) => void) | undefined, ctx: { cwd: string }) => {
-      const tool = getTool();
-      if (tool === undefined) {
-        throw new RuntimeError({
-          kind: "unexpected",
-          message: `DevContainer runtime is not initialized for ${name}.`,
-          remedy: "Run /reload or restart pi.",
-        });
-      }
-      return tool.execute(toolCallId, toolParams as never, signal, onUpdate, ctx);
-    },
-  };
-  return definition;
-}
 
 /**
  * Lazy BashOperations wrapper resolving the current runtime at exec time.

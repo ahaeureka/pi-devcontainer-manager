@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import type { ChildProcessByStdio } from "node:child_process";
 import { RuntimeError } from "../errors.js";
+import { mapSpawnError, type SpawnErrorSpec } from "./spawn-error.js";
 
 export interface ProcessResult {
   readonly exitCode: number | null;
@@ -24,7 +25,34 @@ export interface ProcessRunner {
   exec(file: string, args: readonly string[], options: ProcessRunnerOptions): Promise<ProcessResult>;
 }
 
-const DEFAULT_MAX_OUTPUT_BYTES = 50 * 1024;
+/**
+ * Options for one bounded adapter invocation: the runner's own options minus
+ * the ones this helper owns, plus the tool-specific spawn-error mapping.
+ */
+export interface BoundedRunOptions {
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string>>;
+  readonly maxOutputBytes: number;
+  readonly timeoutMs: number;
+  readonly signal?: AbortSignal;
+  readonly onData?: (chunk: Buffer) => void;
+  readonly onStderr?: (chunk: Buffer) => void;
+  /** How a failure to start this executable is reported to the operator. */
+  readonly spawnError: SpawnErrorSpec;
+}
+
+/**
+ * Fallback byte cap for one captured stream when the caller supplies none.
+ *
+ * Production always supplies `config.maxOutputBytes` (the adapters are wired
+ * with it in `extensions/index.ts`), so this is the single documented fallback
+ * rather than a layered policy — the adapters used to carry five literals of
+ * three different sizes (50, 64 and 256 KiB) that disagreed with each other.
+ */
+export const DEFAULT_MAX_OUTPUT_BYTES = 50 * 1024;
+
+/** `docker logs` is expected to return far more context than a lifecycle command. */
+export const LOGS_MAX_OUTPUT_BYTES = 256 * 1024;
 
 export type SpawnedChild = ChildProcessByStdio<null, import("node:stream").Readable, import("node:stream").Readable>;
 
@@ -204,4 +232,34 @@ function toSpawnError(file: string, error: unknown): RuntimeError {
     message: `Failed to spawn: ${file}`,
     cause: error,
   });
+}
+
+/**
+ * Run one bounded child process on behalf of a runtime adapter.
+ *
+ * Each adapter used to assemble this option block on its own and translate
+ * spawn failures with a private copy of the same two-case branch, which is why
+ * every call site also needed a compile-time-only `unreachable` throw after its
+ * `catch`. Here the option block has one owner and a spawn failure is mapped
+ * before it leaves the call, so the adapters carry neither.
+ */
+export async function runBounded(
+  runner: ProcessRunner,
+  file: string,
+  args: readonly string[],
+  options: BoundedRunOptions,
+): Promise<ProcessResult> {
+  try {
+    return await runner.exec(file, [...args], {
+      cwd: options.cwd,
+      env: { ...options.env },
+      maxOutputBytes: options.maxOutputBytes,
+      timeoutMs: options.timeoutMs,
+      ...(options.signal !== undefined ? { signal: options.signal } : {}),
+      ...(options.onData !== undefined ? { onData: options.onData } : {}),
+      ...(options.onStderr !== undefined ? { onStderr: options.onStderr } : {}),
+    });
+  } catch (error) {
+    throw mapSpawnError(error, options.spawnError);
+  }
 }

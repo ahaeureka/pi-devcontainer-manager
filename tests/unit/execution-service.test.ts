@@ -202,6 +202,31 @@ describe("ExecutionService.exec", () => {
     expect(record.policyDenialReason).toBe("destructive-operation-disabled");
   });
 
+  it("pins the exact field set of a refusal record (characterization)", async () => {
+    const { adapter } = fakeDockerLifecycle();
+    const { service, audit } = makeService({ dockerLifecycle: adapter });
+    await expect(
+      service.lifecycle({ operation: "stop", initiator: "tool", workspace: "/ws/project-a", container, confirmation: undefined }),
+    ).rejects.toMatchObject({ kind: "policy-denied" });
+
+    const record = (audit.write as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0] as AuditRecord;
+
+    // A refusal is written by the same builder as every other record, so its
+    // field set must not drift: exactly these keys, no command identity (a
+    // refusal carries no argv), no duration or exit accounting.
+    expect(record).toEqual({
+      version: 1,
+      at: expect.any(String),
+      operation: "stop",
+      initiator: "tool",
+      workspace: "/ws/project-a",
+      policyAuthorized: false,
+      policyDenialReason: "destructive-operation-disabled",
+      outputTruncated: false,
+      commandCapture: "fingerprint-only",
+    });
+  });
+
   it("executes from a cwd outside the target and records which cwd asked (AC-8)", async () => {
     const { adapter, calls } = fakeDevcontainer([execOk]);
     const { service, audit } = makeService({ devcontainer: adapter });

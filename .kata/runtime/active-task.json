@@ -1,9 +1,9 @@
 {
   "taskId": "arch-review-p1-foundation",
   "role": "designer",
-  "phase": "intake",
+  "phase": "plan",
   "platform": "pi",
   "branch": "feature/arch-review-p1-foundation",
-  "origin": "handoff",
-  "activatedAt": "2026-09-15T04:40:21.606Z"
+  "origin": "manual",
+  "activatedAt": "2026-09-15T05:07:01.303Z"
 }
