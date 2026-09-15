@@ -11,6 +11,8 @@ export function decideActivation(input) {
         return { active: false, reason: "config-never" };
     if (input.activation === "always")
         return { active: true, reason: "config-always" };
+    if (input.optedOut === true)
+        return { active: false, reason: "opted-out" };
     if (input.workspaceHasConfig)
         return { active: true, reason: "workspace-config" };
     if (input.workspaceHasRunningContainer)

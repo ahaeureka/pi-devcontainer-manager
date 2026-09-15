@@ -153,6 +153,7 @@ bash "pytest -q"
 | `/devcontainer logs [--tail N]` | 有界 `docker logs`（默认 100 行）；受策略校验并被审计 |
 | `/devcontainer host-exec <argv...>` | 被审计的宿主机逃生口（需要 `hostExecution.allow`） |
 | `/devcontainer setup` | 全局安装/升级 Dev Containers CLI（需确认、被审计） |
+| `/devcontainer off` | 清除目标并把本会话交还宿主机（休眠）；**该 opt-out 会被持久化**，因此 `/reload` 不会恢复目标，直到你重新选择 |
 
 ### 工具
 

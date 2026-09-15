@@ -4,7 +4,7 @@ import {
   expandLocalWorkspaceFolder,
   hostToContainer,
   parseWorkspaceMount,
-  readMappingFromText,
+  readConfigFacts,
 } from "../../src/path-mapper.js";
 
 describe("parseWorkspaceMount", () => {
@@ -62,7 +62,7 @@ describe("hostToContainer", () => {
 
 describe("readMappingFromText", () => {
   it("derives the mapping from a commented config with trailing commas", () => {
-    const read = readMappingFromText(
+    const read = readConfigFacts(
       "/ws/proj",
       `{
   // the workspace mount decides what the agent sees
@@ -71,13 +71,13 @@ describe("readMappingFromText", () => {
 }`,
     );
 
-    expect(read).toEqual({ kind: "mapped", mapping: { hostPath: "/ws/proj", containerPath: "/app" } });
+    expect(read).toEqual({ kind: "ok", facts: { mapping: { hostPath: "/ws/proj", containerPath: "/app" } } });
   });
 
   it("still derives the mapping when a string value contains a comment marker", () => {
     // The L0-02 regression: the old regex preprocessor treated this `//` as a comment, truncated
     // the document, and made the mapping disappear — which silently disabled the host guard.
-    const read = readMappingFromText(
+    const read = readConfigFacts(
       "/ws/proj",
       `{
   "remoteEnv": { "REGISTRY": "https://registry.example.com//v2" },
@@ -86,17 +86,59 @@ describe("readMappingFromText", () => {
 }`,
     );
 
-    expect(read).toEqual({ kind: "mapped", mapping: { hostPath: "/ws/proj", containerPath: "/workspace" } });
+    expect(read).toEqual({ kind: "ok", facts: { mapping: { hostPath: "/ws/proj", containerPath: "/workspace" } } });
   });
 
-  it("reports a config that parses but declares no mapping", () => {
-    expect(readMappingFromText("/ws/proj", '{"image": "ubuntu"}')).toEqual({ kind: "none" });
+  it("reports a config that parses but declares no mapping or mounts", () => {
+    expect(readConfigFacts("/ws/proj", '{"image": "ubuntu"}')).toEqual({ kind: "ok", facts: {} });
   });
 
   it("reports an unparsable config instead of passing it off as 'no mapping'", () => {
-    const read = readMappingFromText("/ws/proj", '{ "workspaceFolder": }');
+    const read = readConfigFacts("/ws/proj", '{ "workspaceFolder": }');
 
     expect(read.kind).toBe("unparsable");
     if (read.kind === "unparsable") expect(read.detail.length).toBeGreaterThan(0);
+  });
+});
+
+describe("container-only mounts (L1-05)", () => {
+  it("lists the container targets the host cannot see, excluding the workspace mount", () => {
+    const read = readConfigFacts(
+      "/ws/proj",
+      `{
+  "workspaceMount": "source=\${localWorkspaceFolder},target=/app,type=bind",
+  "mounts": [
+    "source=proj-cache,target=/cache,type=volume",
+    "source=\${localWorkspaceFolder}/data,target=/app/data,type=bind",
+    "source=proj-secrets,target=/run/secrets,type=volume",
+    "source=proj-cache,target=/cache,type=volume"
+  ]
+}`,
+    );
+
+    expect(read.kind).toBe("ok");
+    if (read.kind !== "ok") return;
+    // `/app/data` lives under the workspace mount, so the host sees it through the bind mount;
+    // `/cache` is duplicated in the file and must appear once.
+    expect(read.facts.containerOnlyMounts).toEqual(["/cache", "/run/secrets"]);
+  });
+
+  it("omits the mount facts entirely when the config declares none", () => {
+    const read = readConfigFacts("/ws/proj", '{"workspaceFolder": "/workspace"}');
+
+    expect(read.kind).toBe("ok");
+    if (read.kind !== "ok") return;
+    expect(read.facts.containerOnlyMounts).toBeUndefined();
+  });
+
+  it("skips malformed mount entries instead of failing the whole read", () => {
+    const read = readConfigFacts(
+      "/ws/proj",
+      '{"mounts": ["not-a-mount-spec", "source=x,target=relative/path,type=volume", "source=y,target=/ok,type=volume"]}',
+    );
+
+    expect(read.kind).toBe("ok");
+    if (read.kind !== "ok") return;
+    expect(read.facts.containerOnlyMounts).toEqual(["/ok"]);
   });
 });

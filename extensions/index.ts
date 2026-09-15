@@ -49,7 +49,13 @@ import { NodeDockerAdapter } from "../src/runtime/docker-adapter.js";
 import { NodeDevcontainerAdapter } from "../src/runtime/devcontainer-adapter.js";
 import { NodeDockerLifecycleAdapter } from "../src/runtime/docker-lifecycle.js";
 import { buildWorkspaceRegistry, nodeTraversal, workspaceHasConfig, workspacePathFor } from "../src/runtime/host-discovery.js";
-import { findContainerPath, hostToContainer, readMappingFromText, type PathMapping } from "../src/path-mapper.js";
+import {
+  findContainerPath,
+  hostToContainer,
+  readConfigFacts,
+  type ConfigFacts,
+  type PathMapping,
+} from "../src/path-mapper.js";
 import { TargetStore } from "../src/target-store.js";
 import { ExecutionService } from "../src/execution-service.js";
 import { createRoutedBashOperations, type BashOperationsLike } from "../src/bash-router.js";
@@ -244,7 +250,7 @@ function composeRuntime(
     const key = canonicalWorkspaceKey(hostWorkspace);
     const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
     if (entry === undefined || entry.configPath.length === 0) return undefined;
-    const mapping = readWorkspaceMapping(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig);
+    const mapping = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig).mapping;
     if (mapping === undefined) return undefined;
     return hostToContainer(entry.workspacePath, mapping) ?? undefined;
   };
@@ -313,7 +319,7 @@ function composeRuntime(
         const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
         const guardMapping =
           entry !== undefined && entry.configPath.length > 0
-            ? readWorkspaceMapping(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig)
+            ? readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig).mapping
             : undefined;
         const violation = guardMapping !== undefined ? findContainerPath(argv, guardMapping.containerPath) : undefined;
         if (violation !== undefined) {
@@ -440,18 +446,24 @@ function composeRuntime(
     const snapshot = targetStore.snapshot();
     if (snapshot.workspaceKey === undefined && snapshot.candidateId === undefined) return undefined;
     let mapping: PathMapping | undefined;
+    let containerOnly: readonly string[] | undefined;
     if (snapshot.workspaceKey !== undefined) {
       const { entries } = await registry();
       const key = canonicalWorkspaceKey(snapshot.workspaceKey);
       const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
       if (entry !== undefined && entry.configPath.length > 0) {
-        mapping = readWorkspaceMapping(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig);
+        const facts = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig);
+        mapping = facts.mapping;
+        containerOnly = facts.containerOnlyMounts;
       }
     }
     return renderExecutionContext({
       ...(snapshot.candidateId !== undefined ? { candidateId: snapshot.candidateId } : {}),
       status: snapshot.status,
       ...(mapping !== undefined ? { mapping } : {}),
+      // The prompt must not advertise container-only mounts the runtime did not actually read
+      // (review finding L1-05).
+      ...(containerOnly !== undefined ? { containerOnlyMounts: containerOnly } : {}),
     });
   };
 
@@ -492,32 +504,28 @@ function renderSelectionSummary(
  * service's capture policy (none / fingerprint-only / redacted-text).
  */
 /**
- * Read a workspace's devcontainer.json and derive a host<->container path
- * mapping (workspaceMount preferred, workspaceFolder fallback).
+ * Read a workspace's devcontainer.json once and derive everything the agent view needs: the
+ * host<->container mapping (workspaceMount preferred, workspaceFolder fallback) and the
+ * container-only mounts the host cannot see.
  *
- * Returns undefined when the config is absent/unreadable, cannot be parsed, or declares no
- * mapping — and `onProblem` (when given) receives a line explaining the *unparsable* case, because
+ * Returns empty facts when the config is absent/unreadable, cannot be parsed, or declares none of
+ * them — and `onProblem` (when given) receives a line explaining the *unparsable* case, because
  * that is the one where the mapping silently disappears and with it the host container-path guard
  * that depends on it (review finding L0-02).
  */
-function readWorkspaceMapping(
-  configPath: string,
-  onProblem?: (message: string) => void,
-): PathMapping | undefined {
+function readWorkspaceConfig(configPath: string, onProblem?: (message: string) => void): ConfigFacts {
   let raw: string;
   try {
     raw = readFileSync(configPath, "utf8");
   } catch {
-    return undefined;
+    return {};
   }
-  const read = readMappingFromText(workspacePathFor(configPath), raw);
-  if (read.kind === "mapped") return read.mapping;
-  if (read.kind === "unparsable") {
-    onProblem?.(
-      `${configPath} could not be parsed as JSONC (${read.detail}); the host<->container mapping and the container-path guard are inactive for this workspace.`,
-    );
-  }
-  return undefined;
+  const read = readConfigFacts(workspacePathFor(configPath), raw);
+  if (read.kind === "ok") return read.facts;
+  onProblem?.(
+    `${configPath} could not be parsed as JSONC (${read.detail}); the host<->container mapping and the container-path guard are inactive for this workspace.`,
+  );
+  return {};
 }
 
 /** Compose the effective config, always including the session cwd as a root. */

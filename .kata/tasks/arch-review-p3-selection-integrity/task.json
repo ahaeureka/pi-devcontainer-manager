@@ -114,5 +114,241 @@
       "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#Phase-3-Selection-integrity",
       "confirmedAt": "2026-09-15T13:01:19.965Z"
     }
-  ]
+  ],
+  "acceptanceMatrix": {
+    "version": 1,
+    "rows": [
+      {
+        "acceptanceId": "AC-1",
+        "designRefs": [
+          "design.md §3.1"
+        ],
+        "implementationPaths": [
+          "src/jsonc.ts",
+          "src/path-mapper.ts",
+          "extensions/index.ts"
+        ],
+        "testPaths": [
+          "tests/unit/jsonc.test.ts",
+          "tests/unit/path-mapper.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-2",
+        "designRefs": [
+          "design.md §3.2"
+        ],
+        "implementationPaths": [
+          "src/selection-state.ts",
+          "src/commands.ts",
+          "src/activation.ts",
+          "extensions/index.ts"
+        ],
+        "testPaths": [
+          "tests/unit/selection-state.test.ts",
+          "tests/unit/commands.test.ts",
+          "tests/unit/activation.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-3",
+        "designRefs": [
+          "design.md §3.3"
+        ],
+        "implementationPaths": [
+          "src/commands.ts"
+        ],
+        "testPaths": [
+          "tests/unit/commands.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-4",
+        "designRefs": [
+          "design.md §3.2"
+        ],
+        "implementationPaths": [
+          "src/selection-state.ts",
+          "src/commands.ts",
+          "extensions/index.ts"
+        ],
+        "testPaths": [
+          "tests/unit/selection-state.test.ts",
+          "tests/unit/commands.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-5",
+        "designRefs": [
+          "design.md §3.4"
+        ],
+        "implementationPaths": [
+          "src/path-mapper.ts",
+          "extensions/index.ts"
+        ],
+        "testPaths": [
+          "tests/unit/path-mapper.test.ts",
+          "tests/unit/execution-context.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-6",
+        "designRefs": [
+          "design.md §3.5"
+        ],
+        "implementationPaths": [
+          "src/commands.ts",
+          "extensions/index.ts"
+        ],
+        "testPaths": [
+          "tests/unit/commands.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-7",
+        "designRefs": [
+          "design.md §3.6"
+        ],
+        "implementationPaths": [
+          "src/commands.ts"
+        ],
+        "testPaths": [
+          "tests/unit/commands.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-8",
+        "designRefs": [
+          "design.md §3.7"
+        ],
+        "implementationPaths": [
+          "src/target-store.ts",
+          "extensions/index.ts"
+        ],
+        "testPaths": [
+          "tests/unit/target-store.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-9",
+        "designRefs": [
+          "design.md §4"
+        ],
+        "implementationPaths": [
+          "dist",
+          "CHANGELOG.md",
+          "README.md",
+          "README.zh-CN.md"
+        ],
+        "testPaths": [
+          "tests/unit",
+          "tests/e2e"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          },
+          {
+            "kind": "integration",
+            "command": "node scripts/smoke-pi-package.mjs --no-model",
+            "testSelector": "packed extension registration"
+          }
+        ],
+        "verificationLevel": "integration"
+      }
+    ]
+  }
 }

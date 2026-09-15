@@ -129,36 +129,78 @@ function normalize(p: string): string {
   return p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p;
 }
 
-/** Outcome of deriving a mapping from a configuration's TEXT. */
-export type MappingRead =
-  | { readonly kind: "mapped"; readonly mapping: PathMapping }
-  /** The config parsed but declares no usable mapping (or is not an object). */
-  | { readonly kind: "none" }
-  /** The config could not be parsed at all — callers must surface this, not treat it as "none". */
+/** Facts a DevContainer configuration contributes to the agent's view of the environment. */
+export interface ConfigFacts {
+  /** Host <-> container workspace mapping, when the config declares a usable one. */
+  readonly mapping?: PathMapping;
+  /** Absolute container paths mounted into the container that the host cannot see. */
+  readonly containerOnlyMounts?: readonly string[];
+}
+
+/** Outcome of reading a configuration's TEXT. */
+export type ConfigRead =
+  | { readonly kind: "ok"; readonly facts: ConfigFacts }
+  /** The config could not be parsed at all — callers must surface this, not treat it as "empty". */
   | { readonly kind: "unparsable"; readonly detail: string };
 
 /**
- * Derive a host<->container mapping from a DevContainer configuration's text (JSONC).
+ * Read the facts a DevContainer configuration's text contributes (JSONC).
  *
- * Split out from the file IO so the parsing and the failure classification are testable: a config
- * that cannot be parsed is reported as `unparsable` rather than as `none`. That distinction
- * matters, because the host container-path guard only runs when a mapping exists — so a config the
- * extension cannot read silently switches that guard off, and the operator has to be told
- * (review finding L0-02).
+ * Split out from the file IO so the parsing, the mapping derivation and the failure classification
+ * are testable. A config that cannot be parsed is reported as `unparsable` rather than as an empty
+ * one: the host container-path guard only runs when a mapping exists, so a config the extension
+ * cannot read silently switches that guard off and the operator has to be told (finding L0-02).
  *
  * @param configDir host directory that contains the configuration (see `buildPathMapping`)
  */
-export function readMappingFromText(configDir: string, text: string): MappingRead {
+export function readConfigFacts(configDir: string, text: string): ConfigRead {
   let parsed: unknown;
   try {
     parsed = parseJsonc(text);
   } catch (error) {
     return { kind: "unparsable", detail: error instanceof Error ? error.message : String(error) };
   }
-  if (typeof parsed !== "object" || parsed === null) return { kind: "none" };
+  if (typeof parsed !== "object" || parsed === null) return { kind: "ok", facts: {} };
   const config = parsed as Record<string, unknown>;
   const workspaceFolder = typeof config.workspaceFolder === "string" ? config.workspaceFolder : undefined;
   const workspaceMount = typeof config.workspaceMount === "string" ? config.workspaceMount : undefined;
   const mapping = buildPathMapping(configDir, workspaceFolder, workspaceMount);
-  return mapping === undefined ? { kind: "none" } : { kind: "mapped", mapping };
+  const mounts = Array.isArray(config.mounts)
+    ? config.mounts.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  const containerOnly = containerOnlyMounts(mounts, workspaceMount, mapping);
+  return {
+    kind: "ok",
+    facts: {
+      ...(mapping !== undefined ? { mapping } : {}),
+      ...(containerOnly !== undefined ? { containerOnlyMounts: containerOnly } : {}),
+    },
+  };
+}
+
+/**
+ * Absolute container paths this config mounts that the workspace bind mount does not cover — i.e.
+ * paths the agent must not expect the host file tools to see (review finding L1-05).
+ *
+ * Targets under the workspace mapping are excluded because the host reaches them through the bind
+ * mount, malformed entries and relative targets are skipped, and the order of first appearance is
+ * preserved with duplicates removed.
+ */
+export function containerOnlyMounts(
+  mounts: readonly string[],
+  workspaceMount: string | undefined,
+  mapping: PathMapping | undefined,
+): readonly string[] | undefined {
+  const workspaceTarget = mapping?.containerPath;
+  const candidates = [...mounts, ...(workspaceMount !== undefined ? [workspaceMount] : [])];
+  const seen = new Set<string>();
+  for (const entry of candidates) {
+    const target = parseWorkspaceMount(entry).target;
+    if (target === undefined || !isAbsolute(target)) continue;
+    if (workspaceTarget !== undefined && (target === workspaceTarget || target.startsWith(`${normalize(workspaceTarget)}/`))) {
+      continue;
+    }
+    seen.add(target);
+  }
+  return seen.size === 0 ? undefined : [...seen];
 }

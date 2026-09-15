@@ -20,6 +20,7 @@
  * sees one consistent in-container view.
  */
 import { isAbsolute } from "node:path";
+import { parseJsonc } from "./jsonc.js";
 /** Parse a devcontainer `workspaceMount` string ("source=...,target=...,type=bind"). */
 export function parseWorkspaceMount(mount) {
     if (mount === undefined || mount.trim().length === 0)
@@ -114,5 +115,64 @@ export function findContainerPath(argv, containerPath) {
 function normalize(p) {
     // Paths here are already absolute; just trim a trailing slash for prefix math.
     return p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p;
+}
+/**
+ * Read the facts a DevContainer configuration's text contributes (JSONC).
+ *
+ * Split out from the file IO so the parsing, the mapping derivation and the failure classification
+ * are testable. A config that cannot be parsed is reported as `unparsable` rather than as an empty
+ * one: the host container-path guard only runs when a mapping exists, so a config the extension
+ * cannot read silently switches that guard off and the operator has to be told (finding L0-02).
+ *
+ * @param configDir host directory that contains the configuration (see `buildPathMapping`)
+ */
+export function readConfigFacts(configDir, text) {
+    let parsed;
+    try {
+        parsed = parseJsonc(text);
+    }
+    catch (error) {
+        return { kind: "unparsable", detail: error instanceof Error ? error.message : String(error) };
+    }
+    if (typeof parsed !== "object" || parsed === null)
+        return { kind: "ok", facts: {} };
+    const config = parsed;
+    const workspaceFolder = typeof config.workspaceFolder === "string" ? config.workspaceFolder : undefined;
+    const workspaceMount = typeof config.workspaceMount === "string" ? config.workspaceMount : undefined;
+    const mapping = buildPathMapping(configDir, workspaceFolder, workspaceMount);
+    const mounts = Array.isArray(config.mounts)
+        ? config.mounts.filter((entry) => typeof entry === "string")
+        : [];
+    const containerOnly = containerOnlyMounts(mounts, workspaceMount, mapping);
+    return {
+        kind: "ok",
+        facts: {
+            ...(mapping !== undefined ? { mapping } : {}),
+            ...(containerOnly !== undefined ? { containerOnlyMounts: containerOnly } : {}),
+        },
+    };
+}
+/**
+ * Absolute container paths this config mounts that the workspace bind mount does not cover — i.e.
+ * paths the agent must not expect the host file tools to see (review finding L1-05).
+ *
+ * Targets under the workspace mapping are excluded because the host reaches them through the bind
+ * mount, malformed entries and relative targets are skipped, and the order of first appearance is
+ * preserved with duplicates removed.
+ */
+export function containerOnlyMounts(mounts, workspaceMount, mapping) {
+    const workspaceTarget = mapping?.containerPath;
+    const candidates = [...mounts, ...(workspaceMount !== undefined ? [workspaceMount] : [])];
+    const seen = new Set();
+    for (const entry of candidates) {
+        const target = parseWorkspaceMount(entry).target;
+        if (target === undefined || !isAbsolute(target))
+            continue;
+        if (workspaceTarget !== undefined && (target === workspaceTarget || target.startsWith(`${normalize(workspaceTarget)}/`))) {
+            continue;
+        }
+        seen.add(target);
+    }
+    return seen.size === 0 ? undefined : [...seen];
 }
 //# sourceMappingURL=path-mapper.js.map
