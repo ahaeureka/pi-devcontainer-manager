@@ -1,0 +1,14 @@
+# Wiki Log
+
+> Chronological record of all wiki actions. Append-only.
+> Format: `## [YYYY-MM-DD] action | subject`
+
+## [2026-09-15] init | Project LLM Wiki initialized
+
+- Imported sources: 6
+- raw/docs/compatibility.md
+- raw/docs/configuration.md
+- raw/docs/installation.md
+- raw/docs/README.md
+- raw/docs/security.md
+- raw/docs/troubleshooting.md
