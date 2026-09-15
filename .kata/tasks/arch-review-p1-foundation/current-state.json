@@ -1,9 +1,9 @@
 {
   "taskId": "arch-review-p1-foundation",
-  "phase": "review",
+  "phase": "judge",
   "actor": {
-    "id": "kata-reviewer",
-    "role": "reviewer"
+    "id": "kata-judge",
+    "role": "judge"
   },
-  "updatedAt": "2026-09-15T05:32:46.002Z"
+  "updatedAt": "2026-09-15T05:35:04.085Z"
 }
