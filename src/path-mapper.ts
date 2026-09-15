@@ -20,6 +20,7 @@
  * sees one consistent in-container view.
  */
 import { isAbsolute } from "node:path";
+import { parseJsonc } from "./jsonc.js";
 
 export interface PathMapping {
   /** Host-side directory (absolute, real). */
@@ -126,4 +127,38 @@ export function findContainerPath(argv: readonly string[], containerPath: string
 function normalize(p: string): string {
   // Paths here are already absolute; just trim a trailing slash for prefix math.
   return p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p;
+}
+
+/** Outcome of deriving a mapping from a configuration's TEXT. */
+export type MappingRead =
+  | { readonly kind: "mapped"; readonly mapping: PathMapping }
+  /** The config parsed but declares no usable mapping (or is not an object). */
+  | { readonly kind: "none" }
+  /** The config could not be parsed at all — callers must surface this, not treat it as "none". */
+  | { readonly kind: "unparsable"; readonly detail: string };
+
+/**
+ * Derive a host<->container mapping from a DevContainer configuration's text (JSONC).
+ *
+ * Split out from the file IO so the parsing and the failure classification are testable: a config
+ * that cannot be parsed is reported as `unparsable` rather than as `none`. That distinction
+ * matters, because the host container-path guard only runs when a mapping exists — so a config the
+ * extension cannot read silently switches that guard off, and the operator has to be told
+ * (review finding L0-02).
+ *
+ * @param configDir host directory that contains the configuration (see `buildPathMapping`)
+ */
+export function readMappingFromText(configDir: string, text: string): MappingRead {
+  let parsed: unknown;
+  try {
+    parsed = parseJsonc(text);
+  } catch (error) {
+    return { kind: "unparsable", detail: error instanceof Error ? error.message : String(error) };
+  }
+  if (typeof parsed !== "object" || parsed === null) return { kind: "none" };
+  const config = parsed as Record<string, unknown>;
+  const workspaceFolder = typeof config.workspaceFolder === "string" ? config.workspaceFolder : undefined;
+  const workspaceMount = typeof config.workspaceMount === "string" ? config.workspaceMount : undefined;
+  const mapping = buildPathMapping(configDir, workspaceFolder, workspaceMount);
+  return mapping === undefined ? { kind: "none" } : { kind: "mapped", mapping };
 }
