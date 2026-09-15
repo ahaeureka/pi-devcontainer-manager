@@ -1,0 +1,27 @@
+{
+  "id": "evidence-30484e78-f54c-47f9-8aa6-700ccc466105",
+  "taskId": "arch-review-p2-failure-observability",
+  "name": "typecheck",
+  "kind": "typecheck",
+  "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/typescript/lib/tsc.js --noEmit",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-15T06:35:46.491Z",
+  "finishedAt": "2026-09-15T06:35:52.549Z",
+  "diffHash": "853f3058d938c3b6edda87afd4219a0aac0f9de21c0081ea4a6dda67fd8227dd",
+  "revisionId": "revision-078eb341-0ccf-42af-b58b-4c639510d2d8",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "e6150451beb5abba2973e70c360001bd7ea496e447023f49c141d5526c12d170"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "revision-078eb341-0ccf-42af-b58b-4c639510d2d8",
+  "taskId": "arch-review-p2-failure-observability",
+  "ownedPaths": [
+    "CHANGELOG.md",
+    "dist",
+    "docs",
+    "extensions",
+    "openspec",
+    "package.json",
+    "scripts",
+    "src",
+    "tests"
+  ],
+  "manifestHash": "e6150451beb5abba2973e70c360001bd7ea496e447023f49c141d5526c12d170",
+  "createdAt": "2026-09-15T06:35:46.489Z"
+}

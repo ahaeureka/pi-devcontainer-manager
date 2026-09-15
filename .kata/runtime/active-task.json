@@ -1,9 +1,8 @@
 {
   "taskId": "arch-review-p2-failure-observability",
-  "role": "designer",
-  "phase": "intake",
-  "platform": "pi",
+  "role": "reviewer",
+  "phase": "hardVerify",
   "branch": "feature/arch-review-p2-failure-observability",
-  "origin": "handoff",
-  "activatedAt": "2026-09-15T06:18:03.091Z"
+  "origin": "workflow",
+  "activatedAt": "2026-09-15T06:36:09.854Z"
 }

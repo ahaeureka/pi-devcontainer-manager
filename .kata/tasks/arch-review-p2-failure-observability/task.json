@@ -53,6 +53,8 @@
     "docs",
     "extensions",
     "openspec",
+    "package.json",
+    "scripts",
     "src",
     "tests"
   ],
