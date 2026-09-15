@@ -53,6 +53,25 @@ describe("NodeDockerLifecycleAdapter.remove", () => {
     }
   });
 
+  it("carries what docker said when a destructive call fails", async () => {
+    // The failure path captured neither stream and reported only the exit code, so the actual
+    // reason ('Error response from daemon: ...') never reached the operator.
+    const r: ProcessRunner = {
+      async exec(_file, _args, options) {
+        options.onStderr?.(Buffer.from("Error response from daemon: container is not running\n", "utf8"));
+        return { exitCode: 1, signal: null, durationMs: 1, truncated: false };
+      },
+    };
+
+    try {
+      await adapter(r).remove(container, confirmationFor("remove"));
+      expect.unreachable();
+    } catch (error) {
+      expect(errorKindOf(error)).toBe("docker-cli-failure");
+      expect((error as Error).message).toContain("container is not running");
+    }
+  });
+
   it("reports a successful remove as done", async () => {
     const result = await adapter(runner(() => ({}))).remove(container, confirmationFor("remove"));
 
@@ -110,5 +129,24 @@ describe("NodeDockerLifecycleAdapter.logs", () => {
     };
 
     await expect(adapter(r).logs(container.id)).resolves.toEqual({ exitCode: 0, output: "", truncated: false });
+  });
+
+  it("keeps the container's stderr half of docker logs", async () => {
+    // `docker logs` writes the container's stdout to the CLI's stdout and its stderr to the
+    // CLI's stderr, and this adapter only ever captured onData — so half the log stream was
+    // silently discarded with no fallback and no label.
+    const r: ProcessRunner = {
+      async exec(_file, _args, options) {
+        options.onData?.(Buffer.from("container out\n", "utf8"));
+        options.onStderr?.(Buffer.from("container err\n", "utf8"));
+        return { exitCode: 0, signal: null, durationMs: 1, truncated: false };
+      },
+    };
+
+    const result = await adapter(r).logs(container.id);
+
+    expect(result.output).toContain("container out");
+    expect(result.output).toContain("--- stderr ---");
+    expect(result.output).toContain("container err");
   });
 });

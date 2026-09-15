@@ -13,7 +13,7 @@
  * already normalized. Both stages now share one contract: **one attempt = exactly one `setup`
  * audit record, and a structured result whatever fails.**
  */
-import { commandIdentity } from "./policy.js";
+import { commandIdentity, redactText } from "./policy.js";
 import type { AuditWriter } from "./audit.js";
 import type { ProcessRunner, ProcessResult } from "./runtime/process-runner.js";
 import type { AuditRecord, EffectiveConfig } from "./types.js";
@@ -51,13 +51,19 @@ export function createSetupCli(deps: SetupCliDeps): SetupCli {
   const now = deps.clock ?? (() => new Date().toISOString());
   const identity = (argv: readonly string[]) => commandIdentity(argv, deps.config.audit.commandCapture);
 
+  /**
+   * Write this attempt's single record and report whether the trail accepted it.
+   *
+   * A failing audit sink must not turn a reported setup failure into an unnormalized throw, and
+   * it must not vanish either: the caller folds the returned note into the result it hands back.
+   */
   const writeRecord = (
     argv: readonly string[],
     durationMs: number,
     exitCode: number | null,
     outputTruncated: boolean,
     errorSummary?: string,
-  ): void => {
+  ): string | undefined => {
     const record: AuditRecord = {
       version: 1,
       at: now(),
@@ -71,8 +77,25 @@ export function createSetupCli(deps: SetupCliDeps): SetupCli {
       ...identity(argv),
       ...(errorSummary !== undefined ? { errorSummary } : {}),
     };
-    deps.audit.write(record);
+    try {
+      deps.audit.write(record);
+      return undefined;
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
   };
+  /**
+   * Compose the operator-visible failure text.
+   *
+   * `redactText` protects the returned string the same way it protects the audit copy: this value
+   * is shown to the operator AND handed to the model as the command result, so unredacted npm
+   * stderr could put a registry token into model context.
+   */
+  const failure = (reason: string, auditNote: string | undefined): SetupCliResult => ({
+    installed: false,
+    version: undefined,
+    error: redactText(auditNote === undefined ? reason : `${reason} (audit record not written: ${auditNote})`),
+  });
 
   return async (options) => {
     const startedAt = process.hrtime.bigint();
@@ -96,20 +119,25 @@ export function createSetupCli(deps: SetupCliDeps): SetupCli {
       // A refused spawn is an attempt too. Record it (so the trail shows the failure) and answer
       // with the same structured shape a nonzero exit produces, instead of letting the error
       // escape past the audit and reach the handler unnormalized.
-      const failure = error instanceof Error ? error.message : String(error);
-      writeRecord(argv, elapsedMs(), null, false, failure);
-      return { installed: false, version: undefined, error: failure };
+      const reason = error instanceof Error ? error.message : String(error);
+      return failure(reason, writeRecord(argv, elapsedMs(), null, false, reason));
     }
 
-    writeRecord(argv, elapsedMs(), runResult.exitCode, runResult.truncated);
-
+    const stderr = Buffer.concat(stderrChunks).toString("utf8").trim();
     if (runResult.exitCode !== 0) {
-      const err = Buffer.concat(stderrChunks).toString("utf8").trim();
-      return { installed: false, version: undefined, error: err || `npm install exited ${runResult.exitCode}` };
+      // A signal-killed child resolves with `exitCode: null`, and `signal` is the only field that
+      // says what happened — reporting it as "exited null" helped nobody.
+      const reason =
+        runResult.exitCode === null && runResult.signal !== null
+          ? `npm install was killed by ${runResult.signal}${stderr.length > 0 ? `: ${stderr}` : ""}`
+          : stderr || `npm install exited ${runResult.exitCode}`;
+      return failure(reason, writeRecord(argv, elapsedMs(), runResult.exitCode, runResult.truncated, reason));
     }
 
     // Verify the freshly installed CLI is resolvable on PATH.
     const versionChunks: Buffer[] = [];
+    let reason: string | undefined;
+    let version: string | undefined;
     try {
       const probe = await deps.runner.exec(deps.config.devcontainerPath, ["--version"], {
         cwd: deps.sessionWorkspace,
@@ -119,20 +147,23 @@ export function createSetupCli(deps: SetupCliDeps): SetupCli {
         onData: (chunk) => versionChunks.push(chunk),
       });
       if (probe.exitCode === 0) {
-        const version = Buffer.concat(versionChunks).toString("utf8").trim().split(/\s+/).pop();
-        return { installed: true, version: version || undefined };
+        version = Buffer.concat(versionChunks).toString("utf8").trim().split(/\s+/).pop() || undefined;
+      } else {
+        reason = `npm install succeeded but \`${deps.config.devcontainerPath} --version\` failed (exit ${probe.exitCode}); check PATH.`;
       }
-      return {
-        installed: false,
-        version: undefined,
-        error: `npm install succeeded but \`${deps.config.devcontainerPath} --version\` failed; check PATH.`,
-      };
     } catch (error) {
-      return {
-        installed: false,
-        version: undefined,
-        error: `npm install succeeded but verifying the CLI failed: ${error instanceof Error ? error.message : String(error)}`,
-      };
+      reason = `npm install succeeded but verifying the CLI failed: ${error instanceof Error ? error.message : String(error)}`;
     }
+
+    // One attempt, one record, written once the outcome is known: recording the install before the
+    // verification used to leave a success-shaped record (`exitCode: 0`, no error summary) behind a
+    // setup the operator was told had failed.
+    const auditNote = writeRecord(argv, elapsedMs(), runResult.exitCode, runResult.truncated, reason);
+    if (reason !== undefined) return { ...failure(reason, auditNote) };
+    return {
+      installed: true,
+      version,
+      ...(auditNote !== undefined ? { error: redactText(`audit record not written: ${auditNote}`) } : {}),
+    };
   };
 }

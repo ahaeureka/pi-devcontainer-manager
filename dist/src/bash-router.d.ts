@@ -79,5 +79,15 @@ export declare function createRoutedBashOperations(options: RoutedBashOptions): 
  * `timeout` error is raised. The caller's own `signal` is linked to the
  * controller so both surfaces behave identically.
  */
+/**
+ * Convert a caller-supplied timeout in SECONDS into the enforced millisecond budget.
+ *
+ * Rounding alone is not enough: `Math.round(0.0004 * 1000)` is 0, and `setTimeout(…, 0)` aborts
+ * the command immediately and reports it as a timeout — the exact failure a caller passing a
+ * positive value is trying to avoid, and one the tool schema's `exclusiveMinimum: 0` cannot
+ * express because the schema has no millisecond floor. Flooring at 1 ms keeps "as soon as
+ * possible" meaning "as soon as possible" rather than "abort now".
+ */
+export declare function resolveTimeoutMs(seconds: number | undefined): number | undefined;
 export declare function executeWithTimeout(request: Omit<ExecRequest, "signal">, timeoutMs: number | undefined, signal: AbortSignal | undefined, exec: (request: ExecRequest) => Promise<ExecOutcome>): Promise<ExecOutcome>;
 //# sourceMappingURL=bash-router.d.ts.map

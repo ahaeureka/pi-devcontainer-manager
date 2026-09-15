@@ -22,7 +22,7 @@
 import { Type, type Static } from "typebox";
 import { RuntimeError, errorKindOf } from "./errors.js";
 import type { ExecutionService, ExecRequest } from "./execution-service.js";
-import { executeWithTimeout } from "./bash-router.js";
+import { executeWithTimeout, resolveTimeoutMs } from "./bash-router.js";
 import { combineCommandOutput, formatToolOutput } from "./tool-output.js";
 /** argv form accepted by `devcontainer_exec`. */
 export const DEV_CONTAINER_EXEC_TOOL = "devcontainer_exec";
@@ -120,7 +120,7 @@ export function createDevcontainerExecTool(options: ToolOptions): ToolDefinition
       };
       const outcome = await executeWithTimeout(
         request,
-        params.timeoutSeconds !== undefined ? Math.round(params.timeoutSeconds * 1000) : undefined,
+        resolveTimeoutMs(params.timeoutSeconds),
         signal,
         (r) => options.execution.exec(r),
       );

@@ -129,6 +129,35 @@ describe("createDevcontainerExecTool", () => {
     await expect(promise).rejects.toMatchObject({ kind: "timeout" });
   });
 
+  it("floors a sub-millisecond timeout instead of aborting at 0 ms", async () => {
+    // `exclusiveMinimum: 0` cannot express a millisecond floor, so `0.0004` passed the schema
+    // and still became `setTimeout(..., 0)` — an immediate abort reported as a timeout.
+    vi.useFakeTimers();
+    try {
+      const execution = { exec: vi.fn(() => new Promise<ExecOutcome>(() => undefined)) } as unknown as ExecutionService;
+      const tool = createDevcontainerExecTool(makeOptions({ execution }));
+      const promise = tool.execute("t1", { argv: ["sleep", "1"], timeoutSeconds: 0.0004 }, undefined, undefined, { cwd: "/session" });
+      let settled = false;
+      void promise.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(promise).rejects.toMatchObject({ kind: "timeout" });
+      await expect(promise).rejects.toThrow(/1ms/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("throws on nonzero container-side exit with output appended (service never throws)", async () => {
     const { execution } = execWith(okOutcome({ exitCode: 2, stdout: "boom\n" }));
     const tool = createDevcontainerExecTool(makeOptions({ execution }));

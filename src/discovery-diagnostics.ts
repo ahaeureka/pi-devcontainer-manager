@@ -25,6 +25,18 @@ export interface DiagnosticSink {
   drain(): string[];
 }
 
+/**
+ * Deliver everything the sink has queued to an operator-visible channel.
+ *
+ * Reporting is deliberately NOT the sink's job: the activation probe also feeds it and must stay
+ * silent, while the command dispatch owns the UI. Returning the count lets the caller log or test
+ * how much was surfaced without re-querying the sink.
+ */
+export function reportDiscoveryDiagnostics(sink: DiagnosticSink, notify: (line: string) => void): number {
+  const lines = sink.drain();
+  for (const line of lines) notify(line);
+  return lines.length;
+}
 export function createDiagnosticSink(): DiagnosticSink {
   const reported = new Set<string>();
   const queued = new Set<string>();

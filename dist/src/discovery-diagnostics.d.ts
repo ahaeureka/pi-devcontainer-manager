@@ -24,5 +24,13 @@ export interface DiagnosticSink {
     /** Return the un-reported lines in insertion order and mark them reported. */
     drain(): string[];
 }
+/**
+ * Deliver everything the sink has queued to an operator-visible channel.
+ *
+ * Reporting is deliberately NOT the sink's job: the activation probe also feeds it and must stay
+ * silent, while the command dispatch owns the UI. Returning the count lets the caller log or test
+ * how much was surfaced without re-querying the sink.
+ */
+export declare function reportDiscoveryDiagnostics(sink: DiagnosticSink, notify: (line: string) => void): number;
 export declare function createDiagnosticSink(): DiagnosticSink;
 //# sourceMappingURL=discovery-diagnostics.d.ts.map

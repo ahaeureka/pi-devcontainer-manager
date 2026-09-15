@@ -48,6 +48,27 @@ to [Semantic Versioning](https://semver.org/).
   store mid-refresh, or a failing auto-select now writes a record carrying the failure
   (policy authorized, target state refused) before the typed error is rethrown, matching
   how policy denials were already recorded.
+- Every spawn failure now names the OS error code, and `ENOTCONN` gets its own explanation:
+  `Failed to spawn: devcontainer` used to be the whole message for *any* failure other than
+  `ENOENT`/`EACCES`, which made a half-dead filesystem mount inside `PATH` (the case behind one
+  2026-09-15 misdiagnosis) look exactly like a missing binary. See
+  [Troubleshooting](docs/troubleshooting.md#the-host-cannot-start-any-executable-enotconn).
+- The three surfaces that still discarded stderr do not any more: `/devcontainer host-exec`
+  (the command, not just the tool), `docker logs` (the container's stderr half was dropped
+  entirely), and `stop`/`remove`, whose failure message now carries what Docker actually said
+  instead of only the exit code.
+- A positive timeout that rounds to zero (`0.0004`) no longer means "abort immediately": the
+  millisecond budget is floored at 1 ms at both entry points, and a sub-second deadline is
+  reported in milliseconds instead of as `timed out after 0s`.
+- `/devcontainer setup` reports what actually happened: a signal-killed install names the signal
+  instead of `exited null`, the `setup` record is written after the verification step so a failed
+  probe can no longer leave a success-shaped record behind, a failing audit sink is surfaced in
+  the result instead of escaping unnormalized, and the failure text handed back to the operator
+  and the model is redacted the same way the audit copy is.
+- Discovery diagnostics are delivered even when a verb handler throws (the drain moved into a
+  `finally`), and `/devcontainer <verb>` prints its result again: Pi's command dispatcher ignores
+  a handler's return value, so `list`, `status`, `logs` and the rest were producing no output at
+  all.
 
 ## [1.0.0] - Unreleased
 

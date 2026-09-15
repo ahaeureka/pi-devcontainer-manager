@@ -9,6 +9,7 @@ import {
   type ProcessRunner,
   type ProcessRunnerOptions,
   type SpawnedChild,
+  toSpawnError,
 } from "../../src/runtime/process-runner.js";
 
 function collect(onData?: (chunk: Buffer) => void) {
@@ -268,5 +269,47 @@ describe("bounded output defaults", () => {
   it("exports one default cap plus a larger, explicitly named logs cap", () => {
     expect(DEFAULT_MAX_OUTPUT_BYTES).toBe(50 * 1024);
     expect(LOGS_MAX_OUTPUT_BYTES).toBe(256 * 1024);
+  });
+});
+
+describe("toSpawnError", () => {
+  const errno = (code: string, message = `spawn failed: ${code}`) =>
+    Object.assign(new Error(message), { code });
+
+  it("names the errno for a code it does not special-case", () => {
+    const mapped = toSpawnError("devcontainer", errno("EMFILE")) as RuntimeError;
+
+    expect(mapped.message).toContain("devcontainer");
+    expect(mapped.message).toContain("EMFILE");
+  });
+
+  it("explains ENOTCONN as a PATH-transport fault with a remedy, not a missing binary", () => {
+    const mapped = toSpawnError("devcontainer", errno("ENOTCONN")) as RuntimeError;
+
+    // The 2026-09-15 host incident: a dead AppImage FUSE mount in PATH made glibc execvp
+    // abort the whole lookup, and the operator was told only "Failed to spawn" — which reads
+    // as a missing CLI. Naming the errno and the actual cause is the whole point of the fix.
+    expect(mapped.kind).toBe("unexpected");
+    expect(mapped.message).toContain("ENOTCONN");
+    expect(mapped.message).toContain("devcontainer");
+    expect(mapped.remedy).toBeTruthy();
+    expect(mapped.remedy).toMatch(/PATH|mount/i);
+  });
+
+  it("keeps the two process-boundary kinds and adds the errno to their text", () => {
+    const missing = toSpawnError("docker", errno("ENOENT")) as RuntimeError;
+    const denied = toSpawnError("docker", errno("EACCES")) as RuntimeError;
+
+    expect(missing.kind).toBe("executable-missing");
+    expect(missing.message).toContain("ENOENT");
+    expect(denied.kind).toBe("spawn-permission-denied");
+    expect(denied.message).toContain("EACCES");
+  });
+
+  it("still reports the file when the failure carries no errno at all", () => {
+    const mapped = toSpawnError("kubectl", new Error("boom")) as RuntimeError;
+
+    expect(mapped.message).toContain("kubectl");
+    expect(mapped.kind).toBe("unexpected");
   });
 });

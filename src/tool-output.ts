@@ -58,7 +58,7 @@ export function combineCommandOutput(stdout: string, stderr: string): string {
 /**
  * Format captured command output for LLM consumption.
  *
- * @param output combined stdout (callers choose stdout-or-stderr precedence)
+ * @param output the text to present (callers pass `combineCommandOutput` for a captured process)
  * @param opts maxBytes / maxLines budgets
  * @returns the tail to show, plus full-output path when truncated
  */

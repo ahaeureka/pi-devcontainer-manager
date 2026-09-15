@@ -6,7 +6,7 @@
  * would spam the operator with the same warning all session.
  */
 import { describe, expect, it } from "vitest";
-import { createDiagnosticSink } from "../../src/discovery-diagnostics.js";
+import { createDiagnosticSink, reportDiscoveryDiagnostics } from "../../src/discovery-diagnostics.js";
 
 describe("createDiagnosticSink", () => {
   it("drains nothing before anything is added", () => {
@@ -44,5 +44,29 @@ describe("createDiagnosticSink", () => {
 
     sink.add(["b"]);
     expect(sink.drain()).toEqual(["b"]);
+  });
+});
+
+describe("reportDiscoveryDiagnostics", () => {
+  it("drains queued lines into the notify channel and reports how many it delivered", () => {
+    const sink = createDiagnosticSink();
+    sink.add(["cannot read directory /work/x", "max depth 3 reached"]);
+    const notified: string[] = [];
+
+    const reported = reportDiscoveryDiagnostics(sink, (line) => notified.push(line));
+
+    expect(reported).toBe(2);
+    expect(notified).toEqual(["cannot read directory /work/x", "max depth 3 reached"]);
+    // The queue is emptied by the drain, so a second pass must not repeat the same warnings —
+    // the registry is re-read on every command and on the activation probe.
+    expect(reportDiscoveryDiagnostics(sink, (line) => notified.push(line))).toBe(0);
+    expect(notified).toHaveLength(2);
+  });
+
+  it("notifies nothing when the scan was clean", () => {
+    const notified: string[] = [];
+
+    expect(reportDiscoveryDiagnostics(createDiagnosticSink(), (line) => notified.push(line))).toBe(0);
+    expect(notified).toEqual([]);
   });
 });

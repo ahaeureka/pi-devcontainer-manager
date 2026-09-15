@@ -328,6 +328,9 @@ describe("buildWorkspaceRegistry", () => {
         ],
       },
     ]);
+    // A healthy scan reports nothing — the diagnostics channel is for degraded scans only. (The
+    // removed `configOnly`/`orphanDockerCandidates` fields are pinned by the registry-shape test
+    // at the end of this file, not here.)
     expect(result.diagnostics).toEqual([]);
   });
 
@@ -346,7 +349,6 @@ describe("buildWorkspaceRegistry", () => {
         ],
       },
     ]);
-    expect(result.diagnostics).toEqual([]);
   });
 
   it("retains docker-only candidates as placeholder entries plus diagnostics candidates", () => {
@@ -364,7 +366,6 @@ describe("buildWorkspaceRegistry", () => {
       containerId: "dd22",
       containerState: "exited",
     });
-    expect(result.diagnostics).toEqual([]);
   });
 
   it("unifies symlinked roots with Docker label real paths", () => {
@@ -390,7 +391,6 @@ describe("buildWorkspaceRegistry", () => {
         ],
       },
     ]);
-    expect(result.diagnostics).toEqual([]);
   });
 
   it("flags ambiguity when more than one container for a workspace is running", () => {

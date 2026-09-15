@@ -155,27 +155,47 @@ export class NodeProcessRunner {
         });
     }
 }
-function toSpawnError(file, error) {
+/**
+ * Classify a failed spawn into the process-boundary kinds the adapters translate.
+ *
+ * Every branch names the errno. Anything that was not ENOENT/EACCES/EPERM used to collapse
+ * into `Failed to spawn: <file>`, which made a host-side transport fault indistinguishable
+ * from a missing binary: on 2026-09-15 a dead AppImage FUSE mount sitting in PATH made glibc's
+ * `execvp` abort the whole lookup with ENOTCONN, and the operator was told only
+ * `Failed to spawn: devcontainer` while the container was up and the CLI was installed.
+ * ENOTCONN now says what it is and what to do about it.
+ */
+export function toSpawnError(file, error) {
     const cause = error;
-    if (cause.code === "ENOENT") {
+    const code = typeof cause.code === "string" && cause.code.length > 0 ? cause.code : undefined;
+    const named = code !== undefined ? `${file} (${code})` : file;
+    if (code === "ENOENT") {
         return new RuntimeError({
             kind: "executable-missing",
-            message: `Executable not found: ${file}`,
+            message: `Executable not found: ${named}`,
             cause: error,
             remedy: "Install the executable or set its path in configuration.",
         });
     }
-    if (cause.code === "EACCES" || cause.code === "EPERM") {
+    if (code === "EACCES" || code === "EPERM") {
         return new RuntimeError({
             kind: "spawn-permission-denied",
-            message: `Permission denied spawning: ${file}`,
+            message: `Permission denied spawning: ${named}`,
             cause: error,
             remedy: "Check executable permissions and operator privileges.",
         });
     }
+    if (code === "ENOTCONN") {
+        return new RuntimeError({
+            kind: "unexpected",
+            message: `Failed to spawn: ${named} — the host cannot traverse part of PATH`,
+            cause: error,
+            remedy: "A filesystem mount that PATH points into is disconnected (a stale AppImage /tmp/.mount_* entry does this), which fails the executable search before it reaches the binary. Unmount it (`fusermount3 -u <dir>`) or drop it from PATH, then retry: `env node --version` reproduces the failure.",
+        });
+    }
     return new RuntimeError({
         kind: "unexpected",
-        message: `Failed to spawn: ${file}`,
+        message: `Failed to spawn: ${named}`,
         cause: error,
     });
 }

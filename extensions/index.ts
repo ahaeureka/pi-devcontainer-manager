@@ -40,7 +40,7 @@ import type {
 import { createBashToolDefinition, createLocalBashOperations } from "@earendil-works/pi-coding-agent";
 
 import { defaultConfigPaths, loadConfigWithDiagnostics } from "../src/config.js";
-import { createDiagnosticSink, type DiagnosticSink } from "../src/discovery-diagnostics.js";
+import { createDiagnosticSink, reportDiscoveryDiagnostics, type DiagnosticSink } from "../src/discovery-diagnostics.js";
 import { decideActivation, surfacesFor, type ActivationDecision } from "../src/activation.js";
 import { JsonlAuditWriter, defaultAuditDirectory } from "../src/audit.js";
 import { NodeProcessRunner } from "../src/runtime/process-runner.js";
@@ -63,7 +63,7 @@ import {
   DEV_CONTAINER_HOST_EXEC_TOOL,
   type ToolDefinitionLike,
 } from "../src/tools.js";
-import { createCommandHandlers, selectionFor, type CommandContextLike, type CommandServices } from "../src/commands.js";
+import { createCommandHandlers, displayCommandResult, selectionFor, type CommandContextLike, type CommandServices } from "../src/commands.js";
 import { reconcileSelection } from "../src/commands.js";
 import { canonicalWorkspaceKey } from "../src/workspace-path.js";
 import { SELECTION_ENTRY_KIND, recoverLatestSelection, type SelectionRecord } from "../src/selection-state.js";
@@ -666,13 +666,18 @@ export default function (pi: ExtensionAPI): void {
           persistSelection: (record) => persistSelection(pi, record),
           restoreSelection: () => restoreSelection(ctx),
         };
-        const result = await handler(rest, cmdCtx);
-        // Surface anything the discovery pass could not do. Silent degradation (a scan that
-        // stopped early, a Docker record that failed to parse) is indistinguishable from an
-        // empty workspace, which is exactly how a broken setup used to look healthy.
-        for (const line of rt!.discoveryDiagnostics.drain()) {
-          ctx.ui.notify(`[devcontainer-manager] ${line}`, "warning");
-        }
+        const result = await handler(rest, cmdCtx).finally(() => {
+          // Surface anything the discovery pass could not do, and do it even when the handler
+          // failed: silent degradation (a scan that stopped early, a Docker record that failed
+          // to parse) is indistinguishable from an empty workspace, which is exactly how a
+          // broken setup used to look healthy.
+          reportDiscoveryDiagnostics(rt!.discoveryDiagnostics, (line) =>
+            ctx.ui.notify(`[devcontainer-manager] ${line}`, "warning"),
+          );
+        });
+        // Pi's command dispatcher ignores a handler's return value, so the rendered result has to
+        // be delivered from here or the operator sees nothing at all.
+        displayCommandResult(result, (message, type) => ctx.ui.notify(message, type));
         // `/devcontainer use|up` engages this session's container surfaces;
         // `/devcontainer off` hands them back to the host. `activation: "never"` is
         // the one thing an explicit use cannot override (AC-5).

@@ -14,7 +14,20 @@
  */
 import { DEFAULT_MAX_OUTPUT_BYTES, LOGS_MAX_OUTPUT_BYTES, runBounded, } from "./process-runner.js";
 import { dockerSpawnErrorSpec } from "./spawn-error.js";
+import { combineCommandOutput } from "../tool-output.js";
 import { RuntimeError } from "../errors.js";
+/**
+ * One-line, bounded rendering of what a failed Docker call printed.
+ *
+ * The failure paths used to report only the exit code; the daemon's own message
+ * ('Error response from daemon: …') is the part an operator can act on, so it is
+ * included — trimmed, collapsed to a single line, and capped so one failure cannot
+ * flood the transcript. The captured bytes are already bounded by `maxOutputBytes`.
+ */
+function describeOutput(text, limit = 500) {
+    const flat = text.replace(/\s+/g, " ").trim();
+    return flat.length > limit ? `${flat.slice(0, limit)}…` : flat;
+}
 export class NodeDockerLifecycleAdapter {
     runner;
     options;
@@ -31,6 +44,7 @@ export class NodeDockerLifecycleAdapter {
         }
         const tail = options.tail ?? 200;
         const chunks = [];
+        const errChunks = [];
         const result = await runBounded(this.runner, this.options.dockerPath, ["logs", "--tail", String(tail), id], {
             cwd: this.options.cwd,
             env: this.options.env,
@@ -38,11 +52,14 @@ export class NodeDockerLifecycleAdapter {
             timeoutMs: 30_000,
             ...(options.signal !== undefined ? { signal: options.signal } : {}),
             onData: (chunk) => chunks.push(chunk),
+            onStderr: (chunk) => errChunks.push(chunk),
             spawnError: dockerSpawnErrorSpec(this.options.dockerPath),
         });
         return {
             exitCode: result.exitCode,
-            output: Buffer.concat(chunks).toString("utf8"),
+            // `docker logs` splits the container's two streams across the CLI's two streams, so
+            // capturing only stdout silently discarded half of every log read.
+            output: combineCommandOutput(Buffer.concat(chunks).toString("utf8"), Buffer.concat(errChunks).toString("utf8")),
             truncated: result.truncated,
         };
     }
@@ -62,17 +79,24 @@ export class NodeDockerLifecycleAdapter {
                 instruction: `Type "confirm ${action} ${container.id.slice(0, 12)}" to proceed.`,
             };
         }
+        const chunks = [];
+        const errChunks = [];
         const result = await runBounded(this.runner, this.options.dockerPath, [...argv], {
             cwd: this.options.cwd,
             env: this.options.env,
             maxOutputBytes: this.options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
             timeoutMs: 60_000,
+            onData: (chunk) => chunks.push(chunk),
+            onStderr: (chunk) => errChunks.push(chunk),
             spawnError: dockerSpawnErrorSpec(this.options.dockerPath),
         });
         if (result.exitCode !== 0) {
+            // A destructive failure used to report only the exit code, so the daemon's own reason
+            // ('Error response from daemon: …') never reached the operator.
+            const detail = describeOutput(combineCommandOutput(Buffer.concat(chunks).toString("utf8"), Buffer.concat(errChunks).toString("utf8")));
             throw new RuntimeError({
                 kind: "docker-cli-failure",
-                message: `docker ${action} failed with exit ${result.exitCode}.`,
+                message: `docker ${action} failed with exit ${result.exitCode}${detail.length > 0 ? `: ${detail}` : "."}`,
                 exitCode: result.exitCode,
                 remedy: "Check Docker daemon reachability and the container state.",
             });
