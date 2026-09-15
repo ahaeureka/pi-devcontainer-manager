@@ -1,38 +1,60 @@
 {
   "taskId": "arch-review-p2-failure-observability",
-  "result": "FAIL",
+  "result": "PASS",
   "diffHash": "814f06bbc32394337eed347b96116eac196db67fa5c0e5a1a5d240ee4e6fcce3",
-  "revisionId": "revision-078eb341-0ccf-42af-b58b-4c639510d2d8",
   "acceptance": [
     {
       "id": "AC-1",
-      "result": "FAIL",
-      "repairScope": "revision_superseded"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4e4067ba-446f-4930-b973-14e149b8f123",
+        "evidence-4e4067ba-446f-4930-b973-14e149b8f123"
+      ]
     },
     {
       "id": "AC-2",
-      "result": "FAIL",
-      "repairScope": "revision_superseded"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4e4067ba-446f-4930-b973-14e149b8f123",
+        "evidence-4e4067ba-446f-4930-b973-14e149b8f123"
+      ]
     },
     {
       "id": "AC-3",
-      "result": "FAIL",
-      "repairScope": "revision_superseded"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4e4067ba-446f-4930-b973-14e149b8f123",
+        "evidence-4e4067ba-446f-4930-b973-14e149b8f123"
+      ]
     },
     {
       "id": "AC-4",
-      "result": "FAIL",
-      "repairScope": "revision_superseded"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4e4067ba-446f-4930-b973-14e149b8f123",
+        "evidence-4e4067ba-446f-4930-b973-14e149b8f123"
+      ]
     },
     {
       "id": "AC-5",
-      "result": "FAIL",
-      "repairScope": "revision_superseded"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4e4067ba-446f-4930-b973-14e149b8f123",
+        "evidence-4e4067ba-446f-4930-b973-14e149b8f123"
+      ]
     },
     {
       "id": "AC-6",
-      "result": "FAIL",
-      "repairScope": "revision_superseded"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4e4067ba-446f-4930-b973-14e149b8f123",
+        "evidence-4e4067ba-446f-4930-b973-14e149b8f123"
+      ]
     }
-  ]
+  ],
+  "evidenceIds": [
+    "evidence-4e4067ba-446f-4930-b973-14e149b8f123",
+    "evidence-4e4067ba-446f-4930-b973-14e149b8f123"
+  ],
+  "revisionId": "revision-99abdc7f-1ab7-4612-aedc-f43c28707857"
 }

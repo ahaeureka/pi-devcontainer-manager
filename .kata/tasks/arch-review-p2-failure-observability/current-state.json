@@ -1,9 +1,9 @@
 {
   "taskId": "arch-review-p2-failure-observability",
-  "phase": "hardVerify",
+  "phase": "review",
   "actor": {
-    "id": "kata-agent",
-    "role": "implementer"
+    "id": "kata-reviewer",
+    "role": "reviewer"
   },
-  "updatedAt": "2026-09-15T10:00:31.058Z"
+  "updatedAt": "2026-09-15T10:01:30.388Z"
 }

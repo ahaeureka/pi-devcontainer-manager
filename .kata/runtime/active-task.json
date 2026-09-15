@@ -1,8 +1,8 @@
 {
   "taskId": "arch-review-p2-failure-observability",
   "role": "reviewer",
-  "phase": "hardVerify",
+  "phase": "review",
   "branch": "feature/arch-review-p2-failure-observability",
   "origin": "workflow",
-  "activatedAt": "2026-09-15T10:00:31.155Z"
+  "activatedAt": "2026-09-15T10:01:30.453Z"
 }
