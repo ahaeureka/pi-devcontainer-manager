@@ -44,13 +44,7 @@
       "strategy": "manual",
       "branch": "feature/arch-review-p2-failure-observability",
       "baseBranch": "main",
-      "status": "pending_confirmation",
-      "command": [
-        "switch",
-        "-c",
-        "feature/arch-review-p2-failure-observability",
-        "main"
-      ]
+      "status": "active"
     }
   },
   "ownedPaths": [
