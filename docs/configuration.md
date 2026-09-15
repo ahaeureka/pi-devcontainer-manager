@@ -119,7 +119,7 @@ without touching your global configuration.
 
 | Mode | Behavior |
 |---|---|
-| `container-required` | Execution requires a running selected target. With no explicit selection, the session-cwd workspace is auto-selected as the default when it has a DevContainer configuration; if still no target resolves (no config, ambiguous, stale/stopped, denied) the route returns `no-candidate` / `ambiguous-candidate` / `target-stopped` / `policy-denied`. **Never** executes on the host. |
+| `container-required` | Execution requires a running selected target. With no explicit selection, the session-cwd workspace is auto-selected as the default when it has a DevContainer configuration; if still no target resolves (no config, ambiguous, stale/stopped, denied) the route returns `no-candidate` / `ambiguous-candidate` / `target-stopped` / `target-refreshing` / `policy-denied`. **Never** executes on the host. |
 | `container-preferred` | **Not implemented** — setting it is rejected at load so a mode that silently does nothing cannot be configured. |
 | `host-only` | **Not implemented** — rejected at load. |
 

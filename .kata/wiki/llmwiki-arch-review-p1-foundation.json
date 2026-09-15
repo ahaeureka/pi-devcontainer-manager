@@ -1,0 +1,24 @@
+{
+  "id": "llmwiki-arch-review-p1-foundation",
+  "statement": "Kata role defaults vs task ownership (Phase 1 build notes)",
+  "scope": [
+    "concepts/arch-review-p1-foundation.md"
+  ],
+  "kind": "llmwiki-summary",
+  "sourceRefs": [
+    ".llmwiki/raw/docs/arch-review-p1-foundation.md",
+    ".llmwiki/concepts/arch-review-p1-foundation.md"
+  ],
+  "sourceHashes": {
+    ".llmwiki/raw/docs/arch-review-p1-foundation.md": "d41b18211605d19e139f0d656d20f55bbeeca7a94fbe05a7e3c557adcd8f32f1",
+    ".llmwiki/concepts/arch-review-p1-foundation.md": "c5b003f1b53fd227045ed2a060b83c5f3ab67bb6534de3a4e04e736ee23790dc"
+  },
+  "validationTaskId": "llmwiki-ingest",
+  "evidenceIds": [
+    "llmwiki-d41b18211605"
+  ],
+  "status": "candidate",
+  "lastVerifiedAt": "2026-09-15T05:18:02.498Z",
+  "createdAt": "2026-09-15T05:18:02.498Z",
+  "updatedAt": "2026-09-15T05:18:02.498Z"
+}

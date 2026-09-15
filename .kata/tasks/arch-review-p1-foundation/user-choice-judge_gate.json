@@ -1,0 +1,8 @@
+{
+  "taskId": "arch-review-p1-foundation",
+  "boundary": "judge_gate",
+  "createdAt": "2026-09-15T05:33:35.796Z",
+  "choice": "continue_current",
+  "approvedAt": "2026-09-15T05:34:41.994Z",
+  "consumedAt": "2026-09-15T05:35:04.088Z"
+}

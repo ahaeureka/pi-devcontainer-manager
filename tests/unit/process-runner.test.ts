@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { RuntimeError, errorKindOf, isRuntimeError } from "../../src/errors.js";
-import { NodeProcessRunner, type ProcessResult, type SpawnedChild } from "../../src/runtime/process-runner.js";
+import {
+  DEFAULT_MAX_OUTPUT_BYTES,
+  LOGS_MAX_OUTPUT_BYTES,
+  NodeProcessRunner,
+  runBounded,
+  type ProcessResult,
+  type ProcessRunner,
+  type ProcessRunnerOptions,
+  type SpawnedChild,
+} from "../../src/runtime/process-runner.js";
 
 function collect(onData?: (chunk: Buffer) => void) {
   return { onData };
@@ -188,5 +197,76 @@ describe("RuntimeError", () => {
     expect(isRuntimeError(error)).toBe(true);
     expect(errorKindOf(error)).toBe("daemon-unavailable");
     expect(errorKindOf(new Error("plain"))).toBe("unexpected");
+  });
+});
+
+describe("runBounded", () => {
+  const spawnError = {
+    missingKind: "daemon-unavailable" as const,
+    missingMessage: "Docker executable is unavailable.",
+    missingRemedy: "Install Docker or set dockerPath in configuration.",
+    permissionMessage: "Docker spawn was denied.",
+    permissionRemedy: "Check operator privileges for the Docker executable.",
+  };
+  const base = { cwd: "/ws", env: { PATH: "/usr/bin" }, maxOutputBytes: 4096, timeoutMs: 30_000, spawnError };
+
+  it("forwards the caller's bounded options to the runner", async () => {
+    const seen: ProcessRunnerOptions[] = [];
+    const runner: ProcessRunner = {
+      async exec(_file, _args, options) {
+        seen.push(options);
+        return { exitCode: 0, signal: null, durationMs: 1, truncated: false };
+      },
+    };
+    const onData = () => undefined;
+    const controller = new AbortController();
+
+    const result = await runBounded(runner, "/usr/bin/docker", ["ps"], {
+      ...base,
+      signal: controller.signal,
+      onData,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      cwd: "/ws",
+      env: { PATH: "/usr/bin" },
+      maxOutputBytes: 4096,
+      timeoutMs: 30_000,
+    });
+    expect(seen[0]?.signal).toBe(controller.signal);
+    expect(seen[0]?.onData).toBe(onData);
+  });
+
+  it("maps a spawn failure through the caller's spec", async () => {
+    const runner: ProcessRunner = {
+      async exec() {
+        throw new RuntimeError({ kind: "executable-missing", message: "ENOENT" });
+      },
+    };
+
+    await expect(runBounded(runner, "/usr/bin/docker", ["ps"], base)).rejects.toMatchObject({
+      kind: "daemon-unavailable",
+      remedy: spawnError.missingRemedy,
+    });
+  });
+
+  it("rethrows non-spawn failures unchanged", async () => {
+    const timeout = new RuntimeError({ kind: "timeout", message: "Process timed out after 30ms" });
+    const runner: ProcessRunner = {
+      async exec() {
+        throw timeout;
+      },
+    };
+
+    await expect(runBounded(runner, "/usr/bin/docker", ["ps"], base)).rejects.toBe(timeout);
+  });
+});
+
+describe("bounded output defaults", () => {
+  it("exports one default cap plus a larger, explicitly named logs cap", () => {
+    expect(DEFAULT_MAX_OUTPUT_BYTES).toBe(50 * 1024);
+    expect(LOGS_MAX_OUTPUT_BYTES).toBe(256 * 1024);
   });
 });

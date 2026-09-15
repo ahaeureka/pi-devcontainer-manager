@@ -6,7 +6,23 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing yet — see [1.0.0] for the initial release.
+### Changed
+
+- Audit redaction replaces a **whole** authentication value instead of the prefix
+  that happened to match a character class, so a value containing `,`, `;`, `:` or
+  non-ASCII characters no longer leaves its tail in the audit file.
+- Two error kinds are now distinct: `target-refreshing` (a selection is mid-refresh;
+  retry the operation) and `docker-cli-failure` (a `stop`/`remove` failed in the
+  Docker CLI, which previously reused `devcontainer-cli-failure`). Both are listed in
+  `docs/troubleshooting.md`.
+- Refusals, the spawn-error mapping, the runner invocation and the fallback output cap
+  each have a single owner: refusal records are written by the same builder as every
+  other audit record, the three runtime adapters share one spawn-error mapper and one
+  bounded-invocation helper (removing six compile-time-only `unreachable … path`
+  throws), the five fallback caps collapsed into `DEFAULT_MAX_OUTPUT_BYTES` plus a
+  named `LOGS_MAX_OUTPUT_BYTES`, and the unused `resolveTool` wrapper in
+  `extensions/index.ts` is gone. No operator-visible behaviour changes beyond the two
+  kinds above and the redaction fix.
 
 ## [1.0.0] - Unreleased
 

@@ -11,7 +11,8 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { isWorkspaceAllowed, redactText } from "../../src/policy.js";
+import { errorKindOf } from "../../src/errors.js";
+import { buildChildEnvironment, isWorkspaceAllowed, redactText } from "../../src/policy.js";
 
 describe("isWorkspaceAllowed (filesystem identity)", () => {
   it("denies a symlink beneath an allowed root that resolves outside it", () => {
@@ -68,5 +69,38 @@ describe("redactText", () => {
 
   it("leaves ordinary command text intact", () => {
     expect(redactText("npm test -- --watch")).toBe("npm test -- --watch");
+  });
+
+  it("redacts values containing punctuation that used to terminate the match", () => {
+    const comma = redactText("curl -H 'Authorization: Bearer sk-abc,def' https://x");
+    expect(comma).not.toContain("sk-abc");
+    expect(comma).not.toContain("def");
+
+    const semicolon = redactText("Authorization: Token tok;secret");
+    expect(semicolon).not.toContain("tok");
+    expect(semicolon).not.toContain("secret");
+
+    const colon = redactText("Authorization: Basic dXNlcjpwYXNz");
+    expect(colon).not.toContain("dXNlcjpwYXNz");
+  });
+
+  it("redacts a non-ASCII credential value entirely", () => {
+    const out = redactText("Authorization: Bearer 你的密钥abc");
+
+    expect(out).not.toContain("你的密钥abc");
+    expect(out).not.toContain("密钥");
+    expect(out).toContain("[REDACTED]");
+  });
+});
+
+describe("buildChildEnvironment (typed refusal)", () => {
+  it("rejects a disallowed name with a policy-denied RuntimeError that names it", () => {
+    try {
+      buildChildEnvironment({ PI_API_KEY: "x" }, ["PATH"]);
+      expect.unreachable();
+    } catch (error) {
+      expect(errorKindOf(error)).toBe("policy-denied");
+      expect((error as Error).message).toContain("PI_API_KEY");
+    }
   });
 });

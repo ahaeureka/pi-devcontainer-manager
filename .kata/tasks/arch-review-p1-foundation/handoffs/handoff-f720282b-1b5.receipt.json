@@ -1,0 +1,29 @@
+{
+  "protocolVersion": 1,
+  "taskId": "arch-review-p1-foundation",
+  "handoffId": "handoff-f720282b-1b5",
+  "platform": "pi",
+  "role": "distiller",
+  "packetSha256": "68bae0ef6040be0c0fcfa36dfee01a414ac750004dd18094b2467538d48090c4",
+  "acknowledgedAt": "2026-09-15T05:37:44.197Z",
+  "repository": {
+    "head": "a04c2f846caab32e1aa8f2000876a2f04d570668",
+    "branch": "feature/arch-review-p1-foundation",
+    "diffHash": "7c9fda72c7f4f35d10e66670a36ea5467fce290257b154fc7fbe27bc40deab6b",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-b4342430-7d44-4ca3-831b-7bd70a38b8e8",
+      "paths": [
+        "CHANGELOG.md",
+        "dist",
+        "docs",
+        "extensions",
+        "openspec",
+        "src",
+        "tests"
+      ],
+      "hash": "7c9fda72c7f4f35d10e66670a36ea5467fce290257b154fc7fbe27bc40deab6b"
+    },
+    "worktreeRoot": "."
+  }
+}

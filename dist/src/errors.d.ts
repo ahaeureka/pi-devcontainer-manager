@@ -7,7 +7,7 @@
  * reserved for failures to start, timeout, cancellation, and policy/domain
  * rejections.
  */
-export type ErrorKind = "executable-missing" | "spawn-permission-denied" | "daemon-unavailable" | "authorization-denied" | "devcontainer-cli-failure" | "no-candidate" | "ambiguous-candidate" | "target-stopped" | "policy-denied" | "timeout" | "cancelled" | "parse-failure" | "unexpected";
+export type ErrorKind = "executable-missing" | "spawn-permission-denied" | "daemon-unavailable" | "authorization-denied" | "devcontainer-cli-failure" | "docker-cli-failure" | "no-candidate" | "ambiguous-candidate" | "target-stopped" | "target-refreshing" | "policy-denied" | "timeout" | "cancelled" | "parse-failure" | "unexpected";
 export interface RuntimeErrorOptions {
     readonly kind: ErrorKind;
     readonly message: string;

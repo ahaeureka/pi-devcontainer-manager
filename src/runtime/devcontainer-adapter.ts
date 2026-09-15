@@ -20,7 +20,8 @@
  *   duplicates into an array; the CLI normalizes a single value to a
  *   one-element array), so EVERY allowlisted variable is forwarded.
  */
-import type { ProcessRunner, ProcessResult } from "./process-runner.js";
+import { DEFAULT_MAX_OUTPUT_BYTES, runBounded, type ProcessRunner, type ProcessResult } from "./process-runner.js";
+import { devcontainerSpawnErrorSpec } from "./spawn-error.js";
 import type { DevcontainerConfigKind } from "../types.js";
 import { RuntimeError } from "../errors.js";
 
@@ -100,7 +101,6 @@ export interface AdapterLimits {
   readonly timeoutMs?: number;
 }
 
-const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024;
 const CLI_TIMEOUT_MS = 300_000;
 
 /** stderr markers the pinned CLI emits for structural (non-command) failures. */
@@ -171,31 +171,27 @@ export class NodeDevcontainerAdapter implements DevcontainerAdapter {
 
     const chunks: Buffer[] = [];
     const errChunks: Buffer[] = [];
-    try {
-      const result = await this.runner.exec(this.options.devcontainerPath, argv, {
-        cwd: this.options.cwd,
-        env: { ...this.options.env },
-        maxOutputBytes: this.options.limits?.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
-        timeoutMs: this.options.limits?.timeoutMs ?? CLI_TIMEOUT_MS,
-        ...(options.signal !== undefined ? { signal: options.signal } : {}),
-        onData: (chunk) => chunks.push(chunk),
-        onStderr: (chunk) => errChunks.push(chunk),
-      });
-      const stdout = Buffer.concat(chunks).toString("utf8");
-      const stderr = Buffer.concat(errChunks).toString("utf8");
-      this.rejectStructuralFailure(result, stdout, stderr);
-      return {
-        exitCode: result.exitCode,
-        signal: result.signal,
-        durationMs: result.durationMs,
-        truncated: result.truncated,
-        stdout,
-        stderr,
-      };
-    } catch (error) {
-      this.rethrowMappedSpawnError(error);
-    }
-    throw new RuntimeError({ kind: "unexpected", message: "unreachable exec path" });
+    const result = await runBounded(this.runner, this.options.devcontainerPath, argv, {
+      cwd: this.options.cwd,
+      env: this.options.env,
+      maxOutputBytes: this.options.limits?.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
+      timeoutMs: this.options.limits?.timeoutMs ?? CLI_TIMEOUT_MS,
+      ...(options.signal !== undefined ? { signal: options.signal } : {}),
+      onData: (chunk) => chunks.push(chunk),
+      onStderr: (chunk) => errChunks.push(chunk),
+      spawnError: devcontainerSpawnErrorSpec(this.options.devcontainerPath),
+    });
+    const stdout = Buffer.concat(chunks).toString("utf8");
+    const stderr = Buffer.concat(errChunks).toString("utf8");
+    this.rejectStructuralFailure(result, stdout, stderr);
+    return {
+      exitCode: result.exitCode,
+      signal: result.signal,
+      durationMs: result.durationMs,
+      truncated: result.truncated,
+      stdout,
+      stderr,
+    };
   }
 
   /** Shared argv runner for up/build/exec with error mapping. */
@@ -205,87 +201,60 @@ export class NodeDevcontainerAdapter implements DevcontainerAdapter {
   ): Promise<{ result: ProcessResult; stdout: Buffer; stderr: Buffer }> {
     const chunks: Buffer[] = [];
     const errChunks: Buffer[] = [];
-    try {
-      const result = await this.runner.exec(this.options.devcontainerPath, [...args], {
-        cwd: this.options.cwd,
-        env: { ...this.options.env },
-        maxOutputBytes: this.options.limits?.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
-        timeoutMs: this.options.limits?.timeoutMs ?? CLI_TIMEOUT_MS,
-        ...(signal !== undefined ? { signal } : {}),
-        onData: (chunk) => chunks.push(chunk),
-        onStderr: (chunk) => errChunks.push(chunk),
-      });
-      return { result, stdout: Buffer.concat(chunks), stderr: Buffer.concat(errChunks) };
-    } catch (error) {
-      this.rethrowMappedSpawnError(error);
-    }
-    throw new RuntimeError({ kind: "unexpected", message: "unreachable runCli path" });
-  }
-
-  private rethrowMappedSpawnError(error: unknown): never {
-    if (error instanceof RuntimeError && error.kind === "executable-missing") {
-      throw new RuntimeError({
-        kind: "devcontainer-cli-failure",
-        message: `Dev Containers CLI '${this.options.devcontainerPath}' is unavailable.`,
-        cause: error,
-        remedy: "Install @devcontainers/cli or set devcontainerPath in configuration.",
-      });
-    }
-    if (error instanceof RuntimeError && error.kind === "spawn-permission-denied") {
-      throw new RuntimeError({
-        kind: "authorization-denied",
-        message: `Dev Containers CLI spawn was denied for '${this.options.devcontainerPath}'.`,
-        cause: error,
-        remedy: "Check operator privileges for the Dev Containers executable.",
-      });
-    }
-    throw error;
+    const result = await runBounded(this.runner, this.options.devcontainerPath, args, {
+      cwd: this.options.cwd,
+      env: this.options.env,
+      maxOutputBytes: this.options.limits?.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
+      timeoutMs: this.options.limits?.timeoutMs ?? CLI_TIMEOUT_MS,
+      ...(signal !== undefined ? { signal } : {}),
+      onData: (chunk) => chunks.push(chunk),
+      onStderr: (chunk) => errChunks.push(chunk),
+      spawnError: devcontainerSpawnErrorSpec(this.options.devcontainerPath),
+    });
+    return { result, stdout: Buffer.concat(chunks), stderr: Buffer.concat(errChunks) };
   }
 
   private parseUp(result: ProcessResult, stdout: Buffer, stderr: Buffer): UpResult {
     if (result.exitCode !== 0) {
       // Prefer the CLI's structured JSON when it was emitted, else stderr markers.
       const parsed = this.tryParseJsonOutcome(stdout);
-      if (parsed !== undefined) {
-        if (parsed.outcome !== "success") throw this.cliFailure(parsed, result, "devcontainer up");
-      } else {
-        throw this.failureFromStderr(result, stderr, "devcontainer up");
+      if (parsed !== undefined && parsed.outcome !== "success") {
+        throw this.cliFailure(parsed, result, "devcontainer up");
       }
-    } else {
-      const parsed = this.parseJsonOutcome(stdout, "devcontainer up");
-      if (parsed.outcome !== "success") throw this.cliFailure(parsed, result, "devcontainer up");
-      if (typeof parsed.containerId !== "string" || parsed.containerId.length === 0) {
-        throw new RuntimeError({
-          kind: "parse-failure",
-          message: "devcontainer up succeeded without a containerId.",
-        });
-      }
-      return {
-        containerId: parsed.containerId,
-        ...(typeof parsed.composeProjectName === "string" ? { composeProjectName: parsed.composeProjectName } : {}),
-        ...(typeof parsed.remoteUser === "string" ? { remoteUser: parsed.remoteUser } : {}),
-        ...(typeof parsed.remoteWorkspaceFolder === "string" ? { remoteWorkspaceFolder: parsed.remoteWorkspaceFolder } : {}),
-      };
+      // A nonzero exit with no failure payload (or one that claims success) is still
+      // a failed `up`; report it from the stderr markers instead of falling through to
+      // a compile-time-only sentinel.
+      throw this.failureFromStderr(result, stderr, "devcontainer up");
     }
-    throw new RuntimeError({ kind: "unexpected", message: "unreachable parseUp path" });
+    const parsed = this.parseJsonOutcome(stdout, "devcontainer up");
+    if (parsed.outcome !== "success") throw this.cliFailure(parsed, result, "devcontainer up");
+    if (typeof parsed.containerId !== "string" || parsed.containerId.length === 0) {
+      throw new RuntimeError({
+        kind: "parse-failure",
+        message: "devcontainer up succeeded without a containerId.",
+      });
+    }
+    return {
+      containerId: parsed.containerId,
+      ...(typeof parsed.composeProjectName === "string" ? { composeProjectName: parsed.composeProjectName } : {}),
+      ...(typeof parsed.remoteUser === "string" ? { remoteUser: parsed.remoteUser } : {}),
+      ...(typeof parsed.remoteWorkspaceFolder === "string" ? { remoteWorkspaceFolder: parsed.remoteWorkspaceFolder } : {}),
+    };
   }
 
   private parseBuild(result: ProcessResult, stdout: Buffer, stderr: Buffer): BuildResult {
     if (result.exitCode !== 0) {
       const parsed = this.tryParseJsonOutcome(stdout);
-      if (parsed !== undefined) {
-        if (parsed.outcome !== "success") throw this.cliFailure(parsed, result, "devcontainer build");
-      } else {
-        throw this.failureFromStderr(result, stderr, "devcontainer build");
+      if (parsed !== undefined && parsed.outcome !== "success") {
+        throw this.cliFailure(parsed, result, "devcontainer build");
       }
-    } else {
-      const parsed = this.parseJsonOutcome(stdout, "devcontainer build");
-      if (parsed.outcome !== "success") throw this.cliFailure(parsed, result, "devcontainer build");
-      return {
-        ...(typeof parsed.imageName === "string" ? { imageName: parsed.imageName } : {}),
-      };
+      throw this.failureFromStderr(result, stderr, "devcontainer build");
     }
-    throw new RuntimeError({ kind: "unexpected", message: "unreachable parseBuild path" });
+    const parsed = this.parseJsonOutcome(stdout, "devcontainer build");
+    if (parsed.outcome !== "success") throw this.cliFailure(parsed, result, "devcontainer build");
+    return {
+      ...(typeof parsed.imageName === "string" ? { imageName: parsed.imageName } : {}),
+    };
   }
 
   /** Structured failure: prefer the CLI's own `message`/`description` when present. */

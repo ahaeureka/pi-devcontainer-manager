@@ -1,0 +1,37 @@
+{
+  "revisionId": "revision-b4342430-7d44-4ca3-831b-7bd70a38b8e8",
+  "findings": [
+    {
+      "id": "finding-redactText-multiline-value-tail",
+      "taskId": "arch-review-p1-foundation",
+      "acceptanceId": "AC-5",
+      "severity": "minor",
+      "message": "A secret whose value spans lines still leaks its tail. `redactText(\"deploy --password -----BEGIN KEY-----\\nMIIBbase64SECRET\\n-----END KEY-----\")` returns `deploy --password [REDACTED] KEY-----\\nMIIBbase64SECRET\\n-----END KEY-----`: rule 3's bare-token class (`[^\\s\"']+`) stops at the newline, so the key body survives. Reachable only when `audit.commandCapture` is `redacted-text` (default is `fingerprint-only`), and NOT introduced here — re-implementing the pre-change rules leaks the same body. Recorded because this task's AC-5 claims whole-value redaction for bare secret values. Suggested fix: let the bare-token alternatives span newlines (for example `[\\s\\S]+?` up to a closing quote or end of the value) and add a multi-line regression case. Path: src/policy.ts.",
+      "path": "src/policy.ts"
+    },
+    {
+      "id": "finding-scheme-word-over-redaction",
+      "taskId": "arch-review-p1-foundation",
+      "severity": "note",
+      "message": "New false positive from the widened rule 1: any word `Bearer`/`Basic`/`Token` followed by whitespace now consumes the next token whatever it is, so ordinary quoted text is redacted — `grep Bearer \"src/**\"` becomes `grep Bearer \"[REDACTED]\"` (the pre-change rule did not match that input because the value class started with an unquoted character). This is over-redaction, i.e. the safe direction, and it only shortens audit `commandText` under redacted-text capture; no credential survives because of it. Path: src/policy.ts.",
+      "path": "src/policy.ts"
+    },
+    {
+      "id": "finding-per-ac-mapping-lives-in-design-only",
+      "taskId": "arch-review-p1-foundation",
+      "severity": "note",
+      "message": "`verify.json` records AC-1..AC-9 all PASS against a single global evidence envelope (the full vitest run), so the tool does not bind a criterion to its own test; `upstream.missingAcceptanceMatrix` is still true because security review mode does not require the machine-readable matrix. The per-AC mapping therefore lives only in `openspec/changes/arch-review-p1-foundation/design.md` §4 and was checked by hand during this review (each AC traced to the test file that fails without the change). Informational for Judge: the mapping is verified but not machine-enforced.",
+      "path": "openspec/changes/arch-review-p1-foundation/design.md"
+    },
+    {
+      "id": "finding-handoff-allowedwrites-vs-ownedpaths",
+      "taskId": "arch-review-p1-foundation",
+      "severity": "note",
+      "message": "The implementer handoff's `permissions.allowedWrites` is a role constant (`src/`, `tests/`, `docs/`) and ignores the task's `ownedPaths` (`src, extensions, tests, dist, CHANGELOG.md`), so it denied the paths AC-1 and AC-9 need. Resolved with the owner's approval by extending ownership at seal time (`--owned-path docs --owned-path openspec`); the sealed scope is `CHANGELOG.md, dist, docs, extensions, openspec, src, tests`. No implementation file was written outside the sealed scope. Worth knowing for the next task: the packet's wording makes `allowedWrites` read as binding while the task's `ownedPaths` is the authoritative record.",
+      "path": ".kata/tasks/arch-review-p1-foundation/wiki/arch-review-p1-foundation.md"
+    }
+  ],
+  "status": "approved",
+  "reviewEvidence": "Security review of revision-b4342430 (Phase 1 / Foundation, eight accepted findings), checked against the acceptance matrix in openspec/changes/arch-review-p1-foundation/design.md section 4. AC-1: `resolveTool` is absent from src/, extensions/ and dist/ (grep) while `registerNamedTool` remains the only wrapper and the packed smoke still registers every tool. AC-2: `authorize()` no longer contains an inline record; the refusal is written by the shared `audit()` builder and a characterization test pins its exact field set. AC-3: `buildChildEnvironment` refuses with a typed `policy-denied` RuntimeError that still names the variable. AC-4: `target-refreshing` replaces the borrowed `target-stopped` at that single site, the three genuine `target-stopped` sites are unchanged, and both docs list the kind. AC-5: whole-value redaction was verified adversarially against the built dist — values containing `,` `;` `:` `/` `=` `+`, CJK characters and quoted forms are now fully redacted, fixing the three previously leaking shapes. AC-6: one `mapSpawnError` plus one `runBounded`; no `unreachable … path` throw and no `rethrowMapped` remain, and per-tool kinds are preserved by the existing docker-adapter/devcontainer-adapter suites plus the new spawn-error suite. AC-7: `docker-cli-failure` carries the exit code and is asserted by the new docker-lifecycle suite. AC-8: one named default cap plus a named logs cap; the 64→50 KiB fallback change is documented and unreachable in production because every call site passes `config.maxOutputBytes`. AC-9: typecheck, the full vitest run, verify-package, the packed smoke and the CI dist-freshness invariant (fresh in-place build then `git diff --exit-code -- dist` clean) all pass. Trust-boundary scope: the revision touches no package manifest, lockfile, CI workflow or security document, adds no `process.env` read and no new spawn surface, and leaves the hostExecution, destructive and environment-allowlist gates byte-identical. Residual risk is recorded as one minor finding (pre-existing multi-line value redaction) and three notes; no blocking or major findings.",
+  "approvedAt": "2026-09-15T05:33:35.795Z"
+}

@@ -1,4 +1,4 @@
-import type { ProcessRunner } from "./process-runner.js";
+import { type ProcessRunner } from "./process-runner.js";
 export interface DockerContainer {
     readonly id: string;
     readonly name: string;

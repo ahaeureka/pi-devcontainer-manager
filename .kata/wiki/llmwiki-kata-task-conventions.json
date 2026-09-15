@@ -1,0 +1,29 @@
+{
+  "id": "llmwiki-kata-task-conventions",
+  "statement": "Kata task conventions in this repository",
+  "scope": [
+    "concepts/kata-task-conventions.md"
+  ],
+  "kind": "llmwiki-summary",
+  "sourceRefs": [
+    ".llmwiki/raw/docs/kata-task-conventions.md",
+    ".llmwiki/concepts/kata-task-conventions.md"
+  ],
+  "sourceHashes": {
+    ".llmwiki/raw/docs/kata-task-conventions.md": "6a87126438ebc4773185db70365710fea6460d229cababb2d54f999b75d71622",
+    ".llmwiki/concepts/kata-task-conventions.md": "37f082d93eb393435b38063b008b5f65858be0f900b14cb1c830e4af25c40a02"
+  },
+  "validationTaskId": "llmwiki-ingest",
+  "evidenceIds": [
+    "llmwiki-6a87126438eb"
+  ],
+  "status": "verified",
+  "lastVerifiedAt": "2026-09-15T05:37:19.910Z",
+  "createdAt": "2026-09-15T05:37:19.521Z",
+  "updatedAt": "2026-09-15T05:37:19.912Z",
+  "approvalEvent": {
+    "approvedBy": "geebytes",
+    "role": "distiller",
+    "approvedAt": "2026-09-15T05:37:19.910Z"
+  }
+}

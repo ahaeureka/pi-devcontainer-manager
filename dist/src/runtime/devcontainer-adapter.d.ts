@@ -20,7 +20,7 @@
  *   duplicates into an array; the CLI normalizes a single value to a
  *   one-element array), so EVERY allowlisted variable is forwarded.
  */
-import type { ProcessRunner } from "./process-runner.js";
+import { type ProcessRunner } from "./process-runner.js";
 import type { DevcontainerConfigKind } from "../types.js";
 /** Whether a discovered configuration has to be passed to the CLI explicitly. */
 export declare function needsExplicitConfig(kind: DevcontainerConfigKind): boolean;
@@ -105,7 +105,6 @@ export declare class NodeDevcontainerAdapter implements DevcontainerAdapter {
     exec(workspace: string, containerId: string, cmd: string, args: readonly string[], options?: ExecOptions): Promise<ExecResult>;
     /** Shared argv runner for up/build/exec with error mapping. */
     private runCli;
-    private rethrowMappedSpawnError;
     private parseUp;
     private parseBuild;
     /** Structured failure: prefer the CLI's own `message`/`description` when present. */

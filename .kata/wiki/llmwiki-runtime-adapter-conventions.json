@@ -1,0 +1,29 @@
+{
+  "id": "llmwiki-runtime-adapter-conventions",
+  "statement": "Runtime adapter conventions (pi-devcontainer-manager)",
+  "scope": [
+    "concepts/runtime-adapter-conventions.md"
+  ],
+  "kind": "llmwiki-summary",
+  "sourceRefs": [
+    ".llmwiki/raw/docs/runtime-adapter-conventions.md",
+    ".llmwiki/concepts/runtime-adapter-conventions.md"
+  ],
+  "sourceHashes": {
+    ".llmwiki/raw/docs/runtime-adapter-conventions.md": "be954aacc2af2d864768f8a8a9f9db2d946fca98ee0cdd3c8d9732a87aa2f228",
+    ".llmwiki/concepts/runtime-adapter-conventions.md": "7106f8b46816c44302e90760f1d342071b9fd258935722fa39f42a711b5f0c7b"
+  },
+  "validationTaskId": "llmwiki-ingest",
+  "evidenceIds": [
+    "llmwiki-be954aacc2af"
+  ],
+  "status": "verified",
+  "lastVerifiedAt": "2026-09-15T05:37:19.646Z",
+  "createdAt": "2026-09-15T05:37:19.251Z",
+  "updatedAt": "2026-09-15T05:37:19.649Z",
+  "approvalEvent": {
+    "approvedBy": "geebytes",
+    "role": "distiller",
+    "approvedAt": "2026-09-15T05:37:19.646Z"
+  }
+}

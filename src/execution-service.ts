@@ -392,17 +392,16 @@ export class ExecutionService {
     const now = () => new Date(this.clock());
     const snapshot = evaluatePolicy(this.options.config, input, now);
     if (!snapshot.authorized) {
-      this.options.audit.write({
-        version: 1,
-        at: this.clock(),
-        operation: input.operation,
-        initiator: input.initiator,
-        ...(input.workspace !== undefined ? { workspace: input.workspace } : {}),
-        policyAuthorized: false,
-        ...(snapshot.denialReason !== undefined ? { policyDenialReason: snapshot.denialReason } : {}),
-        outputTruncated: false,
-        commandCapture: snapshot.effectiveConfig.audit.commandCapture,
-      });
+      this.audit(
+        snapshot,
+        undefined,
+        {
+          operation: input.operation,
+          initiator: input.initiator,
+          ...(input.workspace !== undefined ? { workspace: input.workspace } : {}),
+        },
+        { outputTruncated: false },
+      );
       throw new RuntimeError({
         kind: "policy-denied",
         message: `Operation '${input.operation}' was denied: ${snapshot.denialReason ?? "policy"}.`,

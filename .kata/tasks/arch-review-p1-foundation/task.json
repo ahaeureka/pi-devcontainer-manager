@@ -50,21 +50,21 @@
     "reviewMode": "security",
     "comet": {
       "projectInit": "not_requested",
-      "openStatus": "required"
+      "openStatus": "acknowledged"
     },
     "gitFlow": {
       "strategy": "manual",
-      "branch": "",
-      "baseBranch": "",
-      "status": "failed",
-      "command": [],
-      "reason": "worktree_dirty"
+      "branch": "feature/arch-review-p1-foundation",
+      "baseBranch": "main",
+      "status": "active"
     }
   },
   "ownedPaths": [
     "CHANGELOG.md",
     "dist",
+    "docs",
     "extensions",
+    "openspec",
     "src",
     "tests"
   ],
