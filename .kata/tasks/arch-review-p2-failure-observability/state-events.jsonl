@@ -6,3 +6,4 @@
 {"taskId":"arch-review-p2-failure-observability","from":"review","to":"implement","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-15T09:59:46.001Z"}
 {"taskId":"arch-review-p2-failure-observability","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-15T10:00:31.058Z"}
 {"taskId":"arch-review-p2-failure-observability","from":"hardVerify","to":"review","actor":{"id":"kata-reviewer","role":"reviewer"},"at":"2026-09-15T10:01:30.388Z"}
+{"taskId":"arch-review-p2-failure-observability","from":"review","to":"judge","actor":{"id":"kata-judge","role":"judge"},"at":"2026-09-15T11:06:06.454Z"}

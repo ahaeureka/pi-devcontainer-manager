@@ -1,9 +1,9 @@
 {
   "taskId": "arch-review-p2-failure-observability",
-  "phase": "review",
+  "phase": "judge",
   "actor": {
-    "id": "kata-reviewer",
-    "role": "reviewer"
+    "id": "kata-judge",
+    "role": "judge"
   },
-  "updatedAt": "2026-09-15T10:01:30.388Z"
+  "updatedAt": "2026-09-15T11:06:06.454Z"
 }
