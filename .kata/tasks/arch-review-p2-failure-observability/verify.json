@@ -1,60 +1,38 @@
 {
   "taskId": "arch-review-p2-failure-observability",
-  "result": "PASS",
-  "diffHash": "853f3058d938c3b6edda87afd4219a0aac0f9de21c0081ea4a6dda67fd8227dd",
+  "result": "FAIL",
+  "diffHash": "814f06bbc32394337eed347b96116eac196db67fa5c0e5a1a5d240ee4e6fcce3",
+  "revisionId": "revision-078eb341-0ccf-42af-b58b-4c639510d2d8",
   "acceptance": [
     {
       "id": "AC-1",
-      "result": "PASS",
-      "evidenceIds": [
-        "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530",
-        "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530"
-      ]
+      "result": "FAIL",
+      "repairScope": "revision_superseded"
     },
     {
       "id": "AC-2",
-      "result": "PASS",
-      "evidenceIds": [
-        "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530",
-        "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530"
-      ]
+      "result": "FAIL",
+      "repairScope": "revision_superseded"
     },
     {
       "id": "AC-3",
-      "result": "PASS",
-      "evidenceIds": [
-        "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530",
-        "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530"
-      ]
+      "result": "FAIL",
+      "repairScope": "revision_superseded"
     },
     {
       "id": "AC-4",
-      "result": "PASS",
-      "evidenceIds": [
-        "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530",
-        "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530"
-      ]
+      "result": "FAIL",
+      "repairScope": "revision_superseded"
     },
     {
       "id": "AC-5",
-      "result": "PASS",
-      "evidenceIds": [
-        "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530",
-        "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530"
-      ]
+      "result": "FAIL",
+      "repairScope": "revision_superseded"
     },
     {
       "id": "AC-6",
-      "result": "PASS",
-      "evidenceIds": [
-        "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530",
-        "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530"
-      ]
+      "result": "FAIL",
+      "repairScope": "revision_superseded"
     }
-  ],
-  "evidenceIds": [
-    "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530",
-    "evidence-4dee5310-49e8-48e8-b8f8-a6e294bd0530"
-  ],
-  "revisionId": "revision-078eb341-0ccf-42af-b58b-4c639510d2d8"
+  ]
 }
