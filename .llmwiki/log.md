@@ -28,3 +28,21 @@
 - Imported: raw/docs/arch-review-p1-foundation.md
 - Updated: concepts/arch-review-p1-foundation.md
 - Governed record: llmwiki-arch-review-p1-foundation
+
+## [2026-09-15] ingest | runtime-adapter-conventions.md
+
+- Imported: raw/docs/runtime-adapter-conventions.md
+- Updated: concepts/runtime-adapter-conventions.md
+- Governed record: llmwiki-runtime-adapter-conventions
+
+## [2026-09-15] ingest | error-kind-contract.md
+
+- Imported: raw/docs/error-kind-contract.md
+- Updated: concepts/error-kind-contract.md
+- Governed record: llmwiki-error-kind-contract
+
+## [2026-09-15] ingest | kata-task-conventions.md
+
+- Imported: raw/docs/kata-task-conventions.md
+- Updated: concepts/kata-task-conventions.md
+- Governed record: llmwiki-kata-task-conventions

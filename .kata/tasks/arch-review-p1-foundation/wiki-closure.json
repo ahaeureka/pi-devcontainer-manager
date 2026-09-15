@@ -1,9 +1,12 @@
 {
   "taskId": "arch-review-p1-foundation",
   "decision": "captured",
-  "reason": "Phase 1 build notes captured as llmwiki-arch-review-p1-foundation: the implementer handoff's role-default allowedWrites conflicts with the task's owned paths (resolved at seal time with --owned-path docs/openspec), and sealing requires a fresh receipt for the current head.",
+  "reason": "Phase 1 (Foundation) established four durable rules: the runtime adapter spawn/cap conventions (runBounded + mapSpawnError + the two named caps), the error-kind contract (a kind names the real cause; docs/troubleshooting.md is the single enumeration; refusals go through the shared audit builder; a refusal is typed), the repository's Kata task conventions (requirements-file seeding, owned-path declaration and seal-time extension, commit-before-acknowledge, phase-to-role mapping, gate mechanics), plus the build-constraint notes from the implementation run.",
   "candidateIds": [
-    "llmwiki-arch-review-p1-foundation"
+    "llmwiki-arch-review-p1-foundation",
+    "llmwiki-error-kind-contract",
+    "llmwiki-kata-task-conventions",
+    "llmwiki-runtime-adapter-conventions"
   ],
-  "updatedAt": "2026-09-15T05:18:24.277Z"
+  "updatedAt": "2026-09-15T05:37:20.040Z"
 }

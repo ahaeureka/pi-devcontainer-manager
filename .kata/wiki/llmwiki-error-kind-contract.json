@@ -1,0 +1,29 @@
+{
+  "id": "llmwiki-error-kind-contract",
+  "statement": "Error-kind contract (pi-devcontainer-manager)",
+  "scope": [
+    "concepts/error-kind-contract.md"
+  ],
+  "kind": "llmwiki-summary",
+  "sourceRefs": [
+    ".llmwiki/raw/docs/error-kind-contract.md",
+    ".llmwiki/concepts/error-kind-contract.md"
+  ],
+  "sourceHashes": {
+    ".llmwiki/raw/docs/error-kind-contract.md": "70c951b88fb6dcabe9cd5ae12dd3f14d022c137bb6b14b7d74130f869a1a3cce",
+    ".llmwiki/concepts/error-kind-contract.md": "2d59fc38642b2fdd58534fa8d5a410d228c423f5fe1c2bd13de19e940a522cdb"
+  },
+  "validationTaskId": "llmwiki-ingest",
+  "evidenceIds": [
+    "llmwiki-70c951b88fb6"
+  ],
+  "status": "verified",
+  "lastVerifiedAt": "2026-09-15T05:37:19.776Z",
+  "createdAt": "2026-09-15T05:37:19.387Z",
+  "updatedAt": "2026-09-15T05:37:19.779Z",
+  "approvalEvent": {
+    "approvedBy": "geebytes",
+    "role": "distiller",
+    "approvedAt": "2026-09-15T05:37:19.776Z"
+  }
+}

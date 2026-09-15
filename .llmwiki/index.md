@@ -11,6 +11,12 @@
 
 - [[concepts/arch-review-p1-foundation.md]] — Kata role defaults vs task ownership (Phase 1 build notes)
 
+- [[concepts/runtime-adapter-conventions.md]] — Runtime adapter conventions (pi-devcontainer-manager)
+
+- [[concepts/error-kind-contract.md]] — Error-kind contract (pi-devcontainer-manager)
+
+- [[concepts/kata-task-conventions.md]] — Kata task conventions in this repository
+
 ## Comparisons
 
 ## Queries
