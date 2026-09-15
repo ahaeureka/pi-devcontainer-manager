@@ -1,0 +1,23 @@
+{
+  "protocolVersion": 1,
+  "taskId": "arch-review-p3-selection-integrity",
+  "handoffId": "handoff-6335a4ef-ce8",
+  "platform": "pi",
+  "role": "designer",
+  "packetSha256": "ef72c1585aa2ab9c9bb315865723156275c828df173e62e5e76119db1962172d",
+  "acknowledgedAt": "2026-09-15T13:11:26.557Z",
+  "repository": {
+    "head": "8a3b7a876887f1b83d68d11370792be65ff84a17",
+    "branch": "feature/arch-review-p3-selection-integrity",
+    "diffHash": "f3dc36dadf0ed9f3306694638d4d572169b7600115afd80ca677e581a7a5fe1f",
+    "scope": {
+      "kind": "task_context",
+      "paths": [
+        ".kata/tasks/arch-review-p3-selection-integrity/task.json",
+        ".kata/tasks/arch-review-p3-selection-integrity/current-state.json"
+      ],
+      "hash": "f3dc36dadf0ed9f3306694638d4d572169b7600115afd80ca677e581a7a5fe1f"
+    },
+    "worktreeRoot": "."
+  }
+}
