@@ -1,9 +1,9 @@
 {
   "taskId": "arch-review-p3-selection-integrity",
-  "phase": "plan",
+  "phase": "implement",
   "actor": {
-    "id": "kata-designer",
-    "role": "designer"
+    "id": "kata-agent",
+    "role": "implementer"
   },
-  "updatedAt": "2026-09-15T13:11:26.699Z"
+  "updatedAt": "2026-09-15T15:13:40.562Z"
 }

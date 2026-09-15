@@ -343,8 +343,7 @@
           },
           {
             "kind": "integration",
-            "command": "node scripts/smoke-pi-package.mjs --no-model",
-            "testSelector": "packed extension registration"
+            "command": "node scripts/smoke-pi-package.mjs --no-model"
           }
         ],
         "verificationLevel": "integration"
