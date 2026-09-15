@@ -1,8 +1,8 @@
 {
   "taskId": "arch-review-p1-foundation",
   "role": "reviewer",
-  "phase": "hardVerify",
+  "phase": "review",
   "branch": "feature/arch-review-p1-foundation",
   "origin": "workflow",
-  "activatedAt": "2026-09-15T05:26:44.613Z"
+  "activatedAt": "2026-09-15T05:33:35.843Z"
 }

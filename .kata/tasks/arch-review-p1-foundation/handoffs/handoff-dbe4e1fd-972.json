@@ -1,0 +1,217 @@
+{
+  "protocolVersion": 1,
+  "id": "handoff-dbe4e1fd-972",
+  "taskId": "arch-review-p1-foundation",
+  "createdAt": "2026-09-15T05:32:45.342Z",
+  "from": {
+    "role": "reviewer",
+    "platform": "pi"
+  },
+  "to": {
+    "role": "reviewer"
+  },
+  "phase": "hardVerify",
+  "repository": {
+    "head": "a02eddb19e37fa2ccb486f1a3fe510e793764a4d",
+    "branch": "feature/arch-review-p1-foundation",
+    "diffHash": "7c9fda72c7f4f35d10e66670a36ea5467fce290257b154fc7fbe27bc40deab6b",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-b4342430-7d44-4ca3-831b-7bd70a38b8e8",
+      "paths": [
+        "CHANGELOG.md",
+        "dist",
+        "docs",
+        "extensions",
+        "openspec",
+        "src",
+        "tests"
+      ],
+      "hash": "7c9fda72c7f4f35d10e66670a36ea5467fce290257b154fc7fbe27bc40deab6b"
+    },
+    "worktreeRoot": "."
+  },
+  "task": {
+    "id": "arch-review-p1-foundation",
+    "title": "`extensions/index.ts` no longer defines `resolveTool` (or its comment block); `r",
+    "phase": "intake",
+    "acceptance": [
+      {
+        "id": "AC-1",
+        "statement": "`extensions/index.ts` no longer defines `resolveTool` (or its comment block); `registerNamedTool` is the only lazy tool-registration wrapper, and every registered tool keeps its runtime-derived prompt metadata (existing tool-registration tests and `scripts/smoke-pi-package.mjs` stay green)."
+      },
+      {
+        "id": "AC-2",
+        "statement": "Denied and successful operations emit records built by the same private builder: `authorize()` contains no inline `AuditRecord` literal, and the denial record still carries operation, initiator, workspace, `policyAuthorized: false`, `policyDenialReason`, `outputTruncated` and `commandCapture`."
+      },
+      {
+        "id": "AC-3",
+        "statement": "`buildChildEnvironment` rejects a disallowed environment name with a `RuntimeError` of kind `policy-denied` (never a bare `Error`), so `errorKindOf` returns `policy-denied` while the message still names the offending variable."
+      },
+      {
+        "id": "AC-4",
+        "statement": "The transient selection state reports a non-stopped error kind of its own with the retry remedy instead of `target-stopped`, and the status-to-kind mapping is exercised by a unit test in `bind()`."
+      },
+      {
+        "id": "AC-5",
+        "statement": "`redactText` replaces whole authentication values (`Bearer|Basic|Token` plus everything up to whitespace) and whole bare secret values; regression cases containing `,`, `;`, `:` quotes and CJK characters assert that no tail of the credential survives, and the existing redaction cases still pass."
+      },
+      {
+        "id": "AC-6",
+        "statement": "One shared spawn-error mapper and one shared bounded-invocation helper serve `docker-adapter`, `docker-lifecycle` and `devcontainer-adapter`; the six compile-time-only `unreachable … path` throws are gone; per-tool kind mapping is preserved (docker executable missing yields `daemon-unavailable`, devcontainer executable missing yields `devcontainer-cli-failure`, permission denied yields `authorization-denied`)."
+      },
+      {
+        "id": "AC-7",
+        "statement": "A failed `docker stop`/`docker rm` reports a Docker-specific failure kind (never `devcontainer-cli-failure`) and carries the exit code, asserted by adapter unit tests."
+      },
+      {
+        "id": "AC-8",
+        "statement": "The runtime layer exports the single named default output cap and the adapters import it instead of declaring their own literals; the 256 KiB logs cap becomes a named constant; production behaviour is unchanged because every production call site still passes `config.maxOutputBytes`."
+      },
+      {
+        "id": "AC-9",
+        "statement": "No behaviour regression: `npm run typecheck`, the full unit suite and `node scripts/verify-package.mjs --unit-tests` pass, and the committed `dist` is rebuilt so CI's committed-output freshness check stays green."
+      }
+    ],
+    "branch": "main",
+    "createdAt": "2026-09-15T02:32:40.839Z",
+    "updatedAt": "2026-09-15T02:32:40.839Z",
+    "workflowProfile": {
+      "version": 1,
+      "isolationMode": "git_flow",
+      "developmentMode": "tdd",
+      "reviewMode": "security",
+      "comet": {
+        "projectInit": "not_requested",
+        "openStatus": "acknowledged"
+      },
+      "gitFlow": {
+        "strategy": "manual",
+        "branch": "feature/arch-review-p1-foundation",
+        "baseBranch": "main",
+        "status": "active"
+      }
+    },
+    "ownedPaths": [
+      "CHANGELOG.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "src",
+      "tests"
+    ],
+    "requirements": [
+      {
+        "id": "AC-1",
+        "statement": "`extensions/index.ts` no longer defines `resolveTool` (or its comment block); `registerNamedTool` is the only lazy tool-registration wrapper, and every registered tool keeps its runtime-derived prompt metadata (existing tool-registration tests and `scripts/smoke-pi-package.mjs` stay green).",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L0-01",
+        "confirmedAt": "2026-09-15T02:32:40.838Z"
+      },
+      {
+        "id": "AC-2",
+        "statement": "Denied and successful operations emit records built by the same private builder: `authorize()` contains no inline `AuditRecord` literal, and the denial record still carries operation, initiator, workspace, `policyAuthorized: false`, `policyDenialReason`, `outputTruncated` and `commandCapture`.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L3-01",
+        "confirmedAt": "2026-09-15T02:32:40.839Z"
+      },
+      {
+        "id": "AC-3",
+        "statement": "`buildChildEnvironment` rejects a disallowed environment name with a `RuntimeError` of kind `policy-denied` (never a bare `Error`), so `errorKindOf` returns `policy-denied` while the message still names the offending variable.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L3-03",
+        "confirmedAt": "2026-09-15T02:32:40.839Z"
+      },
+      {
+        "id": "AC-4",
+        "statement": "The transient selection state reports a non-stopped error kind of its own with the retry remedy instead of `target-stopped`, and the status-to-kind mapping is exercised by a unit test in `bind()`.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L3-04",
+        "confirmedAt": "2026-09-15T02:32:40.839Z"
+      },
+      {
+        "id": "AC-5",
+        "statement": "`redactText` replaces whole authentication values (`Bearer|Basic|Token` plus everything up to whitespace) and whole bare secret values; regression cases containing `,`, `;`, `:` quotes and CJK characters assert that no tail of the credential survives, and the existing redaction cases still pass.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L3-06",
+        "confirmedAt": "2026-09-15T02:32:40.839Z"
+      },
+      {
+        "id": "AC-6",
+        "statement": "One shared spawn-error mapper and one shared bounded-invocation helper serve `docker-adapter`, `docker-lifecycle` and `devcontainer-adapter`; the six compile-time-only `unreachable … path` throws are gone; per-tool kind mapping is preserved (docker executable missing yields `daemon-unavailable`, devcontainer executable missing yields `devcontainer-cli-failure`, permission denied yields `authorization-denied`).",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L4-02",
+        "confirmedAt": "2026-09-15T02:32:40.839Z"
+      },
+      {
+        "id": "AC-7",
+        "statement": "A failed `docker stop`/`docker rm` reports a Docker-specific failure kind (never `devcontainer-cli-failure`) and carries the exit code, asserted by adapter unit tests.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L4-03",
+        "confirmedAt": "2026-09-15T02:32:40.839Z"
+      },
+      {
+        "id": "AC-8",
+        "statement": "The runtime layer exports the single named default output cap and the adapters import it instead of declaring their own literals; the 256 KiB logs cap becomes a named constant; production behaviour is unchanged because every production call site still passes `config.maxOutputBytes`.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L5-02",
+        "confirmedAt": "2026-09-15T02:32:40.839Z"
+      },
+      {
+        "id": "AC-9",
+        "statement": "No behaviour regression: `npm run typecheck`, the full unit suite and `node scripts/verify-package.mjs --unit-tests` pass, and the committed `dist` is rebuilt so CI's committed-output freshness check stays green.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#Phase-1-Foundation",
+        "confirmedAt": "2026-09-15T02:32:40.839Z"
+      }
+    ]
+  },
+  "context": {
+    "requiredReads": [
+      "AGENTS.md",
+      ".llmwiki/SCHEMA.md",
+      ".llmwiki/index.md",
+      ".llmwiki/log.md",
+      ".kata/tasks/arch-review-p1-foundation/task.json",
+      ".kata/tasks/arch-review-p1-foundation/current-state.json",
+      "openspec/changes/arch-review-p1-foundation/design.md"
+    ],
+    "designRefs": [
+      "openspec/changes/arch-review-p1-foundation/design.md"
+    ],
+    "sourceRefs": [
+      "AC-1",
+      "AC-2",
+      "AC-3",
+      "AC-4",
+      "AC-5",
+      "AC-6",
+      "AC-7",
+      "AC-8",
+      "AC-9"
+    ],
+    "authoritativeWiki": [],
+    "excludedWiki": [
+      {
+        "id": "llmwiki-arch-review-p1-foundation",
+        "reason": "not-authoritative"
+      }
+    ],
+    "evidencePaths": [
+      ".kata/evidence/arch-review-p1-foundation-hard.json",
+      ".kata/evidence/arch-review-p1-foundation-test.json",
+      ".kata/evidence/arch-review-p1-foundation-typecheck.json"
+    ],
+    "priorArtifacts": [
+      ".kata/tasks/arch-review-p1-foundation/review.json",
+      ".kata/tasks/arch-review-p1-foundation/judge.json",
+      ".kata/tasks/arch-review-p1-foundation/repair.json"
+    ]
+  },
+  "permissions": {
+    "allowedWrites": [
+      ".kata/tasks/arch-review-p1-foundation/review.json"
+    ],
+    "guardInstructions": [
+      "You may only write review findings to review.json.",
+      "Check that acceptance criteria are met by the implementation.",
+      "Assign severity: blocking (must fix), major, minor, note.",
+      "Fresh evidence must be collected after any repair.",
+      "Work on feature/arch-review-p1-foundation; do not start, finish, or switch Git Flow branches outside the recorded task action.",
+      "Security review: inspect trust boundaries, secrets, dependency changes, input validation, and authorization effects."
+    ]
+  },
+  "nextAction": "Perform reviewer work after verifying this handoff."
+}
