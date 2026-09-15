@@ -82,6 +82,20 @@ export interface CommandServices {
 export interface CommandResult {
   /** Markdown rendered into the TUI. */
   readonly text: string;
+  /**
+   * Present only when the command ESTABLISHED a usable target.
+   *
+   * The session surfaces (`bash`, `!`/`!!`, the container tools) are engaged from this, not from
+   * the verb name: a `use` that found nothing, hit an ambiguity, or was cancelled must leave the
+   * session exactly as it was (review finding L1-06).
+   */
+  readonly target?: EstablishedTarget;
+}
+
+/** A selection the session can bind to: a valid target, or one that fails closed until `up`. */
+export interface EstablishedTarget {
+  readonly workspaceKey: string;
+  readonly candidateId?: string;
 }
 
 /**
@@ -138,19 +152,44 @@ export async function applySelection(
   services: CommandServices,
   target: TargetSelection,
   ctx: CommandContextLike,
-): Promise<void> {
+): Promise<EstablishedTarget | undefined> {
   await services.targetStore.select(target);
   const snapshot = services.targetStore.snapshot();
   // Persist selection intent whenever the workspace key is known (running,
   // stopped, config-only, or missing) so `/reload` restores the target even
   // before it is running (End-State `use project-b` flow).
-  if (snapshot.workspaceKey === undefined) return;
+  if (snapshot.workspaceKey === undefined) return undefined;
   ctx.persistSelection?.({
     version: SELECTION_PAYLOAD_VERSION,
     workspaceKey: snapshot.workspaceKey,
     ...(snapshot.candidateId !== undefined ? { candidateId: snapshot.candidateId } : {}),
     selectedAt: new Date().toISOString(),
   });
+  return establishedTarget(snapshot);
+}
+
+/**
+ * Reduce a store snapshot to the metadata that may engage the session surfaces.
+ *
+ * `selected-valid` is usable now; `selected-stopped` is a target the operator chose whose commands
+ * fail closed with the `/devcontainer up` remedy. Everything else (`none`, `selected-missing`,
+ * `selected-ambiguous`, `selected-policy-denied`, `refreshing`) must not take over `bash`.
+ */
+export function establishedTarget(selection: {
+  readonly status: string;
+  readonly workspaceKey?: string | undefined;
+  /** Store-snapshot shape. */
+  readonly candidateId?: string | undefined;
+  /** `TargetSelection` shape. */
+  readonly candidate?: { readonly id: string } | undefined;
+}): EstablishedTarget | undefined {
+  if (selection.workspaceKey === undefined) return undefined;
+  if (selection.status !== "selected-valid" && selection.status !== "selected-stopped") return undefined;
+  const candidateId = selection.candidate?.id ?? selection.candidateId;
+  return {
+    workspaceKey: selection.workspaceKey,
+    ...(candidateId !== undefined ? { candidateId } : {}),
+  };
 }
 
 /** Build the selection record from a registry entry + chosen candidate id. */
@@ -358,12 +397,15 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     const { selector: wanted, config: configSelector } = parseUseArgs(args);
     // Resolve the requested configuration before committing any selection, so an
     // unknown name never changes the target.
+    let established: EstablishedTarget | undefined;
     const select = async (entry: RegistryEntry, candidateId: string | undefined): Promise<string | undefined> => {
       const resolved = configSelector === undefined ? { ok: true as const } : resolveConfigCandidate(entry, configSelector);
       if (resolved.ok === false) return resolved.text;
-      await applySelection(services, selectionFor(entry, candidateId, resolved.configPath), ctx);
+      established = await applySelection(services, selectionFor(entry, candidateId, resolved.configPath), ctx);
       return undefined;
     };
+    const withTarget = (text: string): CommandResult =>
+      established !== undefined ? { text, target: established } : { text };
     // An explicit CONTAINER id selects that candidate of an ambiguous workspace
     // (the only way to resolve 2+ running containers for one workspace).
     if (wanted.length > 0) {
@@ -371,7 +413,7 @@ export function createCommandHandlers(services: CommandServices): Record<string,
       if (byCandidate !== undefined) {
         const failure = await select(byCandidate, wanted);
         if (failure !== undefined) return { text: failure };
-        return { text: `Selected \`${byCandidate.workspacePath}\` → container \`${wanted}\`.` };
+        return withTarget(`Selected \`${byCandidate.workspacePath}\` → container \`${wanted}\`.`);
       }
     }
     let candidates = entries;
@@ -393,7 +435,9 @@ export function createCommandHandlers(services: CommandServices): Record<string,
       }
       const failure = await select(only, only.containerId);
       if (failure !== undefined) return { text: failure };
-      return { text: `Selected \`${only.workspacePath}\` (${only.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
+      return withTarget(
+        `Selected \`${only.workspacePath}\` (${only.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.`,
+      );
     }
     const labels = candidates.map((e) => `${e.workspacePath} [${e.containerState ?? "config-only"}]`);
     const choice = await ctx.ui.select("Select DevContainer target", labels, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
@@ -403,7 +447,9 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     const picked = candidates[idx]!;
     const pickedFailure = await select(picked, picked.ambiguous === true ? undefined : picked.containerId);
     if (pickedFailure !== undefined) return { text: pickedFailure };
-    return { text: `Selected \`${picked.workspacePath}\` (${picked.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.` };
+    return withTarget(
+      `Selected \`${picked.workspacePath}\` (${picked.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.`,
+    );
   };
 
   /**
@@ -469,13 +515,20 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     // the refreshed registry so exec does not fail with target-stopped right
     // after a successful start (config-only / previously-missing selections).
     let reconciled = "";
+    let established: EstablishedTarget | undefined;
     try {
-      const selection = await reconcileSelection(services, ctx, { workspaceKey: workspace }, target.entries);
+      // The entries resolved BEFORE the start cannot describe the container it just created, so
+      // re-discover and reconcile against fresh ones — otherwise the selection stays
+      // `selected-missing` and the surfaces are unusable right after a successful start (L2-01).
+      const refreshed = await services.refreshRegistry();
+      const selection = await reconcileSelection(services, ctx, { workspaceKey: workspace }, refreshed.entries);
       reconciled = `\nselection: ${selection.status}`;
+      established = establishedTarget(selection);
     } catch (error) {
       reconciled = `\nselection: (reconcile failed: ${error instanceof Error ? error.message : String(error)})`;
     }
-    return { text: `Up: ${outcome.workspaceKey} → ${id}${reconciled}\n${outcome.remoteUser !== undefined ? `remote user: ${outcome.remoteUser}\n` : ""}${outcome.remoteWorkspaceFolder !== undefined ? `remote folder: ${outcome.remoteWorkspaceFolder}` : ""}` };
+    const text = `Up: ${outcome.workspaceKey} → ${id}${reconciled}\n${outcome.remoteUser !== undefined ? `remote user: ${outcome.remoteUser}\n` : ""}${outcome.remoteWorkspaceFolder !== undefined ? `remote folder: ${outcome.remoteWorkspaceFolder}` : ""}`;
+    return established !== undefined ? { text, target: established } : { text };
   };
 
   handlers["build"] = async (args, ctx) => {

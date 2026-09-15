@@ -605,3 +605,91 @@ describe("reconcileSelection identity validation", () => {
     expect(result.status).toBe("selected-ambiguous");
   });
 });
+
+describe("CommandResult.target (L1-06)", () => {
+  it("use reports the established target so the dispatcher may engage the container surfaces", async () => {
+    const { handlers } = makeServices();
+    const result = await handlers["use"]!("", makeCtx());
+
+    expect(result.target).toMatchObject({ workspaceKey: "/ws/project-a" });
+  });
+
+  it("use reports no target when the operator cancels", async () => {
+    const ctx = makeCtx({ ui: undefined });
+    ctx.ui.select = vi.fn(async () => undefined);
+    const multi = [
+      { ...entry, workspacePath: "/ws/a" },
+      { ...entry, workspacePath: "/ws/b" },
+    ] as RegistryEntry[];
+    const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: multi, diagnostics: [] })) });
+
+    const result = await handlers["use"]!("", ctx);
+
+    expect(result.text).toContain("cancelled");
+    expect(result.target).toBeUndefined();
+  });
+
+  it("use reports no target when nothing matched", async () => {
+    const { handlers } = makeServices();
+
+    const result = await handlers["use"]!("does-not-exist", makeCtx());
+
+    expect(result.text).toContain("[no-candidate]");
+    expect(result.target).toBeUndefined();
+  });
+
+  it("use reports no target for an ambiguous workspace", async () => {
+    const { handlers } = makeServices({
+      registry: vi.fn(async () => ({
+        entries: [
+          {
+            ...entry,
+            ambiguous: true,
+            containerCandidates: [
+              { id: "aa11", state: "running" },
+              { id: "aa12", state: "running" },
+            ],
+          },
+        ],
+        diagnostics: [],
+      })),
+    });
+
+    const result = await handlers["use"]!("", makeCtx());
+
+    expect(result.text).toContain("[ambiguous-candidate]");
+    expect(result.target).toBeUndefined();
+  });
+});
+
+describe("/devcontainer up refresh (L2-01)", () => {
+  it("refreshes the registry after a successful start and reconciles against it", async () => {
+    const started: RegistryEntry = { ...entry, containerState: "running", containerId: "fresh123" };
+    const refreshed = vi.fn(async () => ({ entries: [started], diagnostics: [] }));
+    const { handlers } = makeServices({ refreshRegistry: refreshed });
+
+    const result = await handlers["up"]!("", makeCtx());
+
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(result.text).toContain("selection: selected-valid");
+    expect(result.target).toMatchObject({ workspaceKey: entry.workspacePath, candidateId: "fresh123" });
+  });
+
+  it("does not refresh when the start failed", async () => {
+    const refreshed = vi.fn(async () => ({ entries: [entry], diagnostics: [] }));
+    const { handlers } = makeServices({
+      refreshRegistry: refreshed,
+      execution: {
+        up: vi.fn(async () => {
+          throw new RuntimeError({ kind: "docker-cli-failure", message: "daemon unreachable" });
+        }),
+      } as unknown as ExecutionService,
+    });
+
+    const result = await handlers["up"]!("", makeCtx());
+
+    expect(result.text).toContain("daemon unreachable");
+    expect(refreshed).not.toHaveBeenCalled();
+    expect(result.target).toBeUndefined();
+  });
+});

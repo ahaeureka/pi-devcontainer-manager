@@ -691,10 +691,15 @@ export default function (pi: ExtensionAPI): void {
         // Pi's command dispatcher ignores a handler's return value, so the rendered result has to
         // be delivered from here or the operator sees nothing at all.
         displayCommandResult(result, (message, type) => ctx.ui.notify(message, type));
-        // `/devcontainer use|up` engages this session's container surfaces;
-        // `/devcontainer off` hands them back to the host. `activation: "never"` is
-        // the one thing an explicit use cannot override (AC-5).
-        if (verb === "use" || verb === "up") engageDevcontainerSurfaces(pi, rt!, () => runtime);
+        // `/devcontainer use|up` engages this session's container surfaces — but only when the
+        // command actually ESTABLISHED a target: a `use` that found nothing, hit an ambiguity, or
+        // was cancelled must leave the session exactly as it was (review finding L1-06). The store
+        // stays the authority on what a later bind() would do, so it is checked too.
+        const storeStatus = rt!.targetStore.snapshot().status;
+        const bindable = storeStatus === "selected-valid" || storeStatus === "selected-stopped";
+        if ((verb === "use" || verb === "up") && result.target !== undefined && bindable) {
+          engageDevcontainerSurfaces(pi, rt!, () => runtime);
+        }
         if (verb === "off") rt!.activation.decision = { active: false, reason: "no-evidence" };
       };
       await run(args);
