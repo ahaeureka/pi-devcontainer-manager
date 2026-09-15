@@ -1,5 +1,8 @@
 {
   "taskId": "arch-review-p1-foundation",
   "boundary": "archive_gate",
-  "createdAt": "2026-09-15T05:35:04.088Z"
+  "createdAt": "2026-09-15T05:35:04.088Z",
+  "choice": "continue_current",
+  "approvedAt": "2026-09-15T05:37:32.798Z",
+  "consumedAt": "2026-09-15T05:37:44.512Z"
 }

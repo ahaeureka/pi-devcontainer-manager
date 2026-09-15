@@ -4,3 +4,5 @@
 {"taskId":"arch-review-p1-foundation","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-15T05:17:09.319Z"}
 {"taskId":"arch-review-p1-foundation","from":"hardVerify","to":"review","actor":{"id":"kata-reviewer","role":"reviewer"},"at":"2026-09-15T05:32:46.002Z"}
 {"taskId":"arch-review-p1-foundation","from":"review","to":"judge","actor":{"id":"kata-judge","role":"judge"},"at":"2026-09-15T05:35:04.085Z"}
+{"taskId":"arch-review-p1-foundation","from":"judge","to":"distill","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-15T05:37:44.503Z"}
+{"taskId":"arch-review-p1-foundation","from":"distill","to":"archive","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-15T05:37:44.509Z"}
