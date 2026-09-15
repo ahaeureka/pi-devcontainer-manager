@@ -1,7 +1,7 @@
 ---
 source_path: .kata/tasks/arch-review-p2-failure-observability/wiki/arch-review-p2-failure-observability.md
-ingested: 2026-09-15T09:13:35.183Z
-sha256: 2bfc606e135b89b4d98025aa1ce7e197d4e1d64508bbe9500677157bd32a0b79
+ingested: 2026-09-15T11:15:57.459Z
+sha256: 87f9825c9b099a497ee029072f9677a35e3bae863246fa4d2813594d97fd268b
 ---
 # Failure observability (Phase 2 build notes)
 
@@ -70,8 +70,9 @@ up and running, yet `devcontainer_exec` and the routed `bash` both answered
 
 The lesson for this extension: the message `Failed to spawn: <file>` currently drops `cause.code`
 (`src/runtime/process-runner.ts` maps only `ENOENT`/`EACCES`/`EPERM` and falls through to
-`unexpected`), which is why this trap was misread as "the CLI is not installed". Including the errno
-in the message and the remedy is scheduled as a follow-up tweak.
+`unexpected`), which is why this trap was misread as "the CLI is not installed". The errno is now
+named in every branch and `ENOTCONN` carries its own remedy; the trap is documented for operators in
+`docs/troubleshooting.md` under "The host cannot start any executable (ENOTCONN)".
 
 ## 4. Kata process notes
 
@@ -82,3 +83,30 @@ in the message and the remedy is scheduled as a follow-up tweak.
   `implementationReady: true`, `governanceReady: false` and `reason: resolve_wiki_closure` is **not**
   an implementation failure: it is the deferred wiki-closure gate, resolved by recording a closure
   decision (`captured` with a registered candidate, or `not_applicable`) and re-running verify.
+
+## 5. What the archive-time state adds
+
+The phase was reviewed twice. The first review (revision-078eb341) passed with thirteen non-blocking
+findings; fixing them changed owned paths, which invalidated that approval — see §8 of
+`kata-task-conventions` for the mechanics — and the work was re-sealed as revision-99abdc7f, where
+verify and judge both pass.
+
+- **The two majors were real, and one was the phase's own blind spot.** `Failed to spawn` without an
+  errno (the misdiagnosis above) and the L2-02 stderr class surviving on three other surfaces:
+  `/devcontainer host-exec` (the command, not the tool), `docker logs` (whose `onStderr` count was
+  literally `0`, so half of every log read was discarded) and `stop`/`remove` (exit code only).
+  Lesson for later phases: when a defect class is found, sweep for *all* of its occurrences before
+  declaring it fixed — the independent adversarial pass is what caught these.
+- **A fourteenth defect turned up while fixing the thirteen**: `/devcontainer <verb>` produced no
+  output at all, because Pi's command dispatcher ignores a handler's return value
+  (`_tryExecuteExtensionCommand` is `return await command.handler(args, ctx), true`). Any extension
+  that returns `{ text }` from a command handler must deliver it itself through `ctx.ui`. Worth
+  checking the same way in any other command surface added later.
+- **Two seams no unit test can reach, stated rather than claimed covered**: the delivery of a
+  handler's rendered result and the drain of discovery diagnostics both live in the extension's
+  command dispatch, for which this repository has no unit harness. Their policy halves are tested
+  (`displayCommandResult`, `reportDiscoveryDiagnostics`) and the wiring rests on the packed smoke run.
+- **`missingAcceptanceMatrix` stays true** for this task: the six criteria exist in `task.json` and
+  are evaluated, but the machine-readable `acceptanceMatrix` field was never populated — the real
+  matrix lives in the change's `design.md` §4. Populate it at design time in the next phase instead
+  of leaving the judge to reconcile the two.

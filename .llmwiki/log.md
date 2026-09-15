@@ -52,3 +52,15 @@
 - Imported: raw/docs/arch-review-p2-failure-observability.md
 - Updated: concepts/arch-review-p2-failure-observability.md
 - Governed record: llmwiki-arch-review-p2-failure-observability
+
+## [2026-09-15] ingest | arch-review-p2-failure-observability.md
+
+- Imported: raw/docs/arch-review-p2-failure-observability.md
+- Updated: concepts/arch-review-p2-failure-observability.md
+- Governed record: llmwiki-arch-review-p2-failure-observability
+
+## [2026-09-15] ingest | kata-task-conventions.md
+
+- Imported: raw/docs/kata-task-conventions.md
+- Updated: concepts/kata-task-conventions.md
+- Governed record: llmwiki-kata-task-conventions

@@ -1,5 +1,8 @@
 {
   "taskId": "arch-review-p2-failure-observability",
   "boundary": "archive_gate",
-  "createdAt": "2026-09-15T11:06:06.457Z"
+  "createdAt": "2026-09-15T11:06:06.457Z",
+  "choice": "continue_current",
+  "approvedAt": "2026-09-15T11:14:10.761Z",
+  "consumedAt": "2026-09-15T11:14:11.023Z"
 }
