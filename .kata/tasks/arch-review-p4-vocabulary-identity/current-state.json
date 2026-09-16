@@ -1,0 +1,9 @@
+{
+  "taskId": "arch-review-p4-vocabulary-identity",
+  "phase": "intake",
+  "actor": {
+    "id": "system",
+    "role": "system"
+  },
+  "updatedAt": "2026-09-16T09:01:06.987Z"
+}
