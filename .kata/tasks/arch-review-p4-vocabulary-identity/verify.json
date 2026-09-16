@@ -1,38 +1,67 @@
 {
   "taskId": "arch-review-p4-vocabulary-identity",
-  "result": "FAIL",
+  "result": "PASS",
   "diffHash": "c7ec06fab40c22f3c53fd3d8c685441f81ff40f8fa30a4650c4e2a7627e93e89",
-  "revisionId": "revision-38efebd1-92b5-4729-9b85-6e9a28b5b593",
   "acceptance": [
     {
       "id": "AC-1",
-      "result": "FAIL",
-      "repairScope": "revision_superseded"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-c2abe147-75e8-4fd5-839d-0789a7ae0e84",
+        "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b",
+        "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b"
+      ]
     },
     {
       "id": "AC-2",
-      "result": "FAIL",
-      "repairScope": "revision_superseded"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-c2abe147-75e8-4fd5-839d-0789a7ae0e84",
+        "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b",
+        "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b"
+      ]
     },
     {
       "id": "AC-3",
-      "result": "FAIL",
-      "repairScope": "revision_superseded"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-c2abe147-75e8-4fd5-839d-0789a7ae0e84",
+        "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b",
+        "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b"
+      ]
     },
     {
       "id": "AC-4",
-      "result": "FAIL",
-      "repairScope": "revision_superseded"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-c2abe147-75e8-4fd5-839d-0789a7ae0e84",
+        "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b",
+        "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b"
+      ]
     },
     {
       "id": "AC-5",
-      "result": "FAIL",
-      "repairScope": "revision_superseded"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-c2abe147-75e8-4fd5-839d-0789a7ae0e84",
+        "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b",
+        "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b"
+      ]
     },
     {
       "id": "AC-6",
-      "result": "FAIL",
-      "repairScope": "revision_superseded"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-c2abe147-75e8-4fd5-839d-0789a7ae0e84",
+        "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b",
+        "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b"
+      ]
     }
-  ]
+  ],
+  "evidenceIds": [
+    "evidence-c2abe147-75e8-4fd5-839d-0789a7ae0e84",
+    "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b",
+    "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b"
+  ],
+  "revisionId": "revision-913cee03-31d8-4cf3-ae33-59d68e1ff552"
 }
