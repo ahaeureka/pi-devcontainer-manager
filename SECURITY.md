@@ -30,7 +30,8 @@ those claims is false. The highest-value classes are:
 
 - **Policy bypass** — an operation running without its required grant
   (`allowedWorkspaceRoots`, `destructive.allowStop`/`allowRemove`,
-  `hostExecution.allow`, `environmentAllowlist`), or an *untrusted* project
+  `hostExecution.allow` — including running host commands while a configuration
+  withholds it with `false` — `environmentAllowlist`), or an *untrusted* project
   configuration expanding a global grant.
 - **Host/container mis-route** — a container-targeted argv executing on the host,
   or host administration silently reaching the container.

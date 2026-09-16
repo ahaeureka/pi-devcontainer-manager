@@ -151,7 +151,7 @@ bash "pytest -q"
 | `/devcontainer stop` | Docker stop——策略授权 + 一次性确认 |
 | `/devcontainer remove` | Docker `rm -f`——策略授权 + 一次性确认 |
 | `/devcontainer logs [--tail N]` | 有界 `docker logs`（默认 100 行）；受策略校验并被审计 |
-| `/devcontainer host-exec <argv...>` | 被审计的宿主机逃生口（需要 `hostExecution.allow`） |
+| `/devcontainer host-exec <argv...>` | 被审计的宿主机逃生口（**默认开启**；可用 `hostExecution.allow: false` 收紧） |
 | `/devcontainer setup` | 全局安装/升级 Dev Containers CLI（需确认、被审计） |
 | `/devcontainer off` | 清除目标并把本会话交还宿主机（休眠）；**该 opt-out 会被持久化**，因此 `/reload` 不会恢复目标，直到你重新选择 |
 
@@ -200,7 +200,8 @@ bash "pytest -q"
 
 涉及策略的值是**单调合并**的：`allowedWorkspaceRoots` 与 `environmentAllowlist` 取交集，
 各类上限取最小值，`audit.commandCapture` 取两者中更保守的一档，
-`destructive.*` / `hostExecution.allow` 必须**两个文件都为 `true`** ——
+`destructive.*` 必须**两个文件都为 `true`**；`hostExecution.allow` 是唯一**默认开启**的授权，
+两个文件都可以用 `false` 收紧（全局的 `false` 不会被项目的 `true` 放宽）——
 不可信的项目配置永远无法放大全局授权。
 
 最小示例：
@@ -211,7 +212,7 @@ bash "pytest -q"
   "environmentAllowlist": ["HOME", "LANG"],
   "audit": { "commandCapture": "fingerprint-only" },
   "destructive": { "allowStop": false, "allowRemove": false },
-  "hostExecution": { "allow": false }
+  "hostExecution": { "allow": true }
 }
 ```
 

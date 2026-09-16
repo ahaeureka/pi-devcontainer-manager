@@ -79,7 +79,8 @@ Instead:
 
 - `bash`, `!`/`!!`, and `devcontainer_exec` are **always** the container;
   `devcontainer_host_exec` and `/devcontainer host-exec` are the only host
-  surfaces, both policy-gated (`hostExecution.allow`) and audited.
+  surfaces, both policy-gated (`hostExecution.allow`, granted by default and
+  withholdable from either configuration file) and audited.
 - Before each turn the agent receives the current target, the workspace's
   host↔container mapping, and the surface rules, so it chooses explicitly.
 - `devcontainer_host_exec` **refuses** an argv that targets a container-only
@@ -134,7 +135,7 @@ extension keeps them separate:
 |---|---|---|
 | `/devcontainer stop` | `destructive.allowStop = true` | Fresh per-action confirmation naming the exact action + container ID; noninteractive callers receive `confirmation-required` and can never bypass |
 | `/devcontainer remove` | `destructive.allowRemove = true` | Same confirmation contract |
-| `devcontainer_host_exec` / `/devcontainer host-exec` | `hostExecution.allow = true` | Audited with `operation: "host-exec"`, `initiator: "host-escape"` |
+| `devcontainer_host_exec` / `/devcontainer host-exec` | `hostExecution.allow` (granted by default; a configuration can withhold it with `false`) | Audited with `operation: "host-exec"`, `initiator: "host-escape"` |
 | `/devcontainer setup` | **none** — not gated by `hostExecution.allow` | Interactive confirmation naming the exact command; fixed argv (`npm install -g @devcontainers/cli`), audited as `operation: "setup"`, 300 s timeout |
 
 ### `/devcontainer setup`

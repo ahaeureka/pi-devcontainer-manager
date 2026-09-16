@@ -84,5 +84,170 @@
       "source": "Repository convention (the Phase 1/2/3 acceptance matrices all end with the same no-regression criterion).",
       "confirmedAt": "2026-09-16T03:51:19.458Z"
     }
-  ]
+  ],
+  "acceptanceMatrix": {
+    "version": 1,
+    "rows": [
+      {
+        "acceptanceId": "AC-1",
+        "designRefs": [
+          "design.md §2.1"
+        ],
+        "implementationPaths": [
+          "src/config.ts"
+        ],
+        "testPaths": [
+          "tests/unit/config.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-2",
+        "designRefs": [
+          "design.md §2.1"
+        ],
+        "implementationPaths": [
+          "src/config.ts"
+        ],
+        "testPaths": [
+          "tests/unit/config.test.ts",
+          "tests/unit/policy.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-3",
+        "designRefs": [
+          "design.md §2.3"
+        ],
+        "implementationPaths": [
+          "src/policy.ts",
+          "src/tools.ts",
+          "src/commands.ts",
+          "src/runtime/docker-lifecycle.ts"
+        ],
+        "testPaths": [
+          "tests/unit/tools.test.ts",
+          "tests/unit/commands.test.ts",
+          "tests/unit/audit.test.ts",
+          "tests/unit/docker-lifecycle.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-4",
+        "designRefs": [
+          "design.md §2.2"
+        ],
+        "implementationPaths": [
+          "src/tools.ts",
+          "src/commands.ts",
+          "extensions/index.ts"
+        ],
+        "testPaths": [
+          "tests/unit/tools.test.ts",
+          "tests/unit/commands.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-5",
+        "designRefs": [
+          "design.md §2.4"
+        ],
+        "implementationPaths": [
+          "README.md",
+          "README.zh-CN.md",
+          "docs/configuration.md",
+          "docs/security.md",
+          "SECURITY.md",
+          "CHANGELOG.md",
+          "docs/troubleshooting.md",
+          "examples/pi-devcontainer-manager.settings.json"
+        ],
+        "testPaths": [
+          "tests/unit/config.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "lint",
+            "command": "grep -rn 'hostExecution' README.md README.zh-CN.md docs SECURITY.md examples"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-6",
+        "designRefs": [
+          "design.md §3"
+        ],
+        "implementationPaths": [
+          "dist",
+          "package.json"
+        ],
+        "testPaths": [
+          "tests/unit"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          },
+          {
+            "kind": "integration",
+            "command": "node scripts/smoke-pi-package.mjs --no-model"
+          }
+        ],
+        "verificationLevel": "integration"
+      }
+    ]
+  }
 }

@@ -225,7 +225,7 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
                 throw new RuntimeError({
                     kind: "policy-denied",
                     message: "Host execution is disabled by policy.",
-                    remedy: "Set hostExecution.allow=true in the global configuration to enable host escape.",
+                    remedy: "This installation withholds host execution by configuration. Remove `hostExecution.allow: false` from the project file (`.pi/pi-devcontainer-manager.json`, which must be a trusted project) or from the global file, then run `/reload`.",
                 });
             }
             // Layer-3 guard: refuse host execution of an argv that targets a

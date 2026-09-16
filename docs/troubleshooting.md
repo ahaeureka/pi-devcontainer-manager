@@ -149,10 +149,20 @@ become resolvable on PATH afterwards. See
 
 ### `devcontainer_host_exec` is denied
 
-`hostExecution.allow` is `false` (the default). Set it in the global
-configuration — the project file alone cannot grant it. A denial here is not a
-signal to retry the command in the container: check which surface the command
-actually needs.
+Host execution is **granted by default**, so a denial means a configuration is
+withholding it. Check, in order:
+
+1. `<session-cwd>/.pi/pi-devcontainer-manager.json` — does it set
+   `hostExecution.allow: false`? (It is only read at all when the project is
+   trusted by Pi.) A project `false` withholds the default grant.
+2. `${PI_CODING_AGENT_DIR:-~/.pi/agent}/extensions/pi-devcontainer-manager.json` —
+   the same key, global. A global `false` cannot be widened by a project `true`.
+3. Did you change either file in this session? The effective configuration is
+   composed at `session_start`, so a change needs `/reload` (or a restart).
+
+Delete the `hostExecution` block (or set `allow: true`) in the file that has the
+`false`, then `/reload`. A denial here is not a signal to retry the command in
+the container: check which surface the command actually needs.
 
 ### Nothing is written to the audit directory
 

@@ -8,6 +8,16 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Behaviour change — host execution is now granted by default.** `hostExecution.allow` shipped as
+  `false`, so `devcontainer_host_exec` and `/devcontainer host-exec` answered "Host execution is
+  disabled by policy" in every project on a machine without a global configuration file. The host
+  escape hatch now works out of the box, and a configuration **withholds** it: `false` in either the
+  project file or the global file denies it, and a global `false` cannot be widened by a project
+  `true`. **If you were relying on deny-by-default, set `false` in your global file** (or in a
+  project file, which must be trusted) and `/reload`. Everything recorded about a host run is
+  unchanged — same audit operation and initiator, same literal-argv transport, same
+  `hostExecution.allow: false` denial text for the withholding case, and `/devcontainer setup` is
+  still ungated by this policy.
 - The session selection is one persisted contract now. `/devcontainer off` appends an **opt-out**
   that survives `/reload` — it suppresses the workspace-derived activation and in-session
   auto-selection until you select a target again (an explicit `activation: "always"` still takes
