@@ -56,5 +56,14 @@ export interface SurfaceRegistration {
     readonly commandSurface: true;
 }
 export declare function surfacesFor(decision: ActivationDecision): SurfaceRegistration;
+/**
+ * Whether the execution service may AUTO-SELECT a target.
+ *
+ * Only an engaged session may: an opt-out has to hold for the rest of the session too, not just
+ * across the reload that restored it. After `/devcontainer off` the container tools stay registered
+ * for the session (Pi cannot unregister them), so an auto-selecting `devcontainer_exec` would
+ * resurrect the target the operator just turned off (review finding L1-02).
+ */
+export declare function allowsAutoSelection(decision: ActivationDecision): boolean;
 export declare function decideActivation(input: ActivationInput): ActivationDecision;
 //# sourceMappingURL=activation.d.ts.map

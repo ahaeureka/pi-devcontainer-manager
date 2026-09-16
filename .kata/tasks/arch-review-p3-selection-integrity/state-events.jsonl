@@ -2,3 +2,5 @@
 {"taskId":"arch-review-p3-selection-integrity","from":"intake","to":"plan","actor":{"id":"kata-designer","role":"designer"},"at":"2026-09-15T13:11:26.699Z"}
 {"taskId":"arch-review-p3-selection-integrity","from":"plan","to":"implement","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-15T15:13:40.562Z"}
 {"taskId":"arch-review-p3-selection-integrity","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-15T15:23:58.055Z"}
+{"taskId":"arch-review-p3-selection-integrity","from":"hardVerify","to":"implement","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-16T02:05:36.296Z"}
+{"taskId":"arch-review-p3-selection-integrity","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-16T02:06:33.970Z"}

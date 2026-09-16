@@ -34,7 +34,7 @@ import { readFileSync } from "node:fs";
 import { createBashToolDefinition, createLocalBashOperations } from "@earendil-works/pi-coding-agent";
 import { defaultConfigPaths, loadConfigWithDiagnostics } from "../src/config.js";
 import { createDiagnosticSink, reportDiscoveryDiagnostics } from "../src/discovery-diagnostics.js";
-import { decideActivation, surfacesFor } from "../src/activation.js";
+import { allowsAutoSelection, decideActivation, surfacesFor } from "../src/activation.js";
 import { JsonlAuditWriter, defaultAuditDirectory } from "../src/audit.js";
 import { NodeProcessRunner } from "../src/runtime/process-runner.js";
 import { NodeCapabilityService } from "../src/runtime/capabilities.js";
@@ -141,6 +141,11 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
      * `target-stopped` and prompts `/devcontainer up` (never auto-starts).
      */
     const autoSelect = async (workspace) => {
+        // Only an engaged session may take a target on its own. After `/devcontainer off` the tools stay
+        // registered for the session, so without this guard the next exec would resurrect the target the
+        // operator just turned off (review finding L1-02).
+        if (!allowsAutoSelection(activation.decision))
+            return;
         const cwdKey = canonicalWorkspaceKey(sessionWorkspace);
         if (canonicalWorkspaceKey(workspace) !== cwdKey)
             return;
@@ -427,7 +432,10 @@ function readWorkspaceConfig(configPath, onProblem) {
     try {
         raw = readFileSync(configPath, "utf8");
     }
-    catch {
+    catch (error) {
+        // Discovery SAW this configuration, so failing to read it means the mapping — and with it the
+        // host container-path guard — is silently unavailable. Say so (L0-02).
+        onProblem?.(`${configPath} could not be read (${error instanceof Error ? error.message : String(error)}); the host<->container mapping and the container-path guard are inactive for this workspace.`);
         return {};
     }
     const read = readConfigFacts(workspacePathFor(configPath), raw);
@@ -623,7 +631,7 @@ export default function (pi) {
                     engageDevcontainerSurfaces(pi, rt, () => runtime);
                 }
                 if (verb === "off")
-                    rt.activation.decision = { active: false, reason: "no-evidence" };
+                    rt.activation.decision = { active: false, reason: "opted-out" };
             };
             await run(args);
         },
