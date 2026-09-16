@@ -1,7 +1,7 @@
 ---
 source_path: .kata/tasks/arch-review-p3-selection-integrity/wiki/arch-review-p3-selection-integrity.md
-ingested: 2026-09-15T15:30:26.692Z
-sha256: bd81072afdeaa4d1d0ef29ce5c4ab995b9e8812403438662c41510d1bdf3a51f
+ingested: 2026-09-16T03:30:45.450Z
+sha256: ac12dc506d7e6ea5d10707df433186d6f26f819faa7fb1c28e52b0a819c9ecf2
 ---
 # Selection integrity (Phase 3 build notes)
 
@@ -89,3 +89,32 @@ separated by an `await` needs the same treatment.
 - `task.json`'s `acceptanceMatrix` is populated for this task (Phase 1 and Phase 2 left it empty and
   `verify` kept reporting `missingAcceptanceMatrix: true`). Do it at design time next phase: the seal
   validates it, and only vitest/pytest-style evidence entries may carry a `testSelector`.
+
+## 6. What the review cycle added (read this before re-deriving an entity)
+
+The independent adversarial pass blocked the first sealed revision and the fix produced two rules
+that generalise well beyond this phase:
+
+- **A re-derivation must carry the same inputs as the entity it re-derives, or it silently
+  downgrades it.** `reconcileSelection` re-resolves a selection from the registry; when called
+  without the configuration (which is exactly how `/devcontainer up` and the `list` repair called
+  it), it fell back to the workspace's primary configuration and re-persisted that — reverting the
+  operator's choice, and with it the mapping, the prompt context and the host-path guard. Any
+  function that "recomputes" something the user chose must either take that choice as an input or
+  carry it over from the current state.
+- **Test the re-derivation the way production calls it, not only with the happy hint.** The AC-4
+  tests all passed a `configPath` into the reconciliation, so they could never see the regression;
+  the reviewer found it in one direct call. A parameter that is optional in the signature should
+  have a test that omits it.
+- **Clearing state is not disabling the machinery that repopulates it.** `/devcontainer off` cleared
+  the store, but Pi cannot unregister the container tools, so the next `exec` auto-selected and
+  resurrected the target. Pair every "clear" with a guard on the producer (`allowsAutoSelection`)
+  when the producer's trigger stays registered.
+
+## 7. Release hygiene lesson: rebuild `dist/` BEFORE sealing
+
+The repair changed `src/` without rebuilding `dist/`. The seal's own quality gate then rebuilt
+`dist/` *after* hashing the owned paths, so the revision superseded itself immediately and `verify`
+reported `revision_superseded` for every criterion — a full re-seal cycle (and a confusing FAIL that
+was not an acceptance failure). Rule: whenever anything under `src/` or `extensions/` changes,
+`npm run build`, commit `dist/`, and only then seal.

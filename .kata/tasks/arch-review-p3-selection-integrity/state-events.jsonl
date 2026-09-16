@@ -8,3 +8,5 @@
 {"taskId":"arch-review-p3-selection-integrity","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-16T02:24:19.421Z"}
 {"taskId":"arch-review-p3-selection-integrity","from":"hardVerify","to":"review","actor":{"id":"kata-reviewer","role":"reviewer"},"at":"2026-09-16T02:39:43.607Z"}
 {"taskId":"arch-review-p3-selection-integrity","from":"review","to":"judge","actor":{"id":"kata-judge","role":"judge"},"at":"2026-09-16T03:16:03.220Z"}
+{"taskId":"arch-review-p3-selection-integrity","from":"judge","to":"distill","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-16T03:26:49.450Z"}
+{"taskId":"arch-review-p3-selection-integrity","from":"distill","to":"archive","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-16T03:26:49.456Z"}

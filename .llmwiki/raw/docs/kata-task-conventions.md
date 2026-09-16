@@ -1,7 +1,7 @@
 ---
 source_path: .kata/tasks/arch-review-p1-foundation/wiki/kata-task-conventions.md
-ingested: 2026-09-15T11:15:57.580Z
-sha256: 9a583232af6e0f7efa8ef8c47670397c048021fa4c0976ce6fef93cc82195dde
+ingested: 2026-09-16T03:30:45.562Z
+sha256: c673d1000c353fe00ac804f5d7a17107fcb1d7187150a253e38df5d76ec2fbdb
 ---
 # Kata task conventions in this repository
 
@@ -111,3 +111,24 @@ Every rule below was hit for real during that cycle.
   `review: command not found`. `python3 -c` with `subprocess.run([...])` is the reliable driver.
 - **`kata-cli` itself is a `#!/usr/bin/env node` script**, so the host `ENOTCONN` trap (§3 of the
   Phase 2 notes) takes the whole workflow down with it — every kata command fails before it starts.
+
+## 9. Sealing and the acceptance matrix
+
+- **Rebuild and commit `dist/` before every seal.** The seal hashes the owned paths and then runs
+  its quality gate, which rebuilds `dist/` when the project compiles into it — so a stale `dist/`
+  makes the revision supersede *itself* the moment it is written, `verify` reports
+  `revision_superseded` for every criterion, and a whole re-seal cycle is spent on a FAIL that is
+  not an acceptance failure.
+- **Populate `task.json`'s `acceptanceMatrix` at design time.** Both earlier phases left it empty and
+  `verify` reported `missingAcceptanceMatrix: true` every time — the judge then has to reconcile the
+  design document with an empty field. Per criterion it wants `implementationPaths`, `testPaths`,
+  `evidence` (`{kind: test|typecheck|integration|lint|entrypoint, command}`) and `verificationLevel`.
+- **The seal validates the matrix:** only vitest/pytest/uv-run-pytest commands (or a template with a
+  `{{selector}}` placeholder) may carry a `testSelector`, so a packed-smoke evidence entry cannot —
+  the seal refuses with "command … does not support selectors".
+- **Re-sealing after a repair takes one command from `hardVerify`** once `verify` has recorded a
+  repairable scope: `build --seal` re-enters `implement` and writes the new revision in the same run.
+  From `review` it needs a blocking finding, from `judge` a repairable judge FAIL (see §8).
+- **`review --approve` requires the phase to be `review`**: run `kata-cli review` first (it moves
+  `hardVerify → review`), then `review --confirm-host-model --approve --review-evidence <summary>`,
+  which is also what creates the `judge_gate` choice file the judge demands.

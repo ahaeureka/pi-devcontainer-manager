@@ -10,15 +10,20 @@
     ".llmwiki/concepts/arch-review-p3-selection-integrity.md"
   ],
   "sourceHashes": {
-    ".llmwiki/raw/docs/arch-review-p3-selection-integrity.md": "5d37a82f0f3986509c864e8c0601241267a8d6590029195f80d0335184f9b3cd",
-    ".llmwiki/concepts/arch-review-p3-selection-integrity.md": "b4e622c12775cc83b666143e2f9b06072b0466e73c4458d418cdccdf33088084"
+    ".llmwiki/raw/docs/arch-review-p3-selection-integrity.md": "dd24f7fbbb27e613b85bf76c86aa4d9c255f59c4be5f584a79840df1359e2dca",
+    ".llmwiki/concepts/arch-review-p3-selection-integrity.md": "d1fff3a16ae44e3c4d030c502d3d37d37fb6d5ebab14f5cddf44f4c8c50b0e0d"
   },
   "validationTaskId": "llmwiki-ingest",
   "evidenceIds": [
-    "llmwiki-5d37a82f0f39"
+    "llmwiki-dd24f7fbbb27"
   ],
-  "status": "candidate",
-  "lastVerifiedAt": "2026-09-15T15:30:26.695Z",
-  "createdAt": "2026-09-15T15:30:26.695Z",
-  "updatedAt": "2026-09-15T15:30:26.695Z"
+  "status": "verified",
+  "lastVerifiedAt": "2026-09-16T03:30:45.678Z",
+  "createdAt": "2026-09-16T03:30:45.453Z",
+  "updatedAt": "2026-09-16T03:30:45.680Z",
+  "approvalEvent": {
+    "approvedBy": "geebytes",
+    "role": "distiller",
+    "approvedAt": "2026-09-16T03:30:45.678Z"
+  }
 }

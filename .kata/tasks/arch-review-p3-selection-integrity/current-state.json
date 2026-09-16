@@ -1,9 +1,9 @@
 {
   "taskId": "arch-review-p3-selection-integrity",
-  "phase": "judge",
+  "phase": "archive",
   "actor": {
-    "id": "kata-judge",
-    "role": "judge"
+    "id": "kata-agent",
+    "role": "implementer"
   },
-  "updatedAt": "2026-09-16T03:16:03.220Z"
+  "updatedAt": "2026-09-16T03:26:49.456Z"
 }

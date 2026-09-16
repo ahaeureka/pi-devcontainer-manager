@@ -1,8 +1,0 @@
-{
-  "taskId": "arch-review-p3-selection-integrity",
-  "role": "judge",
-  "phase": "judge",
-  "branch": "feature/arch-review-p3-selection-integrity",
-  "origin": "workflow",
-  "activatedAt": "2026-09-16T03:16:03.281Z"
-}
