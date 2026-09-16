@@ -7,8 +7,9 @@ import type { ActivationMode } from "./types.js";
  * surfaces has to be decided from evidence about the CURRENT workspace, in this
  * order:
  *
- *   `never` > `always` > workspace owns a configuration > a running container is
- *   labelled for the workspace > an explicit selection exists > dormant
+ *   `never` > `always` > a persisted opt-out > workspace owns a configuration > a
+ *   running container is labelled for the workspace > an explicit selection exists >
+ *   dormant
  *
  * Dormant is a first-class outcome: `bash` stays the host shell and no container
  * surface is registered.
@@ -23,6 +24,14 @@ export interface ActivationInput {
   readonly workspaceHasRunningContainer: boolean;
   /** This session selected a target, or restored a persisted selection. */
   readonly hasExplicitSelection: boolean;
+  /**
+   * The persisted intent says the operator turned the extension OFF for this session.
+   *
+   * An opt-out outranks the workspace evidence, and only an explicit "always" configuration (or a
+   * later `/devcontainer use`) overrides it — otherwise `/devcontainer off` would be undone by the
+   * next reload in any DevContainer workspace (review finding L1-02).
+   */
+  readonly optedOut?: boolean;
 }
 
 export type ActivationDecision =
@@ -30,7 +39,7 @@ export type ActivationDecision =
       readonly active: true;
       readonly reason: "config-always" | "workspace-config" | "running-container" | "explicit-selection";
     }
-  | { readonly active: false; readonly reason: "config-never" | "no-evidence" };
+  | { readonly active: false; readonly reason: "config-never" | "opted-out" | "no-evidence" };
 
 /**
  * Which execution surfaces a session registers. Dormant sessions register NOTHING —
@@ -59,9 +68,22 @@ export function surfacesFor(decision: ActivationDecision): SurfaceRegistration {
   };
 }
 
+/**
+ * Whether the execution service may AUTO-SELECT a target.
+ *
+ * Only an engaged session may: an opt-out has to hold for the rest of the session too, not just
+ * across the reload that restored it. After `/devcontainer off` the container tools stay registered
+ * for the session (Pi cannot unregister them), so an auto-selecting `devcontainer_exec` would
+ * resurrect the target the operator just turned off (review finding L1-02).
+ */
+export function allowsAutoSelection(decision: ActivationDecision): boolean {
+  return decision.active;
+}
+
 export function decideActivation(input: ActivationInput): ActivationDecision {
   if (input.activation === "never") return { active: false, reason: "config-never" };
   if (input.activation === "always") return { active: true, reason: "config-always" };
+  if (input.optedOut === true) return { active: false, reason: "opted-out" };
   if (input.workspaceHasConfig) return { active: true, reason: "workspace-config" };
   if (input.workspaceHasRunningContainer) return { active: true, reason: "running-container" };
   if (input.hasExplicitSelection) return { active: true, reason: "explicit-selection" };

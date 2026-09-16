@@ -5,11 +5,13 @@ import {
   normalizeSelectionRecord,
   parseSelectionRecord,
   recoverLatestSelection,
+  recoverSelectionIntent,
   type SelectionRecord,
 } from "../../src/selection-state.js";
 
 const base: SelectionRecord = {
-  version: 1,
+  version: 2,
+  state: "selected",
   workspaceKey: "/data/work/proj-a",
   selectedAt: "2026-08-31T00:00:00.000Z",
 };
@@ -77,5 +79,63 @@ describe("selection-state recovery", () => {
   it("returns undefined when no selection entries exist", () => {
     expect(recoverLatestSelection([{ kind: "other", payload: "x" }])).toBeUndefined();
     expect(recoverLatestSelection([])).toBeUndefined();
+  });
+});
+
+describe("selection intent (L1-02 opt-out, L1-04 selected configuration)", () => {
+  const entry = (payload: unknown) => ({ kind: SELECTION_ENTRY_KIND, payload: JSON.stringify(payload) });
+
+  it("reads a v1 record as a selection, unchanged (no migration)", () => {
+    const intent = recoverSelectionIntent([
+      entry({ version: 1, workspaceKey: "/data/work/proj-a", candidateId: "c1", selectedAt: "2026-08-31T00:00:00.000Z" }),
+    ]);
+
+    expect(intent).toMatchObject({ kind: "selected", record: { workspaceKey: "/data/work/proj-a", candidateId: "c1" } });
+  });
+
+  it("carries the selected configuration through a v2 record", () => {
+    const intent = recoverSelectionIntent([
+      entry({
+        version: 2,
+        state: "selected",
+        workspaceKey: "/data/work/proj-a",
+        candidateId: "c1",
+        configPath: "/data/work/proj-a/.devcontainer/python/devcontainer.json",
+        selectedAt: "2026-08-31T00:00:00.000Z",
+      }),
+    ]);
+
+    expect(intent).toMatchObject({
+      kind: "selected",
+      record: { configPath: "/data/work/proj-a/.devcontainer/python/devcontainer.json" },
+    });
+  });
+
+  it("reads an opt-out tombstone as a cleared intent", () => {
+    const intent = recoverSelectionIntent([
+      entry({ version: 2, state: "cleared", selectedAt: "2026-08-31T00:00:00.000Z" }),
+    ]);
+
+    expect(intent).toMatchObject({ kind: "cleared" });
+  });
+
+  it("lets a later selection supersede an opt-out, and a later opt-out supersede a selection", () => {
+    const selected = { version: 2, state: "selected", workspaceKey: "/data/work/proj-a", selectedAt: "2026-08-31T00:00:00.000Z" };
+    const cleared = { version: 2, state: "cleared", selectedAt: "2026-08-31T01:00:00.000Z" };
+
+    expect(recoverSelectionIntent([entry(selected), entry(cleared)])).toMatchObject({ kind: "cleared" });
+    expect(recoverSelectionIntent([entry(cleared), entry(selected)])).toMatchObject({ kind: "selected" });
+    // A v1 record from before this change still counts as a selection.
+    expect(
+      recoverSelectionIntent([entry(cleared), entry({ version: 1, workspaceKey: "/ws", selectedAt: "2026-08-31T02:00:00.000Z" })]),
+    ).toMatchObject({ kind: "selected" });
+  });
+
+  it("keeps recoverLatestSelection's contract for existing callers", () => {
+    // A tombstone is not a selection, so the older accessor reports nothing.
+    expect(recoverLatestSelection([entry({ version: 2, state: "cleared", selectedAt: "2026-08-31T00:00:00.000Z" })])).toBeUndefined();
+    expect(
+      recoverLatestSelection([entry({ version: 1, workspaceKey: "/ws", selectedAt: "2026-08-31T00:00:00.000Z" })]),
+    ).toMatchObject({ workspaceKey: "/ws" });
   });
 });

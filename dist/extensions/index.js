@@ -34,7 +34,7 @@ import { readFileSync } from "node:fs";
 import { createBashToolDefinition, createLocalBashOperations } from "@earendil-works/pi-coding-agent";
 import { defaultConfigPaths, loadConfigWithDiagnostics } from "../src/config.js";
 import { createDiagnosticSink, reportDiscoveryDiagnostics } from "../src/discovery-diagnostics.js";
-import { decideActivation, surfacesFor } from "../src/activation.js";
+import { allowsAutoSelection, decideActivation, surfacesFor } from "../src/activation.js";
 import { JsonlAuditWriter, defaultAuditDirectory } from "../src/audit.js";
 import { NodeProcessRunner } from "../src/runtime/process-runner.js";
 import { NodeCapabilityService } from "../src/runtime/capabilities.js";
@@ -42,7 +42,7 @@ import { NodeDockerAdapter } from "../src/runtime/docker-adapter.js";
 import { NodeDevcontainerAdapter } from "../src/runtime/devcontainer-adapter.js";
 import { NodeDockerLifecycleAdapter } from "../src/runtime/docker-lifecycle.js";
 import { buildWorkspaceRegistry, nodeTraversal, workspaceHasConfig, workspacePathFor } from "../src/runtime/host-discovery.js";
-import { buildPathMapping, findContainerPath, hostToContainer } from "../src/path-mapper.js";
+import { findContainerPath, hostToContainer, readConfigFacts, } from "../src/path-mapper.js";
 import { TargetStore } from "../src/target-store.js";
 import { ExecutionService } from "../src/execution-service.js";
 import { createRoutedBashOperations } from "../src/bash-router.js";
@@ -50,7 +50,7 @@ import { createDevcontainerExecTool, createDevcontainerStatusTool, createDevcont
 import { createCommandHandlers, displayCommandResult, selectionFor } from "../src/commands.js";
 import { reconcileSelection } from "../src/commands.js";
 import { canonicalWorkspaceKey } from "../src/workspace-path.js";
-import { SELECTION_ENTRY_KIND, recoverLatestSelection } from "../src/selection-state.js";
+import { SELECTION_ENTRY_KIND, recoverSelectionIntent, } from "../src/selection-state.js";
 import { evaluatePolicy, commandIdentity } from "../src/policy.js";
 import { createSetupCli } from "../src/setup-cli.js";
 import { RuntimeError } from "../src/errors.js";
@@ -99,6 +99,32 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
     // below surface them through the same warning channel the config-load diagnostics use. The
     // activation probe also calls registry(); it only ever contributes, never notifies.
     const discoveryDiagnostics = createDiagnosticSink();
+    /**
+     * The configuration that should drive the mapping, the prompt context and the host container-path
+     * guard for a workspace: the one the operator SELECTED when it belongs to that workspace, else the
+     * workspace's discovered primary.
+     *
+     * Before this, a selected named configuration only reached the CLI's argv; the derived views kept
+     * using the registry primary, so the two disagreed (review finding L1-04).
+     */
+    const effectiveConfigPath = (workspaceKey, discovered) => {
+        const snapshot = targetStore.snapshot();
+        if (snapshot.configPath === undefined || snapshot.workspaceKey === undefined)
+            return discovered;
+        return canonicalWorkspaceKey(snapshot.workspaceKey) === canonicalWorkspaceKey(workspaceKey)
+            ? snapshot.configPath
+            : discovered;
+    };
+    /**
+     * Surface a configuration the extension could not parse.
+     *
+     * The host container-path guard only runs when a mapping was derived, so an unreadable config
+     * quietly switches that guard off — the one outcome the operator must hear about (L0-02). The
+     * sink dedupes, so feeding it from a per-turn path warns once per session.
+     */
+    const reportUnparsableConfig = (message) => {
+        discoveryDiagnostics.add([message]);
+    };
     const registry = async () => {
         const traversal = nodeTraversal();
         const dockerResult = await docker.listDevContainers();
@@ -115,6 +141,11 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
      * `target-stopped` and prompts `/devcontainer up` (never auto-starts).
      */
     const autoSelect = async (workspace) => {
+        // Only an engaged session may take a target on its own. After `/devcontainer off` the tools stay
+        // registered for the session, so without this guard the next exec would resurrect the target the
+        // operator just turned off (review finding L1-02).
+        if (!allowsAutoSelection(activation.decision))
+            return;
         const cwdKey = canonicalWorkspaceKey(sessionWorkspace);
         if (canonicalWorkspaceKey(workspace) !== cwdKey)
             return;
@@ -124,7 +155,10 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
             return;
         // Ambiguous (2+ running containers) must never be auto-picked by Docker
         // order — selectionFor returns selected-ambiguous when no id is supplied.
-        await targetStore.select(selectionFor(match, match.ambiguous === true ? undefined : match.containerId));
+        //
+        // `selectIfNone` commits only if the store is still empty at commit time: an explicit
+        // `/devcontainer use` that landed while this hook was discovering must win (L3-05).
+        await targetStore.selectIfNone(selectionFor(match, match.ambiguous === true ? undefined : match.containerId));
     };
     /**
      * Map a HOST workspace path to its in-container path (presentation only).
@@ -138,7 +172,7 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
         const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
         if (entry === undefined || entry.configPath.length === 0)
             return undefined;
-        const mapping = readWorkspaceMapping(entry.configPath);
+        const mapping = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig).mapping;
         if (mapping === undefined)
             return undefined;
         return hostToContainer(entry.workspacePath, mapping) ?? undefined;
@@ -203,7 +237,9 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
                 const { entries } = await registry();
                 const key = canonicalWorkspaceKey(selection.workspaceKey);
                 const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
-                const guardMapping = entry !== undefined && entry.configPath.length > 0 ? readWorkspaceMapping(entry.configPath) : undefined;
+                const guardMapping = entry !== undefined && entry.configPath.length > 0
+                    ? readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig).mapping
+                    : undefined;
                 const violation = guardMapping !== undefined ? findContainerPath(argv, guardMapping.containerPath) : undefined;
                 if (violation !== undefined) {
                     audit.write({
@@ -327,18 +363,24 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
         if (snapshot.workspaceKey === undefined && snapshot.candidateId === undefined)
             return undefined;
         let mapping;
+        let containerOnly;
         if (snapshot.workspaceKey !== undefined) {
             const { entries } = await registry();
             const key = canonicalWorkspaceKey(snapshot.workspaceKey);
             const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
             if (entry !== undefined && entry.configPath.length > 0) {
-                mapping = readWorkspaceMapping(entry.configPath);
+                const facts = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig);
+                mapping = facts.mapping;
+                containerOnly = facts.containerOnlyMounts;
             }
         }
         return renderExecutionContext({
             ...(snapshot.candidateId !== undefined ? { candidateId: snapshot.candidateId } : {}),
             status: snapshot.status,
             ...(mapping !== undefined ? { mapping } : {}),
+            // The prompt must not advertise container-only mounts the runtime did not actually read
+            // (review finding L1-05).
+            ...(containerOnly !== undefined ? { containerOnlyMounts: containerOnly } : {}),
         });
     };
     return {
@@ -376,35 +418,31 @@ function renderSelectionSummary(snapshot, config) {
  * service's capture policy (none / fingerprint-only / redacted-text).
  */
 /**
- * Read a workspace's devcontainer.json and derive a host<->container path
- * mapping (workspaceMount preferred, workspaceFolder fallback). Returns
- * undefined when the config is absent/unreadable or declares no mapping.
+ * Read a workspace's devcontainer.json once and derive everything the agent view needs: the
+ * host<->container mapping (workspaceMount preferred, workspaceFolder fallback) and the
+ * container-only mounts the host cannot see.
+ *
+ * Returns empty facts when the config is absent/unreadable, cannot be parsed, or declares none of
+ * them — and `onProblem` (when given) receives a line explaining the *unparsable* case, because
+ * that is the one where the mapping silently disappears and with it the host container-path guard
+ * that depends on it (review finding L0-02).
  */
-function readWorkspaceMapping(configPath) {
+function readWorkspaceConfig(configPath, onProblem) {
     let raw;
     try {
         raw = readFileSync(configPath, "utf8");
     }
-    catch {
-        return undefined;
+    catch (error) {
+        // Discovery SAW this configuration, so failing to read it means the mapping — and with it the
+        // host container-path guard — is silently unavailable. Say so (L0-02).
+        onProblem?.(`${configPath} could not be read (${error instanceof Error ? error.message : String(error)}); the host<->container mapping and the container-path guard are inactive for this workspace.`);
+        return {};
     }
-    let parsed;
-    try {
-        // DevContainer configs are JSON with Comments in practice. Strip block
-        // comments, line comments (not inside strings) and trailing commas before
-        // parsing, so a commented config still yields its workspace mapping.
-        parsed = JSON.parse(raw
-            .replace(/\/\*[\s\S]*?\*\//g, "")
-            .replace(/(^|[^:"'\\])\/\/.*$/gm, "$1")
-            .replace(/,\s*([}\]])/g, "$1"));
-    }
-    catch {
-        return undefined;
-    }
-    const configDir = workspacePathFor(configPath);
-    const workspaceFolder = typeof parsed.workspaceFolder === "string" ? parsed.workspaceFolder : undefined;
-    const workspaceMount = typeof parsed.workspaceMount === "string" ? parsed.workspaceMount : undefined;
-    return buildPathMapping(configDir, workspaceFolder, workspaceMount);
+    const read = readConfigFacts(workspacePathFor(configPath), raw);
+    if (read.kind === "ok")
+        return read.facts;
+    onProblem?.(`${configPath} could not be parsed as JSONC (${read.detail}); the host<->container mapping and the container-path guard are inactive for this workspace.`);
+    return {};
 }
 /** Compose the effective config, always including the session cwd as a root. */
 function composeRuntimeConfig(cwd, base) {
@@ -428,7 +466,7 @@ function restoreSelection(ctx) {
         kind: entry.customType,
         payload: typeof entry.data === "string" ? entry.data : JSON.stringify(entry.data),
     }));
-    return recoverLatestSelection(mapped);
+    return recoverSelectionIntent(mapped);
 }
 export default function (pi) {
     // Lazy composition: heavy work only on session_start / reload.
@@ -437,7 +475,7 @@ export default function (pi) {
         const paths = defaultConfigPaths(ctx.cwd);
         const loaded = loadConfigWithDiagnostics(paths, { projectTrusted: ctx.isProjectTrusted() });
         const config = composeRuntimeConfig(ctx.cwd, loaded.config);
-        const recovered = restoreSelection(ctx);
+        const restoredIntent = restoreSelection(ctx);
         const activation = { decision: { active: false, reason: "no-evidence" } };
         // Honor audit.enabled and audit.directory: the configured directory is used
         // when set, and `enabled: false` accepts records but persists nothing.
@@ -453,7 +491,10 @@ export default function (pi) {
             activation: config.activation,
             workspaceHasConfig: workspaceHasConfig(ctx.cwd),
             workspaceHasRunningContainer: false,
-            hasExplicitSelection: recovered !== undefined,
+            // A tombstone is an explicit "no": it is not selection evidence, and it suppresses the
+            // workspace evidence so the opt-out survives the reload (L1-02).
+            hasExplicitSelection: restoredIntent !== undefined && restoredIntent.kind === "selected",
+            optedOut: restoredIntent !== undefined && restoredIntent.kind === "cleared",
         };
         let decision = decideActivation(evidence);
         if (!decision.active && decision.reason === "no-evidence") {
@@ -480,16 +521,22 @@ export default function (pi) {
         for (const line of loaded.diagnostics) {
             ctx.ui.notify(`[devcontainer-manager] ${line}`, "warning");
         }
-        if (recovered !== undefined && decision.active) {
-            // Re-resolve against the live registry instead of parking the selection in
-            // `selected-missing` forever: a still-running target becomes usable again
-            // without a manual re-`use`.
-            await runtime.reconcileSelection({
-                workspaceKey: recovered.workspaceKey,
-                ...(recovered.candidateId !== undefined ? { candidateId: recovered.candidateId } : {}),
-            });
-            const restoredStatus = runtime.targetStore.snapshot().status;
-            ctx.ui.notify(`Restored DevContainer selection ${recovered.workspaceKey} (${restoredStatus}).`, "info");
+        if (restoredIntent !== undefined && restoredIntent.kind === "selected" && decision.active) {
+            const record = restoredIntent.record;
+            if (record.workspaceKey !== undefined) {
+                // Re-resolve against the live registry instead of parking the selection in
+                // `selected-missing` forever: a still-running target becomes usable again
+                // without a manual re-`use`. The selected CONFIGURATION travels with it, so the mapping,
+                // the prompt context and the host-path guard are built from the configuration the
+                // operator chose rather than the workspace's primary one (L1-04).
+                await runtime.reconcileSelection({
+                    workspaceKey: record.workspaceKey,
+                    ...(record.candidateId !== undefined ? { candidateId: record.candidateId } : {}),
+                    ...(record.version === 2 && record.configPath !== undefined ? { configPath: record.configPath } : {}),
+                });
+                const restoredStatus = runtime.targetStore.snapshot().status;
+                ctx.ui.notify(`Restored DevContainer selection ${record.workspaceKey} (${restoredStatus}).`, "info");
+            }
         }
     });
     pi.on("session_shutdown", async () => {
@@ -574,13 +621,17 @@ export default function (pi) {
                 // Pi's command dispatcher ignores a handler's return value, so the rendered result has to
                 // be delivered from here or the operator sees nothing at all.
                 displayCommandResult(result, (message, type) => ctx.ui.notify(message, type));
-                // `/devcontainer use|up` engages this session's container surfaces;
-                // `/devcontainer off` hands them back to the host. `activation: "never"` is
-                // the one thing an explicit use cannot override (AC-5).
-                if (verb === "use" || verb === "up")
+                // `/devcontainer use|up` engages this session's container surfaces — but only when the
+                // command actually ESTABLISHED a target: a `use` that found nothing, hit an ambiguity, or
+                // was cancelled must leave the session exactly as it was (review finding L1-06). The store
+                // stays the authority on what a later bind() would do, so it is checked too.
+                const storeStatus = rt.targetStore.snapshot().status;
+                const bindable = storeStatus === "selected-valid" || storeStatus === "selected-stopped";
+                if ((verb === "use" || verb === "up") && result.target !== undefined && bindable) {
                     engageDevcontainerSurfaces(pi, rt, () => runtime);
+                }
                 if (verb === "off")
-                    rt.activation.decision = { active: false, reason: "no-evidence" };
+                    rt.activation.decision = { active: false, reason: "opted-out" };
             };
             await run(args);
         },

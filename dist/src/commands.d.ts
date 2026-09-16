@@ -15,7 +15,7 @@
 import type { ExecutionService } from "./execution-service.js";
 import type { TargetStore, TargetStoreSnapshot, TargetSelection } from "./target-store.js";
 import type { DockerContainer } from "./runtime/docker-adapter.js";
-import type { SelectionRecord } from "./selection-state.js";
+import type { SelectionIntent, SelectionRecord } from "./selection-state.js";
 import { errorKindOf } from "./errors.js";
 import { isWorkspaceAllowed, isEnvironmentAllowed } from "./policy.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
@@ -42,8 +42,8 @@ export interface CommandContextLike {
     readonly ui: CommandUI;
     /** Persist selection intent to the session. */
     readonly persistSelection?: (record: SelectionRecord) => void;
-    /** Restore a previously persisted selection record, if any. */
-    readonly restoreSelection?: () => SelectionRecord | undefined;
+    /** Restore the previously persisted selection INTENT, if any (an opt-out is one). */
+    readonly restoreSelection?: () => SelectionIntent | undefined;
 }
 export interface CommandServices {
     readonly config: EffectiveConfig;
@@ -100,6 +100,19 @@ export interface CommandServices {
 export interface CommandResult {
     /** Markdown rendered into the TUI. */
     readonly text: string;
+    /**
+     * Present only when the command ESTABLISHED a usable target.
+     *
+     * The session surfaces (`bash`, `!`/`!!`, the container tools) are engaged from this, not from
+     * the verb name: a `use` that found nothing, hit an ambiguity, or was cancelled must leave the
+     * session exactly as it was (review finding L1-06).
+     */
+    readonly target?: EstablishedTarget;
+}
+/** A selection the session can bind to: a valid target, or one that fails closed until `up`. */
+export interface EstablishedTarget {
+    readonly workspaceKey: string;
+    readonly candidateId?: string;
 }
 /**
  * Deliver a command handler's rendered result to the operator.
@@ -116,7 +129,24 @@ export declare function generateConfirmationToken(): string;
 /** Render the selection + registry state as a compact status block. */
 export declare function renderStatus(snapshot: TargetStoreSnapshot, entries: readonly import("./types.js").RegistryEntry[], config: EffectiveConfig): string;
 /** Resolve a selection state back into the store, or return an error text. */
-export declare function applySelection(services: CommandServices, target: TargetSelection, ctx: CommandContextLike): Promise<void>;
+export declare function applySelection(services: CommandServices, target: TargetSelection, ctx: CommandContextLike): Promise<EstablishedTarget | undefined>;
+/**
+ * Reduce a store snapshot to the metadata that may engage the session surfaces.
+ *
+ * `selected-valid` is usable now; `selected-stopped` is a target the operator chose whose commands
+ * fail closed with the `/devcontainer up` remedy. Everything else (`none`, `selected-missing`,
+ * `selected-ambiguous`, `selected-policy-denied`, `refreshing`) must not take over `bash`.
+ */
+export declare function establishedTarget(selection: {
+    readonly status: string;
+    readonly workspaceKey?: string | undefined;
+    /** Store-snapshot shape. */
+    readonly candidateId?: string | undefined;
+    /** `TargetSelection` shape. */
+    readonly candidate?: {
+        readonly id: string;
+    } | undefined;
+}): EstablishedTarget | undefined;
 /** Build the selection record from a registry entry + chosen candidate id. */
 export declare function selectionFor(entry: import("./types.js").RegistryEntry, candidateId: string | undefined, configPath?: string): TargetSelection;
 /**
@@ -131,6 +161,7 @@ export declare function selectionFor(entry: import("./types.js").RegistryEntry, 
 export declare function reconcileSelection(services: Pick<CommandServices, "targetStore" | "registry">, ctx: Pick<CommandContextLike, "persistSelection">, hint: {
     workspaceKey: string;
     candidateId?: string;
+    configPath?: string;
 }, 
 /**
  * Registry entries the caller already fetched. `/devcontainer up` resolves the target

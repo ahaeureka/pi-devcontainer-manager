@@ -1,0 +1,435 @@
+{
+  "protocolVersion": 1,
+  "id": "handoff-720be62b-677",
+  "taskId": "arch-review-p3-selection-integrity",
+  "createdAt": "2026-09-15T15:13:40.252Z",
+  "from": {
+    "role": "implementer",
+    "platform": "pi"
+  },
+  "to": {
+    "role": "implementer"
+  },
+  "phase": "plan",
+  "repository": {
+    "head": "39d317b7a8c83afdc7c647ca8c9f4016e19faa48",
+    "branch": "feature/arch-review-p3-selection-integrity",
+    "diffHash": "b68792d0492e85e7c3a5cc772aef7554a936f70f277dccbc3e5125bb9692300e",
+    "scope": {
+      "kind": "task_context",
+      "paths": [
+        ".kata/tasks/arch-review-p3-selection-integrity/task.json",
+        ".kata/tasks/arch-review-p3-selection-integrity/current-state.json"
+      ],
+      "hash": "b68792d0492e85e7c3a5cc772aef7554a936f70f277dccbc3e5125bb9692300e"
+    },
+    "worktreeRoot": "."
+  },
+  "task": {
+    "id": "arch-review-p3-selection-integrity",
+    "title": "DevContainer JSONC parsing is string-safe (L0-02): comment stripping can no long",
+    "phase": "intake",
+    "acceptance": [
+      {
+        "id": "AC-1",
+        "statement": "DevContainer JSONC parsing is string-safe (L0-02): comment stripping can no longer eat `//` inside ordinary JSON string values, so a valid configuration containing a URL or a `//` inside a string still produces a host<->container mapping and the host container-path guard still evaluates. Covered by tests for comment markers, URLs, and `//` inside string values."
+      },
+      {
+        "id": "AC-2",
+        "statement": "An explicit `/devcontainer off` survives restore (L1-02): it is persisted as a versioned opt-out (tombstone) selection record rather than only clearing in-memory state, recovery returns the latest intent including opt-out, a later selection supersedes it, and a session log written before this change still restores with the previous behaviour (no migration required)."
+      },
+      {
+        "id": "AC-3",
+        "statement": "A restored candidate identity is validated before it is trusted (L1-03): a persisted container ID is selected only when it still exists in a fresh registry result's `containerCandidates`; otherwise the missing/ambiguous reconciliation path runs, so a rebuilt or replaced container cannot be silently reselected by a stale ID."
+      },
+      {
+        "id": "AC-4",
+        "statement": "The selected configuration survives restore and drives the derived views (L1-04): a validated selected config identity is persisted with the selection, mapping resolution prefers the target snapshot's selected config path over the registry primary, and the same config drives prompt context and host container-path protection; older records without the field keep the current behaviour."
+      },
+      {
+        "id": "AC-5",
+        "statement": "Container-only mount facts reach the prompt (L1-05): the container-only mounts advertised by the execution-context vocabulary are extracted through the mapping/configuration path and supplied to the renderer, with composition coverage proving the runtime actually populates them."
+      },
+      {
+        "id": "AC-6",
+        "statement": "Container surfaces are engaged only on successful target establishment (L1-06): the command layer exposes a typed outcome distinguishing a successful selection from an error or a cancellation, and `/devcontainer use|up` replaces `bash` and registers the container tools only for the success case."
+      },
+      {
+        "id": "AC-7",
+        "statement": "A successful `up` reconciles against a refreshed registry (L2-01): selection after `up` resolves from a registry refresh performed after the lifecycle operation rather than from entries captured before it, so the execution surface becomes usable immediately for a config-only or previously-stopped workspace."
+      },
+      {
+        "id": "AC-8",
+        "statement": "Auto-selection commits atomically (L3-05): `TargetStore.selectIfNone` performs the emptiness check and the write inside the store's serialization queue, so an explicit `/devcontainer use` committed between the service's snapshot read and its auto-select write is never clobbered."
+      },
+      {
+        "id": "AC-9",
+        "statement": "No regression: the selection contract holds end to end — restore, reconcile, engage, and auto-select each behave for the selected, missing, ambiguous, stopped, opted-out, and never-selected states — and the full gate set stays green (`npm run typecheck`, the unit suite, `verify-package.mjs --unit-tests`, a rebuilt `dist/` that matches a fresh build, the packed smoke run, and `npm run install:local -- --check`)."
+      }
+    ],
+    "branch": "main",
+    "createdAt": "2026-09-15T13:01:19.966Z",
+    "updatedAt": "2026-09-15T13:01:19.966Z",
+    "workflowProfile": {
+      "version": 1,
+      "isolationMode": "git_flow",
+      "developmentMode": "tdd",
+      "reviewMode": "security",
+      "comet": {
+        "projectInit": "not_requested",
+        "openStatus": "acknowledged"
+      },
+      "gitFlow": {
+        "strategy": "manual",
+        "branch": "feature/arch-review-p3-selection-integrity",
+        "baseBranch": "main",
+        "status": "active"
+      }
+    },
+    "requirements": [
+      {
+        "id": "AC-1",
+        "statement": "DevContainer JSONC parsing is string-safe (L0-02): comment stripping can no longer eat `//` inside ordinary JSON string values, so a valid configuration containing a URL or a `//` inside a string still produces a host<->container mapping and the host container-path guard still evaluates. Covered by tests for comment markers, URLs, and `//` inside string values.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L0-02",
+        "confirmedAt": "2026-09-15T13:01:19.965Z"
+      },
+      {
+        "id": "AC-2",
+        "statement": "An explicit `/devcontainer off` survives restore (L1-02): it is persisted as a versioned opt-out (tombstone) selection record rather than only clearing in-memory state, recovery returns the latest intent including opt-out, a later selection supersedes it, and a session log written before this change still restores with the previous behaviour (no migration required).",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L1-02",
+        "confirmedAt": "2026-09-15T13:01:19.965Z"
+      },
+      {
+        "id": "AC-3",
+        "statement": "A restored candidate identity is validated before it is trusted (L1-03): a persisted container ID is selected only when it still exists in a fresh registry result's `containerCandidates`; otherwise the missing/ambiguous reconciliation path runs, so a rebuilt or replaced container cannot be silently reselected by a stale ID.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L1-03",
+        "confirmedAt": "2026-09-15T13:01:19.965Z"
+      },
+      {
+        "id": "AC-4",
+        "statement": "The selected configuration survives restore and drives the derived views (L1-04): a validated selected config identity is persisted with the selection, mapping resolution prefers the target snapshot's selected config path over the registry primary, and the same config drives prompt context and host container-path protection; older records without the field keep the current behaviour.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L1-04",
+        "confirmedAt": "2026-09-15T13:01:19.965Z"
+      },
+      {
+        "id": "AC-5",
+        "statement": "Container-only mount facts reach the prompt (L1-05): the container-only mounts advertised by the execution-context vocabulary are extracted through the mapping/configuration path and supplied to the renderer, with composition coverage proving the runtime actually populates them.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L1-05",
+        "confirmedAt": "2026-09-15T13:01:19.965Z"
+      },
+      {
+        "id": "AC-6",
+        "statement": "Container surfaces are engaged only on successful target establishment (L1-06): the command layer exposes a typed outcome distinguishing a successful selection from an error or a cancellation, and `/devcontainer use|up` replaces `bash` and registers the container tools only for the success case.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L1-06",
+        "confirmedAt": "2026-09-15T13:01:19.965Z"
+      },
+      {
+        "id": "AC-7",
+        "statement": "A successful `up` reconciles against a refreshed registry (L2-01): selection after `up` resolves from a registry refresh performed after the lifecycle operation rather than from entries captured before it, so the execution surface becomes usable immediately for a config-only or previously-stopped workspace.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L2-01",
+        "confirmedAt": "2026-09-15T13:01:19.965Z"
+      },
+      {
+        "id": "AC-8",
+        "statement": "Auto-selection commits atomically (L3-05): `TargetStore.selectIfNone` performs the emptiness check and the write inside the store's serialization queue, so an explicit `/devcontainer use` committed between the service's snapshot read and its auto-select write is never clobbered.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L3-05",
+        "confirmedAt": "2026-09-15T13:01:19.965Z"
+      },
+      {
+        "id": "AC-9",
+        "statement": "No regression: the selection contract holds end to end — restore, reconcile, engage, and auto-select each behave for the selected, missing, ambiguous, stopped, opted-out, and never-selected states — and the full gate set stays green (`npm run typecheck`, the unit suite, `verify-package.mjs --unit-tests`, a rebuilt `dist/` that matches a fresh build, the packed smoke run, and `npm run install:local -- --check`).",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#Phase-3-Selection-integrity",
+        "confirmedAt": "2026-09-15T13:01:19.965Z"
+      }
+    ],
+    "acceptanceMatrix": {
+      "version": 1,
+      "rows": [
+        {
+          "acceptanceId": "AC-1",
+          "designRefs": [
+            "design.md §3.1"
+          ],
+          "implementationPaths": [
+            "src/jsonc.ts",
+            "src/path-mapper.ts",
+            "extensions/index.ts"
+          ],
+          "testPaths": [
+            "tests/unit/jsonc.test.ts",
+            "tests/unit/path-mapper.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-2",
+          "designRefs": [
+            "design.md §3.2"
+          ],
+          "implementationPaths": [
+            "src/selection-state.ts",
+            "src/commands.ts",
+            "src/activation.ts",
+            "extensions/index.ts"
+          ],
+          "testPaths": [
+            "tests/unit/selection-state.test.ts",
+            "tests/unit/commands.test.ts",
+            "tests/unit/activation.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-3",
+          "designRefs": [
+            "design.md §3.3"
+          ],
+          "implementationPaths": [
+            "src/commands.ts"
+          ],
+          "testPaths": [
+            "tests/unit/commands.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-4",
+          "designRefs": [
+            "design.md §3.2"
+          ],
+          "implementationPaths": [
+            "src/selection-state.ts",
+            "src/commands.ts",
+            "extensions/index.ts"
+          ],
+          "testPaths": [
+            "tests/unit/selection-state.test.ts",
+            "tests/unit/commands.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-5",
+          "designRefs": [
+            "design.md §3.4"
+          ],
+          "implementationPaths": [
+            "src/path-mapper.ts",
+            "extensions/index.ts"
+          ],
+          "testPaths": [
+            "tests/unit/path-mapper.test.ts",
+            "tests/unit/execution-context.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-6",
+          "designRefs": [
+            "design.md §3.5"
+          ],
+          "implementationPaths": [
+            "src/commands.ts",
+            "extensions/index.ts"
+          ],
+          "testPaths": [
+            "tests/unit/commands.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-7",
+          "designRefs": [
+            "design.md §3.6"
+          ],
+          "implementationPaths": [
+            "src/commands.ts"
+          ],
+          "testPaths": [
+            "tests/unit/commands.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-8",
+          "designRefs": [
+            "design.md §3.7"
+          ],
+          "implementationPaths": [
+            "src/target-store.ts",
+            "extensions/index.ts"
+          ],
+          "testPaths": [
+            "tests/unit/target-store.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-9",
+          "designRefs": [
+            "design.md §4"
+          ],
+          "implementationPaths": [
+            "dist",
+            "CHANGELOG.md",
+            "README.md",
+            "README.zh-CN.md"
+          ],
+          "testPaths": [
+            "tests/unit",
+            "tests/e2e"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            },
+            {
+              "kind": "integration",
+              "command": "node scripts/smoke-pi-package.mjs --no-model",
+              "testSelector": "packed extension registration"
+            }
+          ],
+          "verificationLevel": "integration"
+        }
+      ]
+    }
+  },
+  "context": {
+    "requiredReads": [
+      "AGENTS.md",
+      ".llmwiki/SCHEMA.md",
+      ".llmwiki/index.md",
+      ".llmwiki/log.md",
+      ".kata/tasks/arch-review-p3-selection-integrity/task.json",
+      ".kata/tasks/arch-review-p3-selection-integrity/current-state.json",
+      "openspec/changes/arch-review-p3-selection-integrity/design.md"
+    ],
+    "designRefs": [
+      "openspec/changes/arch-review-p3-selection-integrity/design.md"
+    ],
+    "sourceRefs": [
+      "AC-1",
+      "AC-2",
+      "AC-3",
+      "AC-4",
+      "AC-5",
+      "AC-6",
+      "AC-7",
+      "AC-8",
+      "AC-9"
+    ],
+    "authoritativeWiki": [],
+    "excludedWiki": [
+      {
+        "id": "llmwiki-arch-review-p1-foundation",
+        "reason": "not-authoritative"
+      }
+    ],
+    "evidencePaths": [],
+    "priorArtifacts": [
+      ".kata/tasks/arch-review-p3-selection-integrity/review.json",
+      ".kata/tasks/arch-review-p3-selection-integrity/judge.json",
+      ".kata/tasks/arch-review-p3-selection-integrity/repair.json"
+    ]
+  },
+  "permissions": {
+    "allowedWrites": [
+      "src/",
+      "tests/",
+      "docs/"
+    ],
+    "guardInstructions": [
+      "Write only to src/, tests/, and task-owned .kata paths.",
+      "All acceptance criteria must have stable AC-[0-9]+ ids before implement.",
+      "Do not modify .kata/schemas/, docs/superpowers/rules/, or wiki/verified/.",
+      "Work on feature/arch-review-p3-selection-integrity; do not start, finish, or switch Git Flow branches outside the recorded task action.",
+      "Use TDD: write a focused failing test, verify RED, implement the minimum, then verify GREEN."
+    ]
+  },
+  "nextAction": "Perform implementer work after verifying this handoff."
+}

@@ -1,9 +1,0 @@
-{
-  "taskId": "arch-review-p3-selection-integrity",
-  "role": "designer",
-  "phase": "intake",
-  "platform": "pi",
-  "branch": "main",
-  "origin": "workflow",
-  "activatedAt": "2026-09-15T13:01:20.000Z"
-}

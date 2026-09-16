@@ -1,0 +1,49 @@
+{
+  "taskId": "arch-review-p3-selection-integrity",
+  "fromPhase": "hardVerify",
+  "toPhase": "implement",
+  "actor": {
+    "id": "kata-agent",
+    "role": "implementer"
+  },
+  "reason": "verify_fail",
+  "scopes": [
+    {
+      "id": "AC-1",
+      "repairScope": "revision_superseded"
+    },
+    {
+      "id": "AC-2",
+      "repairScope": "revision_superseded"
+    },
+    {
+      "id": "AC-3",
+      "repairScope": "revision_superseded"
+    },
+    {
+      "id": "AC-4",
+      "repairScope": "revision_superseded"
+    },
+    {
+      "id": "AC-5",
+      "repairScope": "revision_superseded"
+    },
+    {
+      "id": "AC-6",
+      "repairScope": "revision_superseded"
+    },
+    {
+      "id": "AC-7",
+      "repairScope": "revision_superseded"
+    },
+    {
+      "id": "AC-8",
+      "repairScope": "revision_superseded"
+    },
+    {
+      "id": "AC-9",
+      "repairScope": "revision_superseded"
+    }
+  ],
+  "createdAt": "2026-09-16T02:23:33.398Z"
+}

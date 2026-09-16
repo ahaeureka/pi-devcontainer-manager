@@ -8,6 +8,16 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The session selection is one persisted contract now. `/devcontainer off` appends an **opt-out**
+  that survives `/reload` — it suppresses the workspace-derived activation and in-session
+  auto-selection until you select a target again (an explicit `activation: "always"` still takes
+  over, and a project file can still withhold it) — and the selected configuration travels with the
+  selection: it drives the prompt context,
+  the exec-path presentation and the host container-path guard instead of those falling back to the
+  workspace's primary configuration. Sessions written before this change restore unchanged.
+- `/devcontainer use` engages the container surfaces only when it actually established a target: a
+  `use` that matched nothing, hit an ambiguous workspace, or was cancelled leaves `bash`, `!`/`!!`
+  and the file tools exactly as they were.
 - `timeoutSeconds` on `devcontainer_exec` and `devcontainer_host_exec` must now be
   **positive**: `0` and negative values are rejected by the tool schema instead of
   becoming an immediate abort (`timeout: Command timed out after 0s`). Omitted still
@@ -48,6 +58,22 @@ to [Semantic Versioning](https://semver.org/).
   store mid-refresh, or a failing auto-select now writes a record carrying the failure
   (policy authorized, target state refused) before the typed error is rethrown, matching
   how policy denials were already recorded.
+- DevContainer configurations are parsed with a string-safe JSONC reader. A `//` inside an ordinary
+  string value (a URL such as `https://registry.example.com//v2`, or `"bash // bootstrap"`) used to
+  truncate the document, which made the derived host<->container mapping disappear and, with it, the
+  host container-path guard that depends on it — a fail-open in a safety check. A configuration that
+  cannot be parsed is now reported as a diagnostic instead of looking like one that declares no
+  mapping.
+- A restored container ID is validated against the fresh registry: a rebuilt container's stale ID no
+  longer reselects it (the workspace's current candidate is resolved instead), while an ambiguous
+  workspace still fails closed rather than letting Docker's result order decide.
+- A successful `/devcontainer up` refreshes the registry before reconciling, so the target becomes
+  usable immediately instead of lingering as `selected-missing` right after a successful start.
+- Auto-selection commits atomically (`TargetStore.selectIfNone`): an explicit `/devcontainer use`
+  that lands while discovery is still running can no longer be overwritten by it.
+- The container-only mounts the execution context advertises are populated again: the runtime reads
+  them from the same parsed configuration that produces the workspace mapping, instead of leaving
+  the prompt field permanently empty.
 - Every spawn failure now names the OS error code, and `ENOTCONN` gets its own explanation:
   `Failed to spawn: devcontainer` used to be the whole message for *any* failure other than
   `ENOENT`/`EACCES`, which made a half-dead filesystem mount inside `PATH` (the case behind one

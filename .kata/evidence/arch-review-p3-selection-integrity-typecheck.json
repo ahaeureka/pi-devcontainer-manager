@@ -1,0 +1,29 @@
+{
+  "id": "evidence-d5dcbde0-52a9-4572-af0b-4cd9d8c069be",
+  "taskId": "arch-review-p3-selection-integrity",
+  "name": "typecheck",
+  "kind": "typecheck",
+  "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/typescript/lib/tsc.js --noEmit",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-16T02:23:33.444Z",
+  "finishedAt": "2026-09-16T02:23:39.520Z",
+  "diffHash": "444c3e676e4ca29d7a8ebb6e77eb0a5b6f38837240be562410a16f9119b4ffbd",
+  "revisionId": "revision-5ad6d8b9-9801-4578-a4e8-73b83f0490ba",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "e73b3482090d57a510b8da624fbed7ddb5c5405fe44f145c95c0e776d7d8a4b6"
+  }
+}

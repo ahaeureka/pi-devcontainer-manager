@@ -1,0 +1,30 @@
+{
+  "id": "evidence-6b29ebbe-5c73-420f-b2b8-041fc74ee545",
+  "taskId": "arch-review-p3-selection-integrity",
+  "name": "test",
+  "kind": "test",
+  "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/vitest/dist/cli.js run",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-16T02:23:39.520Z",
+  "finishedAt": "2026-09-16T02:23:53.966Z",
+  "diffHash": "444c3e676e4ca29d7a8ebb6e77eb0a5b6f38837240be562410a16f9119b4ffbd",
+  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n\n Test Files  35 passed (35)\n      Tests  403 passed (403)\n   Start at  10:23:39\n   Duration  13.96s (transform 13.59s, setup 0ms, import 21.50s, tests 36.13s, environment 7ms)\n\n",
+  "revisionId": "revision-5ad6d8b9-9801-4578-a4e8-73b83f0490ba",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "e73b3482090d57a510b8da624fbed7ddb5c5405fe44f145c95c0e776d7d8a4b6"
+  }
+}

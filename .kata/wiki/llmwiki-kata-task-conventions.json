@@ -10,20 +10,20 @@
     ".llmwiki/concepts/kata-task-conventions.md"
   ],
   "sourceHashes": {
-    ".llmwiki/raw/docs/kata-task-conventions.md": "765809cb2f277ae0d11f02120fd73b9734269264b6c73877ce23ef21b53c82ac",
-    ".llmwiki/concepts/kata-task-conventions.md": "37f082d93eb393435b38063b008b5f65858be0f900b14cb1c830e4af25c40a02"
+    ".llmwiki/raw/docs/kata-task-conventions.md": "cf4af6addca6b21d26a30ac9b7bfb0e30ec503ee58a33cae33641eaf10dec7ac",
+    ".llmwiki/concepts/kata-task-conventions.md": "5cb10c3f6d0c555aeb958580a2aaefb9677f7e637940d7b6f4108a606e3ac3f7"
   },
   "validationTaskId": "llmwiki-ingest",
   "evidenceIds": [
-    "llmwiki-765809cb2f27"
+    "llmwiki-cf4af6addca6"
   ],
   "status": "verified",
-  "lastVerifiedAt": "2026-09-15T11:16:20.237Z",
-  "createdAt": "2026-09-15T11:15:57.583Z",
-  "updatedAt": "2026-09-15T11:16:20.239Z",
+  "lastVerifiedAt": "2026-09-16T03:30:45.788Z",
+  "createdAt": "2026-09-16T03:30:45.566Z",
+  "updatedAt": "2026-09-16T03:30:45.791Z",
   "approvalEvent": {
     "approvedBy": "geebytes",
     "role": "distiller",
-    "approvedAt": "2026-09-15T11:16:20.237Z"
+    "approvedAt": "2026-09-16T03:30:45.788Z"
   }
 }

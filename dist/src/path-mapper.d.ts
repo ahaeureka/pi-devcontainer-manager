@@ -36,4 +36,41 @@ export declare function hostToContainer(path: string, mapping: PathMapping | und
  * container path on the host (where it does not exist).
  */
 export declare function findContainerPath(argv: readonly string[], containerPath: string): string | undefined;
+/** Facts a DevContainer configuration contributes to the agent's view of the environment. */
+export interface ConfigFacts {
+    /** Host <-> container workspace mapping, when the config declares a usable one. */
+    readonly mapping?: PathMapping;
+    /** Absolute container paths mounted into the container that the host cannot see. */
+    readonly containerOnlyMounts?: readonly string[];
+}
+/** Outcome of reading a configuration's TEXT. */
+export type ConfigRead = {
+    readonly kind: "ok";
+    readonly facts: ConfigFacts;
+}
+/** The config could not be parsed at all — callers must surface this, not treat it as "empty". */
+ | {
+    readonly kind: "unparsable";
+    readonly detail: string;
+};
+/**
+ * Read the facts a DevContainer configuration's text contributes (JSONC).
+ *
+ * Split out from the file IO so the parsing, the mapping derivation and the failure classification
+ * are testable. A config that cannot be parsed is reported as `unparsable` rather than as an empty
+ * one: the host container-path guard only runs when a mapping exists, so a config the extension
+ * cannot read silently switches that guard off and the operator has to be told (finding L0-02).
+ *
+ * @param configDir host directory that contains the configuration (see `buildPathMapping`)
+ */
+export declare function readConfigFacts(configDir: string, text: string): ConfigRead;
+/**
+ * Absolute container paths this config mounts that the workspace bind mount does not cover — i.e.
+ * paths the agent must not expect the host file tools to see (review finding L1-05).
+ *
+ * Targets under the workspace mapping are excluded because the host reaches them through the bind
+ * mount, malformed entries and relative targets are skipped, and the order of first appearance is
+ * preserved with duplicates removed.
+ */
+export declare function containerOnlyMounts(mounts: readonly string[], workspaceMount: string | undefined, mapping: PathMapping | undefined): readonly string[] | undefined;
 //# sourceMappingURL=path-mapper.d.ts.map

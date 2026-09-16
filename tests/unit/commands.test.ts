@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createCommandHandlers,
   displayCommandResult,
+  reconcileSelection,
   type CommandContextLike,
   type CommandServices,
 } from "../../src/commands.js";
@@ -74,6 +75,7 @@ function makeServices(overrides: Partial<CommandServices> = {}): CommandServices
           status: target.status,
           workspaceKey: target.workspaceKey,
           candidateId: target.candidate?.id,
+          configPath: target.candidate?.configPath,
 
         });
       }),
@@ -522,5 +524,322 @@ describe("/devcontainer setup", () => {
     const ctx = makeCtx();
     const result = await handlers["setup"]!("", ctx);
     expect(result.text).toContain("[unexpected]");
+  });
+});
+
+describe("reconcileSelection identity validation", () => {
+  function harness(entries: RegistryEntry[]) {
+    const selected: unknown[] = [];
+    const persisted: unknown[] = [];
+    const services = {
+      registry: async () => ({ entries, diagnostics: [] }),
+      targetStore: {
+        select: async (target: unknown) => {
+          selected.push(target);
+        },
+        snapshot: () => ({ status: "none", workspaceKey: undefined, candidateId: undefined, detail: undefined }),
+      },
+    } as unknown as Pick<CommandServices, "targetStore" | "registry">;
+    const ctx = { persistSelection: (record: unknown) => void persisted.push(record) };
+    return { services, ctx, selected, persisted };
+  }
+
+  const running = (over: Partial<RegistryEntry> = {}): RegistryEntry =>
+    ({
+      ...entry,
+      containerState: "running",
+      containerId: "current-container",
+      containerCandidates: [{ id: "current-container", state: "running" }],
+      ...over,
+    }) as RegistryEntry;
+
+  it("ignores a persisted candidate id the registry no longer offers", async () => {
+    // L1-03: container ids are ephemeral across rebuilds, so a stale one must not be trusted —
+    // the workspace's CURRENT candidate is resolved instead, and that is what gets persisted.
+    const { services, ctx, selected, persisted } = harness([running()]);
+
+    const result = await reconcileSelection(services, ctx, {
+      workspaceKey: entry.workspacePath,
+      candidateId: "stale-container-id",
+    });
+
+    expect(result.status).toBe("selected-valid");
+    expect(result.candidate?.id).toBe("current-container");
+    expect(selected).toHaveLength(1);
+    expect(persisted[0]).toMatchObject({ candidateId: "current-container" });
+  });
+
+  it("keeps a persisted id the registry still offers", async () => {
+    const { services, ctx } = harness([
+      running({
+        containerId: "keep-me",
+        containerCandidates: [
+          { id: "keep-me", state: "running" },
+          { id: "other", state: "exited" },
+        ],
+      }),
+    ]);
+
+    const result = await reconcileSelection(services, ctx, {
+      workspaceKey: entry.workspacePath,
+      candidateId: "keep-me",
+    });
+
+    expect(result.candidate?.id).toBe("keep-me");
+  });
+
+  it("still fails closed when a stale id cannot disambiguate two running containers", async () => {
+    const { services, ctx } = harness([
+      running({
+        ambiguous: true,
+        containerCandidates: [
+          { id: "aa11", state: "running" },
+          { id: "aa12", state: "running" },
+        ],
+      }),
+    ]);
+
+    const result = await reconcileSelection(services, ctx, {
+      workspaceKey: entry.workspacePath,
+      candidateId: "stale-container-id",
+    });
+
+    expect(result.status).toBe("selected-ambiguous");
+  });
+});
+
+describe("CommandResult.target (L1-06)", () => {
+  it("use reports the established target so the dispatcher may engage the container surfaces", async () => {
+    const { handlers } = makeServices();
+    const result = await handlers["use"]!("", makeCtx());
+
+    expect(result.target).toMatchObject({ workspaceKey: "/ws/project-a" });
+  });
+
+  it("use reports no target when the operator cancels", async () => {
+    const ctx = makeCtx({ ui: undefined });
+    ctx.ui.select = vi.fn(async () => undefined);
+    const multi = [
+      { ...entry, workspacePath: "/ws/a" },
+      { ...entry, workspacePath: "/ws/b" },
+    ] as RegistryEntry[];
+    const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: multi, diagnostics: [] })) });
+
+    const result = await handlers["use"]!("", ctx);
+
+    expect(result.text).toContain("cancelled");
+    expect(result.target).toBeUndefined();
+  });
+
+  it("use reports no target when nothing matched", async () => {
+    const { handlers } = makeServices();
+
+    const result = await handlers["use"]!("does-not-exist", makeCtx());
+
+    expect(result.text).toContain("[no-candidate]");
+    expect(result.target).toBeUndefined();
+  });
+
+  it("use reports no target for an ambiguous workspace", async () => {
+    const { handlers } = makeServices({
+      registry: vi.fn(async () => ({
+        entries: [
+          {
+            ...entry,
+            ambiguous: true,
+            containerCandidates: [
+              { id: "aa11", state: "running" },
+              { id: "aa12", state: "running" },
+            ],
+          },
+        ],
+        diagnostics: [],
+      })),
+    });
+
+    const ctx = makeCtx();
+    const result = await handlers["use"]!("", ctx);
+
+    expect(result.text).toContain("[ambiguous-candidate]");
+    expect(result.target).toBeUndefined();
+    // A failed selection must not leave persisted evidence that engages the session after a reload.
+    expect(ctx.persisted).toHaveLength(0);
+  });
+});
+
+describe("/devcontainer up refresh (L2-01)", () => {
+  it("refreshes the registry after a successful start and reconciles against it", async () => {
+    const started: RegistryEntry = { ...entry, containerState: "running", containerId: "fresh123" };
+    const refreshed = vi.fn(async () => ({ entries: [started], diagnostics: [] }));
+    const { handlers } = makeServices({ refreshRegistry: refreshed });
+
+    const result = await handlers["up"]!("", makeCtx());
+
+    expect(refreshed).toHaveBeenCalledTimes(1);
+    expect(result.text).toContain("selection: selected-valid");
+    expect(result.target).toMatchObject({ workspaceKey: entry.workspacePath, candidateId: "fresh123" });
+  });
+
+  it("does not refresh when the start failed", async () => {
+    const refreshed = vi.fn(async () => ({ entries: [entry], diagnostics: [] }));
+    const { handlers } = makeServices({
+      refreshRegistry: refreshed,
+      execution: {
+        up: vi.fn(async () => {
+          throw new RuntimeError({ kind: "docker-cli-failure", message: "daemon unreachable" });
+        }),
+      } as unknown as ExecutionService,
+    });
+
+    const result = await handlers["up"]!("", makeCtx());
+
+    expect(result.text).toContain("daemon unreachable");
+    expect(refreshed).not.toHaveBeenCalled();
+    expect(result.target).toBeUndefined();
+  });
+});
+
+describe("persisted selection intent (L1-02 / L1-04)", () => {
+  it("persists an opt-out tombstone when the operator turns the extension off", async () => {
+    const { handlers, targetStore } = makeServices();
+    const ctx = makeCtx();
+
+    const result = await handlers["off"]!("", ctx);
+
+    expect(targetStore.clear).toHaveBeenCalled();
+    expect(result.text).toContain("host surfaces again");
+    // Without the tombstone the append-only log still holds the earlier selection, so `/reload`
+    // would silently undo the operator's opt-out.
+    expect(ctx.persisted).toHaveLength(1);
+    expect(ctx.persisted[0]).toMatchObject({ version: 2, state: "cleared" });
+    expect(ctx.persisted[0]!.workspaceKey).toBeUndefined();
+  });
+
+  it("persists the selected configuration with the selection", async () => {
+    const named: RegistryEntry = {
+      ...entry,
+      configPath: "/ws/project-a/.devcontainer/python/devcontainer.json",
+      configKind: ".devcontainer/<name>/devcontainer.json",
+      configCandidates: [
+        {
+          configPath: "/ws/project-a/.devcontainer/python/devcontainer.json",
+          configKind: ".devcontainer/<name>/devcontainer.json",
+        },
+      ],
+    };
+    const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [named], diagnostics: [] })) });
+    const ctx = makeCtx();
+
+    await handlers["use"]!("project-a", ctx);
+
+    expect(ctx.persisted[0]).toMatchObject({
+      state: "selected",
+      configPath: "/ws/project-a/.devcontainer/python/devcontainer.json",
+    });
+  });
+});
+
+function reconcileHarness(entries: RegistryEntry[], seed?: { workspaceKey: string; configPath: string }) {
+    const selected: unknown[] = [];
+    const persisted: { configPath?: string }[] = [];
+    const snapshot: Record<string, unknown> = {
+      status: seed !== undefined ? "selected-valid" : "none",
+      workspaceKey: seed?.workspaceKey,
+      candidateId: undefined,
+      detail: undefined,
+      ...(seed !== undefined ? { configPath: seed.configPath } : {}),
+    };
+    const services = {
+      registry: async () => ({ entries, diagnostics: [] }),
+      targetStore: {
+        select: async (target: unknown) => void selected.push(target),
+        snapshot: () => snapshot,
+      },
+    } as unknown as Pick<CommandServices, "targetStore" | "registry">;
+  const ctx = { persistSelection: (record: { configPath?: string }) => void persisted.push(record) };
+  return { services, ctx, persisted, snapshot };
+}
+
+describe("reconcileSelection keeps the selected configuration (L1-04)", () => {
+  const withConfig = (configPath: string): RegistryEntry =>
+    ({
+      ...entry,
+      containerState: "running",
+      containerId: "c1",
+      containerCandidates: [{ id: "c1", state: "running" }],
+      configPath,
+      configKind: ".devcontainer/<name>/devcontainer.json",
+      configCandidates: [{ configPath, configKind: ".devcontainer/<name>/devcontainer.json" }],
+    }) as RegistryEntry;
+
+  it("restores the configuration the operator had selected", async () => {
+    const path = "/ws/project-a/.devcontainer/python/devcontainer.json";
+    const { services, ctx, persisted } = reconcileHarness([withConfig(path)]);
+
+    const result = await reconcileSelection(services, ctx, { workspaceKey: entry.workspacePath, configPath: path });
+
+    expect(result.candidate?.configPath).toBe(path);
+    expect(persisted[0]!.configPath).toBe(path);
+  });
+
+  it("drops a configuration the workspace no longer discovers", async () => {
+    const { services, ctx, persisted } = reconcileHarness([withConfig("/ws/project-a/.devcontainer/python/devcontainer.json")]);
+
+    const result = await reconcileSelection(services, ctx, {
+      workspaceKey: entry.workspacePath,
+      configPath: "/ws/project-a/.devcontainer/removed/devcontainer.json",
+    });
+
+    expect(result.candidate?.configPath).toBeUndefined();
+    expect(persisted[0]!.configPath).toBeUndefined();
+  });
+});
+
+describe("reconcileSelection preserves an already-selected configuration (L1-04 regression)", () => {
+  const named = "/ws/project-a/.devcontainer/python/devcontainer.json";
+  const entryWithBoth: RegistryEntry = {
+    ...entry,
+    containerState: "running",
+    containerId: "c1",
+    containerCandidates: [{ id: "c1", state: "running" }],
+    configPath: "/ws/project-a/.devcontainer/devcontainer.json",
+    configKind: ".devcontainer/devcontainer.json",
+    configCandidates: [
+      { configPath: "/ws/project-a/.devcontainer/devcontainer.json", configKind: ".devcontainer/devcontainer.json" },
+      { configPath: named, configKind: ".devcontainer/<name>/devcontainer.json" },
+    ],
+  };
+
+  it("keeps the configuration the session already selected when the caller passes no hint", async () => {
+    // `/devcontainer up` and the `list` repair call reconcileSelection with only a workspace key.
+    // Falling back to the discovered primary there silently reverted the operator's choice — and
+    // re-persisted it — right after the `use`/`up` flow that recommends itself.
+    const { services, ctx, persisted, snapshot } = reconcileHarness(
+      [entryWithBoth],
+      { workspaceKey: "/ws/project-a", configPath: named },
+    );
+
+    const result = await reconcileSelection(services, ctx, { workspaceKey: "/ws/project-a" });
+
+    expect(result.candidate?.configPath).toBe(named);
+    expect(snapshot.status).toBe("selected-valid");
+    expect(persisted[0]!.configPath).toBe(named);
+  });
+
+  it("still prefers an explicit hint over the carried-over configuration", async () => {
+    const primary = "/ws/project-a/.devcontainer/devcontainer.json";
+    const { services, ctx } = reconcileHarness([entryWithBoth], { workspaceKey: "/ws/project-a", configPath: named });
+
+    const result = await reconcileSelection(services, ctx, { workspaceKey: "/ws/project-a", configPath: primary });
+
+    expect(result.candidate?.configPath).toBe(primary);
+  });
+
+  it("does not carry a configuration across workspaces", async () => {
+    const { services, ctx } = reconcileHarness([entryWithBoth], { workspaceKey: "/ws/other", configPath: named });
+
+    const result = await reconcileSelection(services, ctx, { workspaceKey: "/ws/project-a" });
+
+    expect(result.candidate?.configPath).toBeUndefined();
   });
 });

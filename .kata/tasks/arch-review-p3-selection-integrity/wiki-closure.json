@@ -1,0 +1,9 @@
+{
+  "taskId": "arch-review-p3-selection-integrity",
+  "decision": "captured",
+  "reason": "Phase 3 establishes the persisted selection contract (an opt-out is an intent; a restored identity is validated against the live registry; the selected configuration drives every derived view; engagement is a typed outcome), the migration pattern that makes a session-entry payload change free, the fail-open lesson that a preprocessing heuristic must not be allowed to silently disable a guard, and the atomic check-then-write rule. Captured as .kata/wiki/llmwiki-arch-review-p3-selection-integrity.",
+  "candidateIds": [
+    "llmwiki-arch-review-p3-selection-integrity"
+  ],
+  "updatedAt": "2026-09-15T15:30:26.819Z"
+}

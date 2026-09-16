@@ -1,0 +1,19 @@
+{
+  "id": "revision-9745e692-5773-48e7-9f3a-ad8c01071b62",
+  "taskId": "arch-review-p3-selection-integrity",
+  "ownedPaths": [
+    "CHANGELOG.md",
+    "README.md",
+    "README.zh-CN.md",
+    "dist",
+    "docs",
+    "extensions",
+    "openspec",
+    "package.json",
+    "scripts",
+    "src",
+    "tests"
+  ],
+  "manifestHash": "2f1527dbfaf3c2b7915b3c822949da9c674afd99a64e10729d6ea50c277c3371",
+  "createdAt": "2026-09-15T15:23:07.201Z"
+}

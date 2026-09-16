@@ -1,0 +1,30 @@
+{
+  "id": "evidence-5b6a2ff5-d03d-4d02-b63b-ce000049b9f3",
+  "taskId": "arch-review-p3-selection-integrity",
+  "name": "AC-1-test-npm run test:unit",
+  "kind": "test",
+  "command": "npm run test:unit",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-16T02:23:53.966Z",
+  "finishedAt": "2026-09-16T02:23:56.893Z",
+  "diffHash": "444c3e676e4ca29d7a8ebb6e77eb0a5b6f38837240be562410a16f9119b4ffbd",
+  "log": "\n> pi-devcontainer-manager@1.0.0 test:unit\n> vitest --run tests/unit\n\n\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  32 passed (32)\n      Tests  387 passed (387)\n   Start at  10:23:54\n   Duration  2.09s (transform 9.61s, setup 0ms, import 16.59s, tests 4.39s, environment 7ms)\n\n",
+  "revisionId": "revision-5ad6d8b9-9801-4578-a4e8-73b83f0490ba",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "e73b3482090d57a510b8da624fbed7ddb5c5405fe44f145c95c0e776d7d8a4b6"
+  }
+}

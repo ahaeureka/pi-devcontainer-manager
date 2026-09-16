@@ -19,6 +19,8 @@
 
 - [[concepts/arch-review-p2-failure-observability.md]] — Failure observability (Phase 2 build notes)
 
+- [[concepts/arch-review-p3-selection-integrity.md]] — Selection integrity (Phase 3 build notes)
+
 ## Comparisons
 
 ## Queries

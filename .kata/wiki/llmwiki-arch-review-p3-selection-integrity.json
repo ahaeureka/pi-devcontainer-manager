@@ -1,0 +1,29 @@
+{
+  "id": "llmwiki-arch-review-p3-selection-integrity",
+  "statement": "Selection integrity (Phase 3 build notes)",
+  "scope": [
+    "concepts/arch-review-p3-selection-integrity.md"
+  ],
+  "kind": "llmwiki-summary",
+  "sourceRefs": [
+    ".llmwiki/raw/docs/arch-review-p3-selection-integrity.md",
+    ".llmwiki/concepts/arch-review-p3-selection-integrity.md"
+  ],
+  "sourceHashes": {
+    ".llmwiki/raw/docs/arch-review-p3-selection-integrity.md": "dd24f7fbbb27e613b85bf76c86aa4d9c255f59c4be5f584a79840df1359e2dca",
+    ".llmwiki/concepts/arch-review-p3-selection-integrity.md": "d1fff3a16ae44e3c4d030c502d3d37d37fb6d5ebab14f5cddf44f4c8c50b0e0d"
+  },
+  "validationTaskId": "llmwiki-ingest",
+  "evidenceIds": [
+    "llmwiki-dd24f7fbbb27"
+  ],
+  "status": "verified",
+  "lastVerifiedAt": "2026-09-16T03:30:45.678Z",
+  "createdAt": "2026-09-16T03:30:45.453Z",
+  "updatedAt": "2026-09-16T03:30:45.680Z",
+  "approvalEvent": {
+    "approvedBy": "geebytes",
+    "role": "distiller",
+    "approvedAt": "2026-09-16T03:30:45.678Z"
+  }
+}

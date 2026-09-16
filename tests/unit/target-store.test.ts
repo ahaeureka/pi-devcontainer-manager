@@ -162,3 +162,63 @@ describe("TargetStore.bind", () => {
     }
   });
 });
+
+describe("TargetStore.selectIfNone", () => {
+  it("commits when nothing is selected and reports that it did", async () => {
+    const s = store();
+
+    const committed = await s.selectIfNone({
+      status: "selected-valid",
+      candidate: candidate(),
+      workspaceKey: "/data/work/proj-a",
+    });
+
+    expect(committed).toBe(true);
+    expect(s.snapshot().status).toBe("selected-valid");
+  });
+
+  it("refuses once a target is selected, so an explicit choice is never clobbered", async () => {
+    const s = store();
+    // An explicit `/devcontainer use` that commits while auto-selection is still in flight.
+    await s.select({ status: "selected-stopped", workspaceKey: "/data/work/other" });
+
+    const committed = await s.selectIfNone({
+      status: "selected-valid",
+      candidate: candidate(),
+      workspaceKey: "/data/work/proj-a",
+    });
+
+    expect(committed).toBe(false);
+    expect(s.snapshot().workspaceKey).toBe("/data/work/other");
+    expect(s.snapshot().status).toBe("selected-stopped");
+  });
+
+  it("serialises with concurrent writes: the explicit selection always wins", async () => {
+    const s = store();
+
+    // Both go through the queue; the explicit select is enqueued first and must win.
+    const explicit = s.select({ status: "selected-valid", candidate: candidate({ name: "explicit" }) });
+    const auto = s.selectIfNone({ status: "selected-valid", candidate: candidate({ name: "auto" }) });
+    await Promise.all([explicit, auto]);
+
+    expect(await auto).toBe(false);
+    expect(s.snapshot().candidateId).toBe(candidate().id);
+  });
+});
+
+describe("TargetStore.selectIfNone under the production ordering", () => {
+  it("refuses when an explicit selection lands while auto-selection is still discovering", async () => {
+    const s = store();
+
+    // The real window: the execution service reads the snapshot, awaits discovery, and only then
+    // commits the auto-selection. An explicit `/devcontainer use` landing inside that await wins.
+    const auto = (async () => {
+      await Promise.resolve();
+      return s.selectIfNone({ status: "selected-valid", candidate: candidate({ name: "auto" }) });
+    })();
+    await s.select({ status: "selected-valid", candidate: candidate({ name: "explicit" }) });
+
+    expect(await auto).toBe(false);
+    expect(s.snapshot().candidateId).toBe(candidate().id);
+  });
+});
