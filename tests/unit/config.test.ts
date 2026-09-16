@@ -70,3 +70,38 @@ describe("defaultConfigPaths", () => {
     );
   });
 });
+
+describe("hostExecution.allow (granted by default, withholdable)", () => {
+  // The shipped posture is GRANT (product decision 2026-09-16). What matters just as much is that a
+  // configuration can still withhold it — from either layer — and that nothing can widen a deny.
+  const cases: { global?: boolean; project?: boolean; allow: boolean; why: string }[] = [
+    { allow: true, why: "neither layer speaks: the shipped default grants it" },
+    { global: true, allow: true, why: "the global file grants it" },
+    { project: true, allow: true, why: "a project may also grant it" },
+    { global: true, project: true, allow: true, why: "both grant it" },
+    { global: false, allow: false, why: "the global file withholds it" },
+    { project: false, allow: false, why: "the project file withholds it" },
+    { global: true, project: false, allow: false, why: "a project deny wins over a global grant" },
+    { global: false, project: true, allow: false, why: "a global deny cannot be widened by a project" },
+  ];
+
+  for (const testCase of cases) {
+    it(`allow=${String(testCase.allow)} when global=${String(testCase.global)} and project=${String(testCase.project)} — ${testCase.why}`, () => {
+      const config = compileConfig(
+        testCase.global === undefined ? {} : { hostExecution: { allow: testCase.global } },
+        testCase.project === undefined ? {} : { hostExecution: { allow: testCase.project } },
+      );
+      expect(config.hostExecution.allow).toBe(testCase.allow);
+    });
+  }
+
+  it("grants host execution for a bare configuration, unlike every other gate", () => {
+    const config = compileConfig();
+    expect(config.hostExecution).toEqual({ allow: true });
+    // The deny-by-default posture STAYS for the destructive operations and the roots allowlist; this
+    // change is scoped to the host escape hatch and must not be read as a general loosening.
+    expect(config.destructive).toEqual({ allowStop: false, allowRemove: false });
+    expect(config.allowedWorkspaceRoots).toEqual([]);
+    expect(config.environmentAllowlist).toEqual([]);
+  });
+});

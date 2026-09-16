@@ -27,13 +27,19 @@ describe("policy", () => {
   });
 
   it("requires host-execution policy grant", () => {
-    const denied = evaluatePolicy(config, { operation: "host-exec", initiator: "host-escape" });
-    expect(denied.authorized).toBe(false);
-    expect(denied.denialReason).toBe("host-execution-disabled");
+    // Host execution is granted by DEFAULT (the shipped posture) and withheld only by a
+    // configuration, so both sides of the gate are asserted explicitly here rather than leaning on
+    // the default.
     const granted = evaluatePolicy(
       compileConfig({ hostExecution: { allow: true } }),
       { operation: "host-exec", initiator: "host-escape" },
     );
     expect(granted.authorized).toBe(true);
+    const denied = evaluatePolicy(
+      compileConfig({ hostExecution: { allow: false } }),
+      { operation: "host-exec", initiator: "host-escape" },
+    );
+    expect(denied.authorized).toBe(false);
+    expect(denied.denialReason).toBe("host-execution-disabled");
   });
 });

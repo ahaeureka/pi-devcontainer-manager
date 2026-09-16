@@ -291,3 +291,23 @@ describe("execution-route prompt metadata", () => {
     expect(joined).toContain("bind mount");
   });
 });
+
+describe("host-exec denial remedy (AC-4)", () => {
+  it("names the configuration as the cause instead of pointing at a knob that is already on", async () => {
+    const tool = createDevcontainerHostExecTool(makeOptions({ hostExecutionAllowed: false }));
+
+    const error = await tool
+      .execute("t1", { argv: ["hostname"] }, undefined, undefined, { cwd: "/session" })
+      .then(() => undefined, (caught: unknown) => caught as { remedy?: string; message: string });
+
+    expect(error?.message).toContain("disabled by policy");
+    // The default GRANTS host execution, so the only remaining cause is a configuration deny — the
+    // remedy has to say so, name both layers, and not tell the operator to enable something that is
+    // already enabled.
+    expect(error?.remedy).toContain("hostExecution.allow: false");
+    expect(error?.remedy).toContain("project");
+    expect(error?.remedy).toContain("global");
+    expect(error?.remedy).toContain("/reload");
+    expect(error?.remedy).not.toContain("allow=true");
+  });
+});

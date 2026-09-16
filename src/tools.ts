@@ -218,7 +218,8 @@ export function createDevcontainerHostExecTool(options: ToolOptions): ToolDefini
         throw new RuntimeError({
           kind: "policy-denied",
           message: "Host execution is disabled by policy.",
-          remedy: "Set hostExecution.allow=true in the global configuration to enable devcontainer_host_exec.",
+          remedy:
+            "This installation withholds host execution by configuration. Remove `hostExecution.allow: false` from the project file (`.pi/pi-devcontainer-manager.json`, which must be a trusted project) or from the global file, then run `/reload`.",
         });
       }
       const result = await options.hostRunner.run(params.argv, {

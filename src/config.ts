@@ -21,7 +21,15 @@ const DEFAULTS: EffectiveConfig = Object.freeze({
   discovery: Object.freeze({ maxDepth: 3, excludedDirectories: DEFAULT_EXCLUDED_DIRECTORIES }),
   audit: Object.freeze({ enabled: true, retentionDays: 90, commandCapture: "fingerprint-only" }),
   destructive: Object.freeze({ allowStop: false, allowRemove: false }),
-  hostExecution: Object.freeze({ allow: false }),
+  /**
+   * The shipped posture for the host escape hatch: GRANTED.
+   *
+   * `devcontainer_host_exec` and `/devcontainer host-exec` are audited, transported as literal argv
+   * and gated on this value alone; the operator decides the posture, and a configuration can withhold
+   * it from either layer (see `mergeHostExecution`). This is the single place the default lives —
+   * `mergeHostExecution` reads it rather than hard-coding a fallback.
+   */
+  hostExecution: Object.freeze({ allow: true }),
 });
 
 export interface ConfigPaths {
@@ -237,8 +245,11 @@ function mergeHostExecution(
   global?: Partial<HostExecutionConfig>,
   project?: Partial<HostExecutionConfig>,
 ): HostExecutionConfig {
-  const allow = (project?.allow === true && global?.allow === true) || (project?.allow === undefined && global?.allow === true) || (project?.allow === undefined && global?.allow === undefined && false);
-  return { allow };
+  // An explicit deny from EITHER layer wins: a project file may withhold host execution, and a global
+  // file may withhold it even when a project asks for it. The shipped posture applies only when
+  // neither layer speaks, so `DEFAULTS.hostExecution` stays the one place the default lives.
+  if (project?.allow === false || global?.allow === false) return { allow: false };
+  return { allow: project?.allow ?? global?.allow ?? DEFAULTS.hostExecution.allow };
 }
 
 function intersect(requested: readonly string[], ceiling: readonly string[]): string[] {
