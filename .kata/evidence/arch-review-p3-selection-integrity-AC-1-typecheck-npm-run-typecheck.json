@@ -1,16 +1,16 @@
 {
-  "id": "evidence-a421cd4a-6106-4d2f-918c-91e50e7d9b03",
+  "id": "evidence-b7580e0a-c5c9-46ef-b3e2-17891424f6ec",
   "taskId": "arch-review-p3-selection-integrity",
   "name": "AC-1-typecheck-npm run typecheck",
   "kind": "typecheck",
   "command": "npm run typecheck",
   "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
   "exitCode": 0,
-  "startedAt": "2026-09-16T02:06:11.527Z",
-  "finishedAt": "2026-09-16T02:06:17.893Z",
+  "startedAt": "2026-09-16T02:23:56.893Z",
+  "finishedAt": "2026-09-16T02:24:03.461Z",
   "diffHash": "444c3e676e4ca29d7a8ebb6e77eb0a5b6f38837240be562410a16f9119b4ffbd",
   "log": "\n> pi-devcontainer-manager@1.0.0 typecheck\n> tsc --noEmit -p tsconfig.json\n\n",
-  "revisionId": "revision-d05891bb-86f6-4202-94b4-4f479485452b",
+  "revisionId": "revision-5ad6d8b9-9801-4578-a4e8-73b83f0490ba",
   "scope": {
     "paths": [
       "CHANGELOG.md",
@@ -25,6 +25,6 @@
       "src",
       "tests"
     ],
-    "hash": "916ad495931379602af13e86176acad2507881534074ed6aa5279767a2dd5419"
+    "hash": "e73b3482090d57a510b8da624fbed7ddb5c5405fe44f145c95c0e776d7d8a4b6"
   }
 }
