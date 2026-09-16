@@ -330,6 +330,17 @@ export class ExecutionService {
       workspace: request.workspace,
     });
     const startedAt = Date.now();
+    try {
+      this.bindContainer(request.container.id);
+    } catch (error) {
+      this.audit(snapshot, undefined, request, {
+        durationMs: Date.now() - startedAt,
+        exitCode: null,
+        outputTruncated: false,
+        errorSummary: this.asAuditError(error).message,
+      });
+      throw error;
+    }
     let result: LifecycleServiceResult;
     try {
       result = await this.options.dockerLifecycle[request.operation](
@@ -376,6 +387,18 @@ export class ExecutionService {
       workspace: request.workspace,
     });
     const startedAt = Date.now();
+    try {
+      this.bindContainer(request.containerId);
+    } catch (error) {
+      // Refused, and recorded — without ever writing the caller's identity as the target.
+      this.audit(snapshot, undefined, { operation: "logs", initiator: request.initiator, workspace: request.workspace }, {
+        durationMs: Date.now() - startedAt,
+        exitCode: null,
+        outputTruncated: false,
+        errorSummary: this.asAuditError(error).message,
+      });
+      throw error;
+    }
     let result: Awaited<ReturnType<DockerLifecycleAdapter["logs"]>>;
     try {
       result = await this.options.dockerLifecycle.logs(request.containerId, {
@@ -397,6 +420,28 @@ export class ExecutionService {
       outputTruncated: result.truncated,
     }, request.containerId);
     return result;
+  }
+
+  /**
+   * The container a `logs` or lifecycle request may act on.
+   *
+   * `exec` already refuses a request whose workspace differs from the bound target; `logs`, `stop`
+   * and `remove` trusted a caller-supplied identity, never bound it, and recorded that value as the
+   * audit target — so two surfaces of the same service held different invariants about whether the
+   * operated container belonged to the authorized workspace (review finding L3-07). They now bind
+   * first and verify: an identity that is not the bound target is refused BEFORE any Docker call, and
+   * the audit `targetId` comes from the binding rather than from the caller.
+   */
+  private bindContainer(containerId: string): ExecutionContext {
+    const context = this.options.targetStore.bind();
+    if (context.candidateId !== containerId) {
+      throw new RuntimeError({
+        kind: "policy-denied",
+        message: `Container ${containerId} is not the bound target (${context.candidateName}); the service only acts on the target this session authorized.`,
+        remedy: "Re-select the target with /devcontainer use, then retry.",
+      });
+    }
+    return context;
   }
 
   /**

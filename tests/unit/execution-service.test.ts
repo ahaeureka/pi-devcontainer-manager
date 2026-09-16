@@ -438,3 +438,70 @@ describe("ExecutionService.lifecycle", () => {
     expect(record.exitCode).toBe(0);
   });
 });
+
+describe("bound container identity (L3-07)", () => {
+  // `makeService`'s fake store binds container `abc123` for workspace `/ws/project-a`; anything else
+  // names a container the service did not authorize.
+  const recordList = (audit: AuditWriter): AuditRecord[] =>
+    (audit.write as unknown as { mock: { calls: [AuditRecord][] } }).mock.calls.map(([record]) => record);
+
+  /** The fake lifecycle answers `logs` with a bounded empty read, like the real adapter does. */
+  const lifecycle = (): DockerLifecycleAdapter => ({ ...fakeDockerLifecycle().adapter, logs: vi.fn(async () => ({ exitCode: 0, output: "log-line", truncated: false })) });
+
+  it("refuses a logs request for a container that is not the bound target", async () => {
+    const { service, audit } = makeService({ dockerLifecycle: lifecycle() });
+
+    await expect(
+      service.logs({ initiator: "slash-command", workspace: "/ws/project-a", containerId: "sibling" }),
+    ).rejects.toMatchObject({ kind: "policy-denied" });
+
+    // Refused before Docker runs, and the trail never records the caller's identity as the target.
+    const records = recordList(audit);
+    expect(records.every((record) => record.targetId !== "sibling")).toBe(true);
+    expect(records.some((record) => record.errorSummary?.includes("bound target"))).toBe(true);
+  });
+
+  it("acts on the bound container and records the bound identity", async () => {
+    const { service, audit } = makeService({ dockerLifecycle: lifecycle() });
+
+    await service.logs({ initiator: "slash-command", workspace: "/ws/project-a", containerId: "abc123" });
+
+    const records = recordList(audit);
+    expect(records.at(-1)?.targetId).toBe("abc123");
+    expect(records.at(-1)?.operation).toBe("logs");
+  });
+
+  it("refuses a stop request for a container that is not the bound target, before the adapter runs", async () => {
+    const { service, audit } = makeService({ dockerLifecycle: lifecycle() });
+    const sibling: DockerContainer = { ...container, id: "sibling", name: "sibling" };
+
+    await expect(
+      service.lifecycle({
+        operation: "stop",
+        initiator: "slash-command",
+        workspace: "/ws/project-a",
+        container: sibling,
+        confirmation: { token: "t", action: "stop", containerId: "sibling" },
+      }),
+    ).rejects.toMatchObject({ kind: "policy-denied" });
+
+    expect(recordList(audit).some((record) => record.targetId === "sibling")).toBe(false);
+  });
+
+  it("still runs the lifecycle operation for the bound container", async () => {
+    const { service } = makeService({
+      dockerLifecycle: lifecycle(),
+      config: makeConfig({ destructive: { allowStop: true, allowRemove: false } }),
+    });
+
+    const result = await service.lifecycle({
+      operation: "stop",
+      initiator: "slash-command",
+      workspace: "/ws/project-a",
+      container,
+      confirmation: { token: "t", action: "stop", containerId: "abc123" },
+    });
+
+    expect(result.status).toBe("done");
+  });
+});
