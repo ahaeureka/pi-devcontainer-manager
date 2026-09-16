@@ -1,38 +1,37 @@
 {
   "taskId": "arch-review-p4-vocabulary-identity",
-  "result": "FAIL",
-  "diffHash": "c7ec06fab40c22f3c53fd3d8c685441f81ff40f8fa30a4650c4e2a7627e93e89",
-  "revisionId": "revision-38efebd1-92b5-4729-9b85-6e9a28b5b593",
-  "acceptance": [
+  "fromPhase": "hardVerify",
+  "toPhase": "implement",
+  "actor": {
+    "id": "kata-agent",
+    "role": "implementer"
+  },
+  "reason": "verify_fail",
+  "scopes": [
     {
       "id": "AC-1",
-      "result": "FAIL",
       "repairScope": "revision_superseded"
     },
     {
       "id": "AC-2",
-      "result": "FAIL",
       "repairScope": "revision_superseded"
     },
     {
       "id": "AC-3",
-      "result": "FAIL",
       "repairScope": "revision_superseded"
     },
     {
       "id": "AC-4",
-      "result": "FAIL",
       "repairScope": "revision_superseded"
     },
     {
       "id": "AC-5",
-      "result": "FAIL",
       "repairScope": "revision_superseded"
     },
     {
       "id": "AC-6",
-      "result": "FAIL",
       "repairScope": "revision_superseded"
     }
-  ]
+  ],
+  "createdAt": "2026-09-16T14:59:17.947Z"
 }
