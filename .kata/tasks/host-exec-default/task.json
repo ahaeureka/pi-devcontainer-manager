@@ -44,13 +44,7 @@
       "strategy": "manual",
       "branch": "feature/host-exec-default",
       "baseBranch": "main",
-      "status": "pending_confirmation",
-      "command": [
-        "switch",
-        "-c",
-        "feature/host-exec-default",
-        "main"
-      ]
+      "status": "active"
     }
   },
   "requirements": [
