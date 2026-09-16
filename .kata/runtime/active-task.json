@@ -3,7 +3,7 @@
   "role": "designer",
   "phase": "intake",
   "platform": "pi",
-  "branch": "main",
-  "origin": "workflow",
-  "activatedAt": "2026-09-16T09:01:07.024Z"
+  "branch": "feature/arch-review-p4-vocabulary-identity",
+  "origin": "handoff",
+  "activatedAt": "2026-09-16T09:09:38.408Z"
 }

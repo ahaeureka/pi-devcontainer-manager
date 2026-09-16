@@ -1,0 +1,23 @@
+{
+  "protocolVersion": 1,
+  "taskId": "arch-review-p4-vocabulary-identity",
+  "handoffId": "handoff-c482037c-cb9",
+  "platform": "pi",
+  "role": "designer",
+  "packetSha256": "61965f905fad1c5995b484f2a41335c42b8acf3bacd7dddf04668e8e0696f5be",
+  "acknowledgedAt": "2026-09-16T09:09:38.392Z",
+  "repository": {
+    "head": "eec94f240e6663f3f181e15e4f98f3f2f78f49b7",
+    "branch": "feature/arch-review-p4-vocabulary-identity",
+    "diffHash": "5d3d685040bc15de8813203171d53f049a8e4dc909c8013a67b577cb7398213f",
+    "scope": {
+      "kind": "task_context",
+      "paths": [
+        ".kata/tasks/arch-review-p4-vocabulary-identity/task.json",
+        ".kata/tasks/arch-review-p4-vocabulary-identity/current-state.json"
+      ],
+      "hash": "5d3d685040bc15de8813203171d53f049a8e4dc909c8013a67b577cb7398213f"
+    },
+    "worktreeRoot": "."
+  }
+}

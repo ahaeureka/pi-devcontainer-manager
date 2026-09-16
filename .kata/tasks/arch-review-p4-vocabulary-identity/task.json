@@ -38,7 +38,7 @@
     "reviewMode": "security",
     "comet": {
       "projectInit": "not_requested",
-      "openStatus": "required"
+      "openStatus": "acknowledged"
     },
     "gitFlow": {
       "strategy": "manual",
@@ -84,5 +84,168 @@
       "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraints 1-10, plus the repository's no-regression convention.",
       "confirmedAt": "2026-09-16T09:01:06.987Z"
     }
-  ]
+  ],
+  "acceptanceMatrix": {
+    "version": 1,
+    "rows": [
+      {
+        "acceptanceId": "AC-1",
+        "designRefs": [
+          "design.md §3.3"
+        ],
+        "implementationPaths": [
+          "src/types.ts",
+          "src/runtime/host-discovery.ts",
+          "src/registry-entry.ts"
+        ],
+        "testPaths": [
+          "tests/unit/host-discovery.test.ts",
+          "tests/unit/registry-entry.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-2",
+        "designRefs": [
+          "design.md §3.3"
+        ],
+        "implementationPaths": [
+          "src/commands.ts",
+          "src/execution-service.ts",
+          "extensions/index.ts",
+          "tests/unit/fixtures"
+        ],
+        "testPaths": [
+          "tests/unit/commands.test.ts",
+          "tests/unit/command-config-selection.test.ts",
+          "tests/unit/container-config-routing.test.ts",
+          "tests/unit/execution-service.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-3",
+        "designRefs": [
+          "design.md §3.4"
+        ],
+        "implementationPaths": [
+          "src/execution-service.ts"
+        ],
+        "testPaths": [
+          "tests/unit/execution-service.test.ts",
+          "tests/unit/execution-routing.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-4",
+        "designRefs": [
+          "design.md §3.2"
+        ],
+        "implementationPaths": [
+          "src/target-store.ts"
+        ],
+        "testPaths": [
+          "tests/unit/target-store.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-5",
+        "designRefs": [
+          "design.md §3.1"
+        ],
+        "implementationPaths": [
+          "src/workspace-path.ts",
+          "src/policy.ts",
+          "src/execution-service.ts",
+          "src/runtime/host-discovery.ts"
+        ],
+        "testPaths": [
+          "tests/unit/workspace-path.test.ts",
+          "tests/unit/policy.test.ts",
+          "tests/unit/host-discovery.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-6",
+        "designRefs": [
+          "design.md §5"
+        ],
+        "implementationPaths": [
+          "dist",
+          "CHANGELOG.md"
+        ],
+        "testPaths": [
+          "tests/unit"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          },
+          {
+            "kind": "integration",
+            "command": "node scripts/smoke-pi-package.mjs --no-model"
+          }
+        ],
+        "verificationLevel": "integration"
+      }
+    ]
+  }
 }

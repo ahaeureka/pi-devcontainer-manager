@@ -1,1 +1,2 @@
 {"taskId":"arch-review-p4-vocabulary-identity","from":null,"to":"intake","actor":{"id":"system","role":"system"},"at":"2026-09-16T09:01:06.987Z"}
+{"taskId":"arch-review-p4-vocabulary-identity","from":"intake","to":"plan","actor":{"id":"kata-designer","role":"designer"},"at":"2026-09-16T09:09:38.544Z"}
