@@ -6,7 +6,8 @@ import {
   type CommandServices,
 } from "../../src/commands.js";
 import { compileConfig } from "../../src/config.js";
-import type { RegistryEntry } from "../../src/types.js";
+import type { RegistryConfigEntry, RegistryEntry } from "../../src/types.js";
+import { candidate, configCandidate, configEntry } from "./fixtures/registry-entry.js";
 import type { TargetStore } from "../../src/target-store.js";
 
 /**
@@ -23,25 +24,21 @@ import type { TargetStore } from "../../src/target-store.js";
 const DEFAULT_PATH = "/ws/project-a/.devcontainer/devcontainer.json";
 const NAMED_PATH = "/ws/project-a/.devcontainer/python/devcontainer.json";
 
-function makeEntry(overrides: Partial<RegistryEntry> = {}): RegistryEntry {
-  return {
+function makeEntry(overrides: Partial<RegistryConfigEntry> = {}): RegistryEntry {
+  return configEntry({
     workspacePath: "/ws/project-a",
-    configPath: DEFAULT_PATH,
-    configKind: ".devcontainer/devcontainer.json",
-    configCandidates: [
-      { configPath: DEFAULT_PATH, configKind: ".devcontainer/devcontainer.json" },
-      { configPath: NAMED_PATH, configKind: ".devcontainer/<name>/devcontainer.json" },
-    ],
+    configCandidates: [configCandidate(DEFAULT_PATH), configCandidate(NAMED_PATH, ".devcontainer/<name>/devcontainer.json")],
+    containers: [candidate("abc123456789")],
     ...overrides,
-  } as unknown as RegistryEntry;
+  });
 }
 
 /** A workspace whose ONLY configuration is the named form. */
 function namedOnlyEntry(): RegistryEntry {
-  return makeEntry({
-    configPath: NAMED_PATH,
-    configKind: ".devcontainer/<name>/devcontainer.json",
-    configCandidates: [{ configPath: NAMED_PATH, configKind: ".devcontainer/<name>/devcontainer.json" }],
+  return configEntry({
+    workspacePath: "/ws/project-a",
+    configCandidates: [configCandidate(NAMED_PATH, ".devcontainer/<name>/devcontainer.json")],
+    containers: [candidate("abc123456789")],
   });
 }
 

@@ -24,6 +24,7 @@ import { commandIdentity as commandIdentityFor, evaluatePolicy, buildChildEnviro
 import { workspaceHasConfig } from "./runtime/host-discovery.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
 import { RuntimeError } from "./errors.js";
+import { isWithinWorkspace } from "./workspace-path.js";
 export class ExecutionService {
     options;
     clock;
@@ -68,7 +69,9 @@ export class ExecutionService {
         // audit agree.
         const requestKey = canonicalWorkspaceKey(request.workspace);
         const targetKey = canonicalWorkspaceKey(ctx.workspaceKey);
-        const withinTarget = requestKey === targetKey || requestKey.startsWith(targetKey === "/" ? "/" : `${targetKey}/`);
+        // Containment is the single owner's question (L5-01): a symlinked spelling of the bound
+        // workspace resolves to it, while a sibling whose name merely starts the same does not.
+        const withinTarget = isWithinWorkspace(targetKey, requestKey);
         // A request from outside the bound target is allowed ONLY when it comes from a
         // workspace that is not itself a DevContainer project. That is the
         // explicit-selection workflow (stand in a plain repository and drive a selected

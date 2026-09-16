@@ -1,7 +1,7 @@
-import { realpathSync } from "node:fs";
-import { isAbsolute, relative, resolve } from "node:path";
+import { isAbsolute } from "node:path";
 import { createHash } from "node:crypto";
 import { RuntimeError } from "./errors.js";
+import { isWithinWorkspace } from "./workspace-path.js";
 const SECRET_NAME = /(?:^|_)(?:api[_-]?key|token|secret|password|credential|auth|bearer)(?:$|_)/i;
 const PI_NAME = /^PI_/i;
 export function evaluatePolicy(config, input, now = () => new Date()) {
@@ -32,34 +32,15 @@ export function evaluatePolicy(config, input, now = () => new Date()) {
     });
 }
 /**
- * Filesystem-identity-aware workspace containment.
+ * Workspace containment, delegated to the single owner (review finding L5-01).
  *
- * Containment is checked on `realpath`-resolved paths, not lexical ones: a
- * symlink created beneath an allowed root that points outside it must not pass
- * (`/allowed/link -> /outside`). Paths that do not exist fall back to their
- * resolved lexical form so configuration/selection flows for not-yet-created
- * workspaces keep working; operations that require an existing workspace still
- * fail closed downstream when the path cannot be resolved by the CLI.
+ * The realpath-aware comparison and its fallback for a path that does not exist live in
+ * `workspace-path.ts`; this function only applies it to the configured roots.
  */
 export function isWorkspaceAllowed(workspace, roots) {
     if (!isAbsolute(workspace) || roots.length === 0)
         return false;
-    const candidate = canonicalForPolicy(workspace);
-    const separator = process.platform === "win32" ? "\\" : "/";
-    return roots.some((root) => {
-        const base = canonicalForPolicy(root);
-        const rel = relative(base, candidate);
-        return rel === "" || (!rel.startsWith(`..${separator}`) && rel !== "..");
-    });
-}
-/** realpath when the path exists, else the resolved lexical path. */
-function canonicalForPolicy(path) {
-    try {
-        return realpathSync(path);
-    }
-    catch {
-        return resolve(path);
-    }
+    return roots.some((root) => isWithinWorkspace(root, workspace));
 }
 export function isEnvironmentAllowed(name, allowlist) {
     return !PI_NAME.test(name) && !SECRET_NAME.test(name) && allowlist.includes(name);

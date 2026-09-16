@@ -20,37 +20,63 @@ export interface DiscoveredProject {
   readonly configKind: DevcontainerConfigKind;
 }
 
-/** One discovered container for a workspace (identity + observed state). */
-export interface RegistryCandidate {
-  readonly id: string;
-  readonly state: ContainerState;
-}
-
 /** One discovered DevContainer configuration for a workspace. */
 export interface ConfigCandidate {
   readonly configPath: string;
   readonly configKind: DevcontainerConfigKind;
 }
 
-export interface RegistryEntry {
-  readonly workspacePath: string;
-  readonly configPath: string;
-  readonly configKind: DevcontainerConfigKind;
-  readonly discoveredFrom: "host-config" | "docker-label" | "both";
-  /** Primary candidate id (first discovered); see `containerCandidates`. */
-  readonly containerId?: string;
-  readonly containerState?: ContainerState;
-  /** ALL containers discovered for this workspace (never collapsed away). */
-  readonly containerCandidates?: readonly RegistryCandidate[];
-  /** EVERY configuration discovered for this workspace (never collapsed away). */
-  readonly configCandidates?: readonly ConfigCandidate[];
-  /**
-   * True when MORE THAN ONE running container matches this workspace. Such a
-   * target must never be auto-selected by Docker result order; the operator
-   * picks an explicit candidate id.
-   */
-  readonly ambiguous?: boolean;
+/**
+ * One container discovered for a workspace.
+ *
+ * The collection's ORDER is the priority: `containerCandidates[0]` is the primary target. There is
+ * deliberately no separate `containerId`/`containerState` pair on the entry — that pair could
+ * disagree with this collection, which is exactly what review finding L4-04 found consumers
+ * reconstructing by hand.
+ */
+export interface RegistryCandidate {
+  readonly id: string;
+  readonly state: ContainerState;
 }
+
+/** What every registry entry has, whatever was discovered for it. */
+interface RegistryEntryBase {
+  readonly workspacePath: string;
+  /** Every container discovered, most-preferred first. Empty when only a configuration exists. */
+  readonly containerCandidates: readonly RegistryCandidate[];
+  /**
+   * True when MORE THAN ONE running container matches this workspace. Such a target must never be
+   * auto-selected by Docker result order; the operator picks an explicit candidate id.
+   */
+  readonly ambiguous: boolean;
+}
+
+/** A configuration was discovered on the host (with or without a labelled container). */
+export interface RegistryConfigEntry extends RegistryEntryBase {
+  readonly kind: "config";
+  readonly discoveredFrom: "host-config" | "both";
+  /** EVERY configuration discovered for this workspace (never collapsed away). */
+  readonly configCandidates: readonly ConfigCandidate[];
+  /** The configuration discovery selected; always a member of `configCandidates`. */
+  readonly primaryConfig: ConfigCandidate;
+}
+
+/** No configuration exists: the workspace is known only through a labelled container. */
+export interface RegistryContainerOnlyEntry extends RegistryEntryBase {
+  readonly kind: "container-only";
+  readonly discoveredFrom: "docker-label";
+}
+
+/**
+ * A discovered workspace, with its state readable from ONE field (`kind`).
+ *
+ * Review finding L4-04: this used to be a single interface that required `configPath: ""` as a
+ * sentinel for "no configuration", carried a placeholder `configKind`, and exposed four optional
+ * fields whose combinations encoded the state — so consumers had to reconstruct it and could forget
+ * a check. The variant also removes the `containerId`/`containerCandidates` disagreement by keeping
+ * container identity in exactly one ordered collection.
+ */
+export type RegistryEntry = RegistryConfigEntry | RegistryContainerOnlyEntry;
 
 export interface DiscoveryConfig {
   maxDepth: number;

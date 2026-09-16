@@ -35,6 +35,7 @@ import { createBashToolDefinition, createLocalBashOperations } from "@earendil-w
 import { defaultConfigPaths, loadConfigWithDiagnostics } from "../src/config.js";
 import { createDiagnosticSink, reportDiscoveryDiagnostics } from "../src/discovery-diagnostics.js";
 import { allowsAutoSelection, decideActivation, surfacesFor } from "../src/activation.js";
+import { configPathOf, containerStateOf, primaryCandidate, } from "../src/registry-entry.js";
 import { JsonlAuditWriter, defaultAuditDirectory } from "../src/audit.js";
 import { NodeProcessRunner } from "../src/runtime/process-runner.js";
 import { NodeCapabilityService } from "../src/runtime/capabilities.js";
@@ -159,7 +160,7 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
         //
         // `selectIfNone` commits only if the store is still empty at commit time: an explicit
         // `/devcontainer use` that landed while this hook was discovering must win (L3-05).
-        await targetStore.selectIfNone(selectionFor(match, match.ambiguous === true ? undefined : match.containerId));
+        await targetStore.selectIfNone(selectionFor(match, match.ambiguous ? undefined : primaryCandidate(match)?.id));
     };
     /**
      * Map a HOST workspace path to its in-container path (presentation only).
@@ -171,9 +172,10 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
         const { entries } = await registry();
         const key = canonicalWorkspaceKey(hostWorkspace);
         const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
-        if (entry === undefined || entry.configPath.length === 0)
+        const configPath = entry !== undefined ? configPathOf(entry) : undefined;
+        if (entry === undefined || configPath === undefined)
             return undefined;
-        const mapping = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig).mapping;
+        const mapping = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, configPath), reportUnparsableConfig).mapping;
         if (mapping === undefined)
             return undefined;
         return hostToContainer(entry.workspacePath, mapping) ?? undefined;
@@ -213,13 +215,14 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
             const { entries } = await registry();
             const key = canonicalWorkspaceKey(workspaceKey);
             const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
-            if (entry === undefined || entry.configPath.length === 0)
+            const configPath = entry !== undefined ? configPathOf(entry) : undefined;
+            if (entry === undefined || configPath === undefined)
                 return undefined;
-            const facts = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig);
+            const facts = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, configPath), reportUnparsableConfig);
             if (facts.mapping === undefined) {
                 // Nothing to compare against, so the container-path guard cannot run. The escape hatch is
                 // granted by default now, so say so rather than leaving the operator to assume it ran.
-                reportUnparsableConfig(`${entry.configPath} declares no workspaceFolder/workspaceMount, so the container-path guard is inactive for ${entry.workspacePath}; a container path would reach the host if one is given.`);
+                reportUnparsableConfig(`${configPath} declares no workspaceFolder/workspaceMount, so the container-path guard is inactive for ${entry.workspacePath}; a container path would reach the host if one is given.`);
             }
             return facts.mapping;
         },
@@ -270,8 +273,9 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
             const { entries } = await registry();
             const key = canonicalWorkspaceKey(snapshot.workspaceKey);
             const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
-            if (entry !== undefined && entry.configPath.length > 0) {
-                const facts = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig);
+            const configPath = entry !== undefined ? configPathOf(entry) : undefined;
+            if (entry !== undefined && configPath !== undefined) {
+                const facts = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, configPath), reportUnparsableConfig);
                 mapping = facts.mapping;
                 containerOnly = facts.containerOnlyMounts;
             }
@@ -600,7 +604,7 @@ async function probeRunningContainer(rt, workspace) {
             }),
         ]);
         const key = canonicalWorkspaceKey(workspace);
-        return entries.some((entry) => canonicalWorkspaceKey(entry.workspacePath) === key && (entry.containerState ?? "") === "running");
+        return entries.some((entry) => canonicalWorkspaceKey(entry.workspacePath) === key && containerStateOf(entry) === "running");
     }
     catch {
         return false;

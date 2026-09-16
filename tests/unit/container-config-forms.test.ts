@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { configCandidatesOf, configPathOf } from "../../src/registry-entry.js";
 import { NodeDevcontainerAdapter } from "../../src/runtime/devcontainer-adapter.js";
 import {
   buildWorkspaceRegistry,
@@ -228,8 +229,10 @@ describe("buildWorkspaceRegistry — configuration candidates", () => {
       "/repo/.devcontainer/node/devcontainer.json",
     ]);
     expect(entries).toHaveLength(1);
-    expect(entries[0]?.configPath).toBe("/repo/.devcontainer/devcontainer.json");
-    expect(entries[0]?.configCandidates?.map((candidate) => candidate.configPath)).toEqual([
+    // The entry states which variant it is and names its primary configuration explicitly.
+    expect(entries[0]?.kind).toBe("config");
+    expect(configPathOf(entries[0]!)).toBe("/repo/.devcontainer/devcontainer.json");
+    expect(configCandidatesOf(entries[0]!).map((candidate) => candidate.configPath)).toEqual([
       "/repo/.devcontainer/devcontainer.json",
       "/repo/.devcontainer/node/devcontainer.json",
       "/repo/.devcontainer/python/devcontainer.json",
