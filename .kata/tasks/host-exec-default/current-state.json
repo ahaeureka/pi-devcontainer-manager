@@ -1,9 +1,9 @@
 {
   "taskId": "host-exec-default",
-  "phase": "review",
+  "phase": "judge",
   "actor": {
-    "id": "kata-reviewer",
-    "role": "reviewer"
+    "id": "kata-judge",
+    "role": "judge"
   },
-  "updatedAt": "2026-09-16T07:41:10.168Z"
+  "updatedAt": "2026-09-16T08:25:34.560Z"
 }

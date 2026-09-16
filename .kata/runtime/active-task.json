@@ -1,8 +1,8 @@
 {
   "taskId": "host-exec-default",
-  "role": "reviewer",
-  "phase": "review",
+  "role": "judge",
+  "phase": "judge",
   "branch": "feature/host-exec-default",
   "origin": "workflow",
-  "activatedAt": "2026-09-16T07:41:10.543Z"
+  "activatedAt": "2026-09-16T08:25:34.615Z"
 }
