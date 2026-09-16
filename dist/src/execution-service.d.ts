@@ -119,6 +119,17 @@ export declare class ExecutionService {
         truncated: boolean;
     }>;
     /**
+     * The container a `logs` or lifecycle request may act on.
+     *
+     * `exec` already refuses a request whose workspace differs from the bound target; `logs`, `stop`
+     * and `remove` trusted a caller-supplied identity, never bound it, and recorded that value as the
+     * audit target — so two surfaces of the same service held different invariants about whether the
+     * operated container belonged to the authorized workspace (review finding L3-07). They now bind
+     * first and verify: an identity that is not the bound target is refused BEFORE any Docker call, and
+     * the audit `targetId` comes from the binding rather than from the caller.
+     */
+    private bindContainer;
+    /**
      * Frozen policy gate before target resolution or spawn.
      *
      * A DENIED attempt is itself an auditable event: policy probes (workspace,
