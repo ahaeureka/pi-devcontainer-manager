@@ -1,0 +1,367 @@
+{
+  "protocolVersion": 1,
+  "id": "handoff-2a7d8c43-9fa",
+  "taskId": "host-exec-default",
+  "createdAt": "2026-09-16T07:32:05.861Z",
+  "from": {
+    "role": "implementer"
+  },
+  "to": {
+    "role": "reviewer"
+  },
+  "phase": "hardVerify",
+  "repository": {
+    "head": "8b1b4ba137f6ceb5b353cedf2c98e76efbfd1ad0",
+    "branch": "feature/host-exec-default",
+    "diffHash": "7594ad8d4887fa64aa6468d2981049aa8630b470f6ef5933b5a8d72649a8beab",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-c039d30b-8d9a-4bc0-a5c1-1436a894cd2c",
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "README.zh-CN.md",
+        "SECURITY.md",
+        "dist",
+        "docs",
+        "examples",
+        "extensions",
+        "openspec",
+        "package.json",
+        "scripts",
+        "src",
+        "tests"
+      ],
+      "hash": "7594ad8d4887fa64aa6468d2981049aa8630b470f6ef5933b5a8d72649a8beab"
+    },
+    "worktreeRoot": "."
+  },
+  "task": {
+    "id": "host-exec-default",
+    "title": "Host execution is granted by default: with neither the global nor the project co",
+    "phase": "intake",
+    "acceptance": [
+      {
+        "id": "AC-1",
+        "statement": "Host execution is granted by default: with neither the global nor the project configuration specifying `hostExecution.allow`, both `devcontainer_host_exec` and `/devcontainer host-exec` are permitted. The default is expressible in code (not duplicated as a literal) and is covered by tests that build the effective config from an empty global and an empty project file."
+      },
+      {
+        "id": "AC-2",
+        "statement": "Withholding still wins, and nothing can widen beyond a deny: a project file that sets `hostExecution.allow: false` withholds host execution regardless of the default, and a global file that sets `false` withholds it even when the project sets `true`. No other configuration semantic changes — `destructive.allowStop`/`allowRemove` stay fail-closed, and `routeMode`, `activation`, the timeout/output ceilings and the discovery limits keep their current defaults (covered by tests)."
+      },
+      {
+        "id": "AC-3",
+        "statement": "The governed properties of the host surface are unchanged by the default flip: every host run is still audited under `operation: \"host-exec\"` with `initiator: \"host-escape\"` and the configured capture mode, argv is still transported literally (no shell), `/devcontainer setup` is still ungated by `hostExecution.allow`, and `stop`/`remove` still require both the policy grant and a fresh per-action confirmation token."
+      },
+      {
+        "id": "AC-4",
+        "statement": "The denial messages describe the CURRENT policy truth instead of a stale remedy: when host execution is refused, the typed error and the command text say that a configuration is withholding it and which layer can (project or global), and no message still instructs the operator to set `hostExecution.allow=true` globally when the default already grants it. Covered by tests on both surfaces."
+      },
+      {
+        "id": "AC-5",
+        "statement": "Documentation matches the new posture: `README.md` and `README.zh-CN.md`, `docs/configuration.md`, `docs/security.md` and `SECURITY.md` state the grant-by-default plus the withhold rules, `CHANGELOG.md` records it as an explicitly called-out behaviour change for existing installs (an operator who relied on deny-by-default must now set `false`), and `docs/troubleshooting.md` gains a \"host-exec is denied by policy\" entry naming the two files to check, the merge rule, and the `/reload` needed after a configuration change."
+      },
+      {
+        "id": "AC-6",
+        "statement": "No regression: the full gate set stays green — `npm run typecheck`, the unit suite (including the updated default-config assertions), `node scripts/verify-package.mjs --unit-tests`, a rebuilt `dist/` that matches a fresh build, the packed `smoke-pi-package.mjs --no-model`, and `npm run install:local -- --check`."
+      }
+    ],
+    "branch": "main",
+    "createdAt": "2026-09-16T03:51:19.459Z",
+    "updatedAt": "2026-09-16T03:51:19.459Z",
+    "workflowProfile": {
+      "version": 1,
+      "isolationMode": "git_flow",
+      "developmentMode": "tdd",
+      "reviewMode": "security",
+      "comet": {
+        "projectInit": "not_requested",
+        "openStatus": "acknowledged"
+      },
+      "gitFlow": {
+        "strategy": "manual",
+        "branch": "feature/host-exec-default",
+        "baseBranch": "main",
+        "status": "active"
+      }
+    },
+    "requirements": [
+      {
+        "id": "AC-1",
+        "statement": "Host execution is granted by default: with neither the global nor the project configuration specifying `hostExecution.allow`, both `devcontainer_host_exec` and `/devcontainer host-exec` are permitted. The default is expressible in code (not duplicated as a literal) and is covered by tests that build the effective config from an empty global and an empty project file.",
+        "source": "user decision 2026-09-16: `devcontainer_host_exec` answered \"Host execution is disabled by policy\" in every project on this host because no global configuration file existed, and the operator expected the escape hatch to work out of the box.",
+        "confirmedAt": "2026-09-16T03:51:19.458Z"
+      },
+      {
+        "id": "AC-2",
+        "statement": "Withholding still wins, and nothing can widen beyond a deny: a project file that sets `hostExecution.allow: false` withholds host execution regardless of the default, and a global file that sets `false` withholds it even when the project sets `true`. No other configuration semantic changes — `destructive.allowStop`/`allowRemove` stay fail-closed, and `routeMode`, `activation`, the timeout/output ceilings and the discovery limits keep their current defaults (covered by tests).",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraint 6 (host execution stays an explicit, audited escape hatch, gated on `hostExecution.allow`) plus the existing merge rule in src/config.ts.",
+        "confirmedAt": "2026-09-16T03:51:19.458Z"
+      },
+      {
+        "id": "AC-3",
+        "statement": "The governed properties of the host surface are unchanged by the default flip: every host run is still audited under `operation: \"host-exec\"` with `initiator: \"host-escape\"` and the configured capture mode, argv is still transported literally (no shell), `/devcontainer setup` is still ungated by `hostExecution.allow`, and `stop`/`remove` still require both the policy grant and a fresh per-action confirmation token.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — constraints 4, 6 and 9.",
+        "confirmedAt": "2026-09-16T03:51:19.458Z"
+      },
+      {
+        "id": "AC-4",
+        "statement": "The denial messages describe the CURRENT policy truth instead of a stale remedy: when host execution is refused, the typed error and the command text say that a configuration is withholding it and which layer can (project or global), and no message still instructs the operator to set `hostExecution.allow=true` globally when the default already grants it. Covered by tests on both surfaces.",
+        "source": "The remedy strings in src/tools.ts and src/commands.ts, which named `hostExecution.allow=true` as the fix when the default was `false`.",
+        "confirmedAt": "2026-09-16T03:51:19.458Z"
+      },
+      {
+        "id": "AC-5",
+        "statement": "Documentation matches the new posture: `README.md` and `README.zh-CN.md`, `docs/configuration.md`, `docs/security.md` and `SECURITY.md` state the grant-by-default plus the withhold rules, `CHANGELOG.md` records it as an explicitly called-out behaviour change for existing installs (an operator who relied on deny-by-default must now set `false`), and `docs/troubleshooting.md` gains a \"host-exec is denied by policy\" entry naming the two files to check, the merge rule, and the `/reload` needed after a configuration change.",
+        "source": "README.md, docs/configuration.md, docs/security.md, SECURITY.md and CHANGELOG.md all documented the default as `false`; the operator hitting the denial had no troubleshooting entry to follow.",
+        "confirmedAt": "2026-09-16T03:51:19.458Z"
+      },
+      {
+        "id": "AC-6",
+        "statement": "No regression: the full gate set stays green — `npm run typecheck`, the unit suite (including the updated default-config assertions), `node scripts/verify-package.mjs --unit-tests`, a rebuilt `dist/` that matches a fresh build, the packed `smoke-pi-package.mjs --no-model`, and `npm run install:local -- --check`.",
+        "source": "Repository convention (the Phase 1/2/3 acceptance matrices all end with the same no-regression criterion).",
+        "confirmedAt": "2026-09-16T03:51:19.458Z"
+      }
+    ],
+    "acceptanceMatrix": {
+      "version": 1,
+      "rows": [
+        {
+          "acceptanceId": "AC-1",
+          "designRefs": [
+            "design.md §2.1"
+          ],
+          "implementationPaths": [
+            "src/config.ts"
+          ],
+          "testPaths": [
+            "tests/unit/config.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-2",
+          "designRefs": [
+            "design.md §2.1"
+          ],
+          "implementationPaths": [
+            "src/config.ts"
+          ],
+          "testPaths": [
+            "tests/unit/config.test.ts",
+            "tests/unit/policy.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-3",
+          "designRefs": [
+            "design.md §2.3"
+          ],
+          "implementationPaths": [
+            "src/host-runner.ts",
+            "extensions/index.ts",
+            "src/policy.ts"
+          ],
+          "testPaths": [
+            "tests/unit/host-runner.test.ts",
+            "tests/unit/docker-lifecycle.test.ts",
+            "tests/unit/audit.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-4",
+          "designRefs": [
+            "design.md §2.2"
+          ],
+          "implementationPaths": [
+            "src/host-runner.ts",
+            "src/tools.ts",
+            "src/commands.ts",
+            "extensions/index.ts"
+          ],
+          "testPaths": [
+            "tests/unit/host-runner.test.ts",
+            "tests/unit/tools.test.ts",
+            "tests/unit/commands.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-5",
+          "designRefs": [
+            "design.md §2.4"
+          ],
+          "implementationPaths": [
+            "README.md",
+            "README.zh-CN.md",
+            "docs/configuration.md",
+            "docs/security.md",
+            "SECURITY.md",
+            "CHANGELOG.md",
+            "docs/troubleshooting.md",
+            "examples/pi-devcontainer-manager.settings.json"
+          ],
+          "testPaths": [
+            "tests/unit/docs-consistency.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-6",
+          "designRefs": [
+            "design.md §3"
+          ],
+          "implementationPaths": [
+            "dist",
+            "package.json"
+          ],
+          "testPaths": [
+            "tests/unit"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            },
+            {
+              "kind": "integration",
+              "command": "node scripts/smoke-pi-package.mjs --no-model"
+            }
+          ],
+          "verificationLevel": "integration"
+        }
+      ]
+    },
+    "ownedPaths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "SECURITY.md",
+      "dist",
+      "docs",
+      "examples",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ]
+  },
+  "context": {
+    "requiredReads": [
+      "AGENTS.md",
+      ".llmwiki/SCHEMA.md",
+      ".llmwiki/index.md",
+      ".llmwiki/log.md",
+      ".kata/tasks/host-exec-default/task.json",
+      ".kata/tasks/host-exec-default/current-state.json",
+      "openspec/changes/host-exec-default/design.md"
+    ],
+    "designRefs": [
+      "openspec/changes/host-exec-default/design.md"
+    ],
+    "sourceRefs": [
+      "AC-1",
+      "AC-2",
+      "AC-3",
+      "AC-4",
+      "AC-5",
+      "AC-6"
+    ],
+    "authoritativeWiki": [],
+    "excludedWiki": [
+      {
+        "id": "llmwiki-arch-review-p1-foundation",
+        "reason": "not-authoritative"
+      },
+      {
+        "id": "llmwiki-host-exec-default",
+        "reason": "not-authoritative"
+      }
+    ],
+    "evidencePaths": [
+      ".kata/evidence/host-exec-default-AC-1-test-npm-run-test-unit.json",
+      ".kata/evidence/host-exec-default-AC-1-typecheck-npm-run-typecheck.json",
+      ".kata/evidence/host-exec-default-AC-6-integration-node-scripts-smoke-pi-package.mjs---no-model.json",
+      ".kata/evidence/host-exec-default-hard.json",
+      ".kata/evidence/host-exec-default-test.json",
+      ".kata/evidence/host-exec-default-typecheck.json"
+    ],
+    "priorArtifacts": [
+      ".kata/tasks/host-exec-default/review.json",
+      ".kata/tasks/host-exec-default/judge.json",
+      ".kata/tasks/host-exec-default/repair.json"
+    ]
+  },
+  "permissions": {
+    "allowedWrites": [
+      ".kata/tasks/host-exec-default/review.json"
+    ],
+    "guardInstructions": [
+      "You may only write review findings to review.json.",
+      "Check that acceptance criteria are met by the implementation.",
+      "Assign severity: blocking (must fix), major, minor, note.",
+      "Fresh evidence must be collected after any repair.",
+      "Work on feature/host-exec-default; do not start, finish, or switch Git Flow branches outside the recorded task action.",
+      "Security review: inspect trust boundaries, secrets, dependency changes, input validation, and authorization effects."
+    ]
+  },
+  "nextAction": "Perform reviewer work after verifying this handoff."
+}

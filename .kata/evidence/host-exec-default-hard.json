@@ -1,16 +1,16 @@
 {
-  "id": "evidence-6284355b-f004-4d64-a227-0789480cb804",
+  "id": "evidence-29408997-967c-4ba5-bd38-753216fc48b8",
   "taskId": "host-exec-default",
   "name": "test",
   "kind": "test",
   "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/vitest/dist/cli.js run",
   "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
   "exitCode": 0,
-  "startedAt": "2026-09-16T05:37:09.368Z",
-  "finishedAt": "2026-09-16T05:37:24.386Z",
-  "diffHash": "4384219e09691162d610248c9f1fac6fb1ea7574d6710b40a577b4b8cfd38290",
-  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n\n Test Files  35 passed (35)\n      Tests  414 passed (414)\n   Start at  13:37:09\n   Duration  14.59s (transform 10.11s, setup 0ms, import 17.49s, tests 35.77s, environment 7ms)\n\n",
-  "revisionId": "revision-dd3c9baa-234a-4c43-94bb-fca084ff1647",
+  "startedAt": "2026-09-16T07:31:25.662Z",
+  "finishedAt": "2026-09-16T07:31:40.469Z",
+  "diffHash": "9f0c152aafb696d3d628f10c4a56bf6a21b4fe2fae12637c738a5e5c72371a57",
+  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n\n Test Files  37 passed (37)\n      Tests  434 passed (434)\n   Start at  15:31:26\n   Duration  14.35s (transform 11.89s, setup 0ms, import 19.66s, tests 39.72s, environment 7ms)\n\n",
+  "revisionId": "revision-c039d30b-8d9a-4bc0-a5c1-1436a894cd2c",
   "scope": {
     "paths": [
       "CHANGELOG.md",
@@ -27,6 +27,6 @@
       "src",
       "tests"
     ],
-    "hash": "380940211ff14bd9f97fd16edd896f92ad12a31a42d14fe367f93c5111768434"
+    "hash": "7594ad8d4887fa64aa6468d2981049aa8630b470f6ef5933b5a8d72649a8beab"
   }
 }

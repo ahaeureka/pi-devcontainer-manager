@@ -1,38 +1,37 @@
 {
   "taskId": "host-exec-default",
-  "result": "FAIL",
-  "diffHash": "9f0c152aafb696d3d628f10c4a56bf6a21b4fe2fae12637c738a5e5c72371a57",
-  "revisionId": "revision-dd3c9baa-234a-4c43-94bb-fca084ff1647",
-  "acceptance": [
+  "fromPhase": "hardVerify",
+  "toPhase": "implement",
+  "actor": {
+    "id": "kata-agent",
+    "role": "implementer"
+  },
+  "reason": "verify_fail",
+  "scopes": [
     {
       "id": "AC-1",
-      "result": "FAIL",
       "repairScope": "revision_superseded"
     },
     {
       "id": "AC-2",
-      "result": "FAIL",
       "repairScope": "revision_superseded"
     },
     {
       "id": "AC-3",
-      "result": "FAIL",
       "repairScope": "revision_superseded"
     },
     {
       "id": "AC-4",
-      "result": "FAIL",
       "repairScope": "revision_superseded"
     },
     {
       "id": "AC-5",
-      "result": "FAIL",
       "repairScope": "revision_superseded"
     },
     {
       "id": "AC-6",
-      "result": "FAIL",
       "repairScope": "revision_superseded"
     }
-  ]
+  ],
+  "createdAt": "2026-09-16T07:31:19.230Z"
 }
