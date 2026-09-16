@@ -1,0 +1,47 @@
+{
+  "revisionId": "revision-c039d30b-8d9a-4bc0-a5c1-1436a894cd2c",
+  "status": "approved",
+  "reviewEvidence": "Approved against revision-c039d30b, the repair of revision-dd3c9baa. The review of the ORIGINAL revision was an INDEPENDENT adversarial pass by a fresh-context agent with no memory of the implementation, briefed against a security posture change: falsify \"every layer can still withhold host execution and nothing can widen a deny\", prove whether anything else in the effective config moved, check that granting the escape hatch by default did not create an unrecorded or unguarded host surface, hunt stale advice in the messages, cross-check seven documents against the code, and say which criteria would stay green if the implementation were wrong. It earned its cost three times over. (1) AC-3 was UNVERIFIED: no test asserted the audit record a host run writes and no test covered the container-path guard — it deleted the audit calls and the full suite stayed green (414 tests). (2) AC-5 was contradicted by a document the change missed: `docs/troubleshooting.md` still taught that \"the defaults are restrictive, so a grant in the wrong file simply never applies\", which host-exec-granted-by-default makes false. (3) It found a fail-open the change amplified: a global file containing `\"garbage\"`, `42`, `[]`, `true`, `{\"hostExecution\": \"no\"}` or `{\"hostExecution\": null}` silently degraded to the shipped default, which now GRANTS. It also showed that the container-path guard is conditional (no mapping ⇒ nothing to compare) while two documents claimed the refusal unconditionally, and noted that a project `true` is a dead branch (intended, now documented). Its clean findings are recorded because they carry weight: 3000 randomised global×project configurations produced ZERO diffs outside `hostExecution.allow`; `global=false` beats `project=true`; an untrusted project file is not read at all and therefore has no effect in either direction; no operator-facing string still says `allow=true`; the default value, merge-table row, gate tables, example JSON and both READMEs agree; the truth table is a real test (2 of its 8 rows fail against main's merge) rather than a restatement. The repair (commit 8b1b4ba, re-sealed as revision-c039d30b): the host runner is now the extracted, injectable `src/host-runner.ts` with ten tests pinning the governed properties (audit record for success with fingerprint-only capture, record for a refusal before it throws, `container-path-on-host` before any spawn, host path allowed, literal argv with no shell, the timeout ceiling clamping, a failed run still audited, and the guard's LIMIT with no mapping) — the same move Phase 2 made for the setup CLI, and the reason AC-3 is now verifiable rather than asserted; the facade reports the no-mapping case as a diagnostic; the stale troubleshooting entry is rewritten and the host-exec entry says both layers can deny; the guard's documentation no longer claims unconditionally; the model-facing snippet/guidelines and the per-turn execution-context line no longer tell the model to enable a policy that is on; an unusable `hostExecution` in either layer now WITHHOLDS and reports a diagnostic instead of inheriting the grant; and AC-5 has real evidence in `tests/unit/docs-consistency.test.ts` (the default stated in `docs/configuration.md` and both READMEs must equal `DEFAULTS`, and no operator-facing document may still describe the old posture). Verification of this revision: `npm run typecheck`, 34 files / 418 unit tests, `verify-package.mjs --unit-tests` (all gates), a `dist/` rebuilt in the same commit as the source and confirmed byte-equal to a fresh build, the packed `smoke-pi-package.mjs --no-model`, and `npm run install:local -- --check`; `kata-cli verify` reports all six acceptance criteria PASS. This is a deliberate breaking change for an installation that relied on deny-by-default; the CHANGELOG says so and names the one line that restores it.",
+  "findings": [
+    {
+      "id": "finding-guard-needs-a-mapping",
+      "taskId": "host-exec-default",
+      "acceptanceId": "AC-3",
+      "severity": "note",
+      "message": "RECORDED — the guard's real limit, now explicit in code, tests AND docs. The container-path guard compares an argv against the selected workspace's container path, which only exists when the configuration declares `workspaceFolder` or `workspaceMount`. With neither, there is nothing to compare, so a container-only path reaches the host. That was defence-in-depth behind an operator grant before this change and is the default path now, so the facade reports the case as a diagnostic (`<config> declares no workspaceFolder/workspaceMount, so the container-path guard is inactive for <workspace>`), `tests/unit/host-runner.test.ts` pins the behaviour so it cannot be forgotten, and README/docs/security.md no longer claim the refusal unconditionally. Guessing a default container path would fabricate a fact, which is the one thing this extension's prompts are careful not to do.",
+      "path": "src/host-runner.ts"
+    },
+    {
+      "id": "finding-malformed-null-file-throws",
+      "taskId": "host-exec-default",
+      "acceptanceId": "AC-1",
+      "severity": "note",
+      "message": "RECORDED (pre-existing, identical on `main`). A configuration file whose entire contents are `null` reaches `validateConfig` as a non-object and throws a raw `TypeError` rather than a message naming the file. Every other malformed shape is now handled (it withholds host execution and reports a diagnostic); this one is a one-line guard away and is not introduced by this change.",
+      "path": "src/config.ts"
+    },
+    {
+      "id": "finding-breaking-change-for-existing-installs",
+      "taskId": "host-exec-default",
+      "acceptanceId": "AC-5",
+      "severity": "note",
+      "message": "RECORDED. An installation that relied on deny-by-default now has host execution granted unless it writes `false`. That is the point of the change, and it is covered by a CHANGELOG behaviour-change note that names the exact line to restore the old posture, plus a troubleshooting entry that says which files to check, that BOTH layers can deny, and that a configuration change needs `/reload`. The audit trail is unchanged, so the change is visible after the fact in the same place as every other host run.",
+      "path": "CHANGELOG.md"
+    },
+    {
+      "id": "finding-session-start-wiring-untested",
+      "taskId": "host-exec-default",
+      "acceptanceId": "AC-6",
+      "severity": "note",
+      "message": "LIMITATION, unchanged by this repair. The behaviour now lives in tested modules (`createAuditedHostRunner`, `loadConfigWithDiagnostics`, `compileConfig`, `readConfigFacts`), but three wirings still sit in the facade where this repository has no unit harness: the `session_start` call that composes the effective config, the guard-mapping resolver that reads the configuration through the registry, and the discovery-diagnostic delivery. Their policy halves are unit-tested and the wiring rests on the packed smoke run.",
+      "path": "extensions/index.ts"
+    },
+    {
+      "id": "finding-project-grant-is-dead-branch",
+      "taskId": "host-exec-default",
+      "acceptanceId": "AC-2",
+      "severity": "note",
+      "message": "RECORDED, not a defect. With the default granting host execution, a trusted project writing `allow: true` is equivalent to leaving it unset — the project layer now exists only to withhold. The truth table documents that, and `docs/configuration.md` states it, so nobody has to infer it from the merge.",
+      "path": "docs/configuration.md"
+    }
+  ]
+}
