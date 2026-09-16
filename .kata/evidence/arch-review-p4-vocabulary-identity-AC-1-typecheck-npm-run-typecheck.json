@@ -1,0 +1,30 @@
+{
+  "id": "evidence-c188b31c-e90b-4621-8a2a-fee936ed60fa",
+  "taskId": "arch-review-p4-vocabulary-identity",
+  "name": "AC-1-typecheck-npm run typecheck",
+  "kind": "typecheck",
+  "command": "npm run typecheck",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-16T12:47:12.661Z",
+  "finishedAt": "2026-09-16T12:47:18.736Z",
+  "diffHash": "605bdf45d70553c3a357596d107178bbb82bffad0e615bc4ba42bde7aedd725d",
+  "log": "\n> pi-devcontainer-manager@1.0.0 typecheck\n> tsc --noEmit -p tsconfig.json\n\n",
+  "revisionId": "revision-ca526a41-4294-4c2a-8db1-95539c84e7b0",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "e09488088ba5af40c6706c29d80ab9fb09053e28ad7cbc1f09be04457fa95469"
+  }
+}

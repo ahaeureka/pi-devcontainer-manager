@@ -43,6 +43,7 @@ import { NodeDevcontainerAdapter } from "../../src/runtime/devcontainer-adapter.
 import { TargetStore } from "../../src/target-store.js";
 import { ExecutionService } from "../../src/execution-service.js";
 import { buildWorkspaceRegistry, nodeTraversal } from "../../src/runtime/host-discovery.js";
+import { primaryConfigOf } from "../../src/registry-entry.js";
 import type { AuditWriter } from "../../src/audit.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
 
@@ -205,7 +206,8 @@ suite("devcontainer-manager integration (real Docker + CLI)", () => {
     expect(keys).toContain(FIXTURE_B);
     for (const key of [FIXTURE_A, FIXTURE_B]) {
       const entry = result.entries.find((e) => e.workspacePath === key);
-      expect(entry?.configKind).toBe(".devcontainer/devcontainer.json");
+      expect(entry?.kind).toBe("config");
+      expect(entry !== undefined ? primaryConfigOf(entry)?.configKind : undefined).toBe(".devcontainer/devcontainer.json");
     }
   });
 
@@ -278,11 +280,16 @@ suite("devcontainer-manager integration (real Docker + CLI)", () => {
   it("requires BOTH a policy grant and a fresh confirmation token for docker stop", async () => {
     // Policy grant present in this suite's config (allowStop: true); the
     // lifecycle service must still return confirmation-required without a token.
+    // The identity is bound first now (L3-07), so this probe must name the container the session
+    // actually has selected — the point of the test is the CONFIRMATION gate, which the adapter
+    // applies to an authorized target.
+    const bound = composed.store.current().candidate;
+    expect(bound).toBeDefined();
     const container: DockerContainer = {
-      id: "missing-token-probe",
-      name: "probe",
-      state: "exited",
-      status: "exited",
+      id: bound!.id,
+      name: bound!.name,
+      state: "running",
+      status: "running",
       image: "",
       created: "",
       labels: {},

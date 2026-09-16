@@ -1,0 +1,19 @@
+{
+  "id": "revision-ca526a41-4294-4c2a-8db1-95539c84e7b0",
+  "taskId": "arch-review-p4-vocabulary-identity",
+  "ownedPaths": [
+    "CHANGELOG.md",
+    "README.md",
+    "README.zh-CN.md",
+    "dist",
+    "docs",
+    "extensions",
+    "openspec",
+    "package.json",
+    "scripts",
+    "src",
+    "tests"
+  ],
+  "manifestHash": "e09488088ba5af40c6706c29d80ab9fb09053e28ad7cbc1f09be04457fa95469",
+  "createdAt": "2026-09-16T12:46:43.856Z"
+}

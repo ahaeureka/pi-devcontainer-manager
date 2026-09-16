@@ -1,0 +1,29 @@
+{
+  "id": "evidence-2751f6ba-cd2e-4715-bd80-ad8f9a8a310f",
+  "taskId": "arch-review-p4-vocabulary-identity",
+  "name": "typecheck",
+  "kind": "typecheck",
+  "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/typescript/lib/tsc.js --noEmit",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-16T12:46:43.857Z",
+  "finishedAt": "2026-09-16T12:46:49.908Z",
+  "diffHash": "605bdf45d70553c3a357596d107178bbb82bffad0e615bc4ba42bde7aedd725d",
+  "revisionId": "revision-ca526a41-4294-4c2a-8db1-95539c84e7b0",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "e09488088ba5af40c6706c29d80ab9fb09053e28ad7cbc1f09be04457fa95469"
+  }
+}
