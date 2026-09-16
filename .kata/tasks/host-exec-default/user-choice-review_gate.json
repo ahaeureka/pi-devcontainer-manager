@@ -1,5 +1,8 @@
 {
   "taskId": "host-exec-default",
   "boundary": "review_gate",
-  "createdAt": "2026-09-16T07:33:32.273Z"
+  "createdAt": "2026-09-16T07:33:32.273Z",
+  "choice": "continue_current",
+  "approvedAt": "2026-09-16T07:41:09.495Z",
+  "consumedAt": "2026-09-16T07:41:10.173Z"
 }

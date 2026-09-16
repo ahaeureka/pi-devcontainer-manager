@@ -1,9 +1,9 @@
 {
   "taskId": "host-exec-default",
-  "phase": "hardVerify",
+  "phase": "review",
   "actor": {
-    "id": "kata-agent",
-    "role": "implementer"
+    "id": "kata-reviewer",
+    "role": "reviewer"
   },
-  "updatedAt": "2026-09-16T07:32:05.849Z"
+  "updatedAt": "2026-09-16T07:41:10.168Z"
 }
