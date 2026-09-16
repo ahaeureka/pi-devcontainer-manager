@@ -483,7 +483,11 @@ export function createCommandHandlers(services) {
     };
     handlers["host-exec"] = async (args, ctx) => {
         if (!services.config.hostExecution.allow) {
-            return { text: "[policy-denied] Host execution is disabled by policy.\nSet hostExecution.allow=true in the global configuration to enable /devcontainer host-exec." };
+            return {
+                text: "[policy-denied] Host execution is disabled by policy.\n" +
+                    "This installation withholds it by configuration: remove `hostExecution.allow: false` from the project file " +
+                    "(`.pi/pi-devcontainer-manager.json`, which must be a trusted project) or from the global file, then run `/reload`.",
+            };
         }
         if (services.hostRunner === undefined) {
             return { text: "[unexpected] Host runner is not wired in this environment." };

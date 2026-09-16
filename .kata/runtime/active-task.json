@@ -1,9 +1,0 @@
-{
-  "taskId": "host-exec-default",
-  "role": "designer",
-  "phase": "intake",
-  "platform": "pi",
-  "branch": "main",
-  "origin": "workflow",
-  "activatedAt": "2026-09-16T03:51:19.502Z"
-}

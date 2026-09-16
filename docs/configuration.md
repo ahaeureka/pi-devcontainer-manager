@@ -45,7 +45,7 @@ untrusted/less-privileged project config can never *expand* a global grant:
 | `audit.commandCapture` | lower of the two in `none < fingerprint-only < redacted-text` |
 | `audit.enabled` | project `false` wins; else global `false`; else default `true`. When `false` the runtime accepts records but persists nothing. |
 | `destructive.allowStop/allowRemove` | `true` only when **both** global and project grant it |
-| `hostExecution.allow` | `true` only when **both** grant it |
+| `hostExecution.allow` | **granted by default**; `false` from either file withholds it, and a global `false` cannot be widened by a project |
 | `activation` | project wins when both set (a repository can opt itself in or out) |
 
 `audit.directory` is merged global-only into the effective config (a project
@@ -244,11 +244,17 @@ own; for every other form the extension passes the discovered path as
 ### `hostExecution`
 
 - Type: `object`
-- `allow` — `boolean`, default `false`.
-- When `false`, `devcontainer_host_exec` and `/devcontainer host-exec` are
-  denied by policy before any spawn. When `true`, host runs are audited under
-  the same capture policy as every other operation (`operation: "host-exec"`,
-  `initiator: "host-escape"`).
+- `allow` — `boolean`, default **`true`**.
+- The host escape hatch ships **enabled**: `devcontainer_host_exec` and
+  `/devcontainer host-exec` work out of the box, audited under the same capture
+  policy as every other operation (`operation: "host-exec"`,
+  `initiator: "host-escape"`). Set `false` — in either file — to withhold them;
+  a `false` in the **global** file cannot be widened by a project `true`, and a
+  project `false` withholds even the default grant. A changed configuration
+  needs `/reload` (or a restart) because the effective config is composed at
+  `session_start`. A trusted project may also write `allow: true`; it is equivalent
+  to leaving it unset, since the default already grants it — the project layer exists
+  to withhold, never to widen.
 - `hostExecution.allow` does **not** gate `/devcontainer setup`, which runs a
   single fixed `npm install -g @devcontainers/cli` behind an interactive
   confirmation — see

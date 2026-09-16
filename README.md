@@ -89,8 +89,10 @@ every turn.
 - **Routes the agent with facts, not guesses.** Before each turn the extension
   appends the current target, the `workspaceFolder`/`workspaceMount`
   host↔container mapping, and the execution-surface rules to the system prompt. It
-  also refuses host execution of an argv that targets a container-only path, and
-  blocks the built-in `powershell` tool while a container is selected.
+  also refuses host execution of an argv that targets a container-only path (when the
+  workspace's configuration declares a mapping to compare against — without one there
+  is nothing to test, and the extension says so as a diagnostic), and blocks the
+  built-in `powershell` tool while a container is selected.
 - **Keeps file tools on the host.** `read`/`write`/`edit`/`grep`/`find`/`ls`
   always operate on the host filesystem — never routed into the container.
 - **Manages** lifecycle: `up`, `build`, `stop`, `remove` (stop/remove need a
@@ -211,7 +213,7 @@ If the Dev Containers CLI is missing, run `/devcontainer setup` once.
 | `/devcontainer stop` | Docker stop — policy grant + fresh confirmation |
 | `/devcontainer remove` | Docker `rm -f` — policy grant + fresh confirmation |
 | `/devcontainer logs [--tail N]` | Bounded `docker logs` (default 100 lines); policy-checked and audited |
-| `/devcontainer host-exec <argv...>` | Audited host escape hatch (requires `hostExecution.allow`) |
+| `/devcontainer host-exec <argv...>` | Audited host escape hatch (granted by default; a configuration can withhold it with `hostExecution.allow: false`) |
 | `/devcontainer setup` | Install/upgrade the Dev Containers CLI globally (confirmed, audited) |
 | `/devcontainer off` | Clear the target and hand this session back to the host (dormant); the opt-out is persisted, so `/reload` does not restore the target (nor auto-engage it) until you select one again — unless `activation` is `"always"`, which always takes over |
 
@@ -276,9 +278,13 @@ optional; **defaults are restrictive**.
 
 Policy-relevant values merge **monotonically**: `allowedWorkspaceRoots` and
 `environmentAllowlist` intersect, limits take the minimum, `audit.commandCapture`
-takes the lower of the two, and `destructive.*` / `hostExecution.allow` require
-`true` in **both** files — an untrusted project config can never expand a global
-grant.
+takes the lower of the two, and `destructive.*` require `true` in **both** files.
+
+`hostExecution.allow` is the one grant that ships **enabled** (host execution is
+an audited escape hatch the operator is expected to have), so it merges the other
+way round: either file can **withhold** it by setting `false`, and a global
+`false` cannot be widened by a project `true`. An untrusted project config can
+never expand a global grant.
 
 A minimal example:
 
@@ -288,7 +294,7 @@ A minimal example:
   "environmentAllowlist": ["HOME", "LANG"],
   "audit": { "commandCapture": "fingerprint-only" },
   "destructive": { "allowStop": false, "allowRemove": false },
-  "hostExecution": { "allow": false }
+  "hostExecution": { "allow": true }
 }
 ```
 

@@ -843,3 +843,19 @@ describe("reconcileSelection preserves an already-selected configuration (L1-04 
     expect(result.candidate?.configPath).toBeUndefined();
   });
 });
+
+describe("/devcontainer host-exec denial remedy (AC-4)", () => {
+  it("tells the operator which configuration is withholding host execution", async () => {
+    const hostRunner = { run: vi.fn() };
+    const { handlers } = makeServices({ hostRunner });
+
+    const result = await handlers["host-exec"]!("hostname", makeCtx());
+
+    expect(result.text).toContain("[policy-denied]");
+    expect(result.text).toContain("hostExecution.allow: false");
+    expect(result.text).toContain("project");
+    expect(result.text).toContain("global");
+    expect(result.text).not.toContain("allow=true");
+    expect(hostRunner.run).not.toHaveBeenCalled();
+  });
+});

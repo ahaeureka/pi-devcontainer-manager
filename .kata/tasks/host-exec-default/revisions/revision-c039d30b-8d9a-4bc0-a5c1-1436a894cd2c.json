@@ -1,0 +1,21 @@
+{
+  "id": "revision-c039d30b-8d9a-4bc0-a5c1-1436a894cd2c",
+  "taskId": "host-exec-default",
+  "ownedPaths": [
+    "CHANGELOG.md",
+    "README.md",
+    "README.zh-CN.md",
+    "SECURITY.md",
+    "dist",
+    "docs",
+    "examples",
+    "extensions",
+    "openspec",
+    "package.json",
+    "scripts",
+    "src",
+    "tests"
+  ],
+  "manifestHash": "7594ad8d4887fa64aa6468d2981049aa8630b470f6ef5933b5a8d72649a8beab",
+  "createdAt": "2026-09-16T07:31:19.272Z"
+}

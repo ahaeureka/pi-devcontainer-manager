@@ -33,6 +33,6 @@
     "allowRemove": false
   },
   "hostExecution": {
-    "allow": false
+    "allow": true
   }
 }

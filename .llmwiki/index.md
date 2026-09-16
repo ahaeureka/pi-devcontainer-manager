@@ -21,6 +21,8 @@
 
 - [[concepts/arch-review-p3-selection-integrity.md]] — Selection integrity (Phase 3 build notes)
 
+- [[concepts/host-exec-default.md]] — Host execution granted by default (design + policy notes)
+
 ## Comparisons
 
 ## Queries

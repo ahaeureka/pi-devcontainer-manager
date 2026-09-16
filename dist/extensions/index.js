@@ -53,6 +53,7 @@ import { canonicalWorkspaceKey } from "../src/workspace-path.js";
 import { SELECTION_ENTRY_KIND, recoverSelectionIntent, } from "../src/selection-state.js";
 import { evaluatePolicy, commandIdentity } from "../src/policy.js";
 import { createSetupCli } from "../src/setup-cli.js";
+import { createAuditedHostRunner } from "../src/host-runner.js";
 import { RuntimeError } from "../src/errors.js";
 import { renderExecutionContext } from "../src/execution-context.js";
 function composeRuntime(config, audit, sessionWorkspace, activation) {
@@ -193,135 +194,36 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
         environmentAllowlist: config.environmentAllowlist,
     });
     /**
-     * Shared host escape-hatch runner used by BOTH `devcontainer_host_exec`
-     * and `/devcontainer host-exec`. Policy (`host-exec` / `host-escape`) is
-     * evaluated BEFORE any spawn — denial returns a typed error and never
-     * touches the host. Authorized runs are audited with the command
-     * fingerprint under the same capture policy as every other operation.
+     * The audited host escape hatch, shared by BOTH `devcontainer_host_exec` and
+     * `/devcontainer host-exec`.
      *
-     * Note: `NodeProcessRunner` only surfaces output through the
-     * `onData`/`onStderr` callbacks; without them the host's stdout/stderr
-     * would be discarded. They are captured here and returned so the tool
-     * and command surfaces can render them.
+     * The behaviour lives in `src/host-runner.ts` so the governed parts — policy before spawn, the
+     * container-path guard, and a record for every denial, failure and success — can be unit-tested;
+     * what stays here is the wiring it needs from the session (the selected workspace and the guard
+     * mapping that comes from its configuration).
      */
-    const hostRunner = {
-        run: async (argv, options) => {
-            const snapshot = evaluatePolicy(config, {
-                operation: "host-exec",
-                initiator: "host-escape",
-            });
-            if (!snapshot.authorized) {
-                audit.write({
-                    version: 1,
-                    at: new Date().toISOString(),
-                    operation: "host-exec",
-                    initiator: "host-escape",
-                    policyAuthorized: false,
-                    ...(snapshot.denialReason !== undefined ? { policyDenialReason: snapshot.denialReason } : {}),
-                    outputTruncated: false,
-                    commandCapture: config.audit.commandCapture,
-                    ...commandIdentity(argv, config.audit.commandCapture),
-                });
-                throw new RuntimeError({
-                    kind: "policy-denied",
-                    message: "Host execution is disabled by policy.",
-                    remedy: "Set hostExecution.allow=true in the global configuration to enable host escape.",
-                });
+    const hostRunner = createAuditedHostRunner({
+        runner,
+        config,
+        audit,
+        sessionWorkspace,
+        env,
+        targetStoreWorkspaceKey: () => targetStore.snapshot().workspaceKey,
+        guardMappingFor: async (workspaceKey) => {
+            const { entries } = await registry();
+            const key = canonicalWorkspaceKey(workspaceKey);
+            const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
+            if (entry === undefined || entry.configPath.length === 0)
+                return undefined;
+            const facts = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig);
+            if (facts.mapping === undefined) {
+                // Nothing to compare against, so the container-path guard cannot run. The escape hatch is
+                // granted by default now, so say so rather than leaving the operator to assume it ran.
+                reportUnparsableConfig(`${entry.configPath} declares no workspaceFolder/workspaceMount, so the container-path guard is inactive for ${entry.workspacePath}; a container path would reach the host if one is given.`);
             }
-            // Layer-3 guard: refuse host execution of an argv that targets a
-            // container-only path. Reliable because literal argv carries no shell
-            // syntax — this is the mis-route a text classifier could never catch
-            // safely. Covers BOTH devcontainer_host_exec and /devcontainer host-exec.
-            const selection = targetStore.snapshot();
-            if (selection.workspaceKey !== undefined) {
-                const { entries } = await registry();
-                const key = canonicalWorkspaceKey(selection.workspaceKey);
-                const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
-                const guardMapping = entry !== undefined && entry.configPath.length > 0
-                    ? readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, entry.configPath), reportUnparsableConfig).mapping
-                    : undefined;
-                const violation = guardMapping !== undefined ? findContainerPath(argv, guardMapping.containerPath) : undefined;
-                if (violation !== undefined) {
-                    audit.write({
-                        version: 1,
-                        at: new Date().toISOString(),
-                        operation: "host-exec",
-                        initiator: "host-escape",
-                        policyAuthorized: false,
-                        policyDenialReason: "container-path-on-host",
-                        outputTruncated: false,
-                        commandCapture: config.audit.commandCapture,
-                        ...commandIdentity(argv, config.audit.commandCapture),
-                    });
-                    throw new RuntimeError({
-                        kind: "policy-denied",
-                        message: `Host command references container-only path ${violation}.`,
-                        remedy: "Use devcontainer_exec or the bash tool for container paths; devcontainer_host_exec is for host paths.",
-                    });
-                }
-            }
-            const stdoutChunks = [];
-            const stderrChunks = [];
-            const startedAt = process.hrtime.bigint();
-            // Host execution is bounded by the same configured ceiling as the
-            // container path: an omitted/zero timeout defaults to maxTimeoutSeconds
-            // and a requested one is clamped to it, so an allowed host command can
-            // never run unbounded or exceed the operator's configured maximum.
-            const ceilingMs = config.maxTimeoutSeconds * 1000;
-            const requestedMs = options?.timeoutMs !== undefined && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
-                ? options.timeoutMs
-                : ceilingMs;
-            const timeoutMs = Math.max(1, Math.min(requestedMs, ceilingMs));
-            let result;
-            try {
-                result = await runner.exec(argv[0], [...argv.slice(1)], {
-                    cwd: sessionWorkspace,
-                    env: { ...env },
-                    maxOutputBytes: config.maxOutputBytes,
-                    onData: (chunk) => stdoutChunks.push(chunk),
-                    onStderr: (chunk) => stderrChunks.push(chunk),
-                    timeoutMs,
-                    ...(options?.signal !== undefined ? { signal: options.signal } : {}),
-                });
-            }
-            catch (error) {
-                // A failed/timed-out host run is auditable too (spawn errors and
-                // timeouts reject before the success record below).
-                audit.write({
-                    version: 1,
-                    at: new Date().toISOString(),
-                    operation: "host-exec",
-                    initiator: "host-escape",
-                    policyAuthorized: true,
-                    durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6,
-                    outputTruncated: false,
-                    commandCapture: config.audit.commandCapture,
-                    ...commandIdentity(argv, config.audit.commandCapture),
-                    errorSummary: error instanceof Error ? error.message : String(error),
-                });
-                throw error;
-            }
-            audit.write({
-                version: 1,
-                at: new Date().toISOString(),
-                operation: "host-exec",
-                initiator: "host-escape",
-                policyAuthorized: true,
-                durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6,
-                ...(result.exitCode !== undefined ? { exitCode: result.exitCode } : {}),
-                outputTruncated: result.truncated,
-                commandCapture: config.audit.commandCapture,
-                ...commandIdentity(argv, config.audit.commandCapture),
-            });
-            return {
-                exitCode: result.exitCode,
-                signal: result.signal,
-                stdout: Buffer.concat(stdoutChunks).toString("utf8"),
-                stderr: Buffer.concat(stderrChunks).toString("utf8"),
-                truncated: result.truncated,
-            };
+            return facts.mapping;
         },
-    };
+    });
     const commandServices = {
         config,
         targetStore,

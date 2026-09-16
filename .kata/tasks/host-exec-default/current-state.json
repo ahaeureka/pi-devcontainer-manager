@@ -1,9 +1,9 @@
 {
   "taskId": "host-exec-default",
-  "phase": "intake",
+  "phase": "archive",
   "actor": {
-    "id": "system",
-    "role": "system"
+    "id": "kata-agent",
+    "role": "implementer"
   },
-  "updatedAt": "2026-09-16T03:51:19.459Z"
+  "updatedAt": "2026-09-16T08:32:29.684Z"
 }

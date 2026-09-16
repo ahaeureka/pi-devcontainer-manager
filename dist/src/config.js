@@ -5,7 +5,8 @@ import { CONFIG_VERSION } from "./types.js";
 const ROUTE_MODES = new Set(["container-required", "container-preferred", "host-only"]);
 const CAPTURE_MODES = new Set(["none", "fingerprint-only", "redacted-text"]);
 const DEFAULT_EXCLUDED_DIRECTORIES = Object.freeze(["node_modules", ".git", ".pi", "dist", "build"]);
-const DEFAULTS = Object.freeze({
+/** The shipped configuration values — the single source of truth the docs are checked against. */
+export const DEFAULTS = Object.freeze({
     version: CONFIG_VERSION,
     dockerPath: "docker",
     devcontainerPath: "devcontainer",
@@ -18,7 +19,15 @@ const DEFAULTS = Object.freeze({
     discovery: Object.freeze({ maxDepth: 3, excludedDirectories: DEFAULT_EXCLUDED_DIRECTORIES }),
     audit: Object.freeze({ enabled: true, retentionDays: 90, commandCapture: "fingerprint-only" }),
     destructive: Object.freeze({ allowStop: false, allowRemove: false }),
-    hostExecution: Object.freeze({ allow: false }),
+    /**
+     * The shipped posture for the host escape hatch: GRANTED.
+     *
+     * `devcontainer_host_exec` and `/devcontainer host-exec` are audited, transported as literal argv
+     * and gated on this value alone; the operator decides the posture, and a configuration can withhold
+     * it from either layer (see `mergeHostExecution`). This is the single place the default lives —
+     * `mergeHostExecution` reads it rather than hard-coding a fallback.
+     */
+    hostExecution: Object.freeze({ allow: true }),
 });
 /**
  * Pi's config directory. `PI_CODING_AGENT_DIR` overrides the default
@@ -46,18 +55,50 @@ export function loadConfig(paths, options) {
  * trusted by Pi, and a project value that a host-protective ceiling silently
  * clamped.
  */
+/**
+ * Is this configuration layer's `hostExecution` unusable?
+ *
+ * Host execution is granted by DEFAULT, so a layer that is present but malformed must not silently
+ * fall back to that default: "the operator wrote something we cannot read" is not the same statement
+ * as "the operator did not speak". The caller withholds instead — the fail-closed direction for a
+ * policy value — and reports a diagnostic so the file gets fixed.
+ */
+function hostExecutionUnusable(layer) {
+    if (typeof layer !== "object" || layer === null || Array.isArray(layer))
+        return true;
+    const value = layer.hostExecution;
+    if (value === undefined)
+        return false;
+    if (value === null || typeof value !== "object" || Array.isArray(value))
+        return true;
+    const allow = value.allow;
+    return allow !== undefined && allow !== null && typeof allow !== "boolean";
+}
 export function loadConfigWithDiagnostics(paths, options) {
     const read = options.readFile ?? ((path) => readFileSync(path, "utf8"));
-    const global = readOptional(paths.globalPath, read);
+    const withheld = [];
+    // A layer whose `hostExecution` cannot be read withholds host execution rather than inheriting the
+    // granted default, and says why (see `hostExecutionUnusable`).
+    const layer = (path, label) => {
+        const parsed = readOptional(path, read);
+        if (!hostExecutionUnusable(parsed))
+            return parsed;
+        withheld.push(`${label} configuration at ${path} does not declare a usable hostExecution block; host execution is withheld until it is fixed.`);
+        return { ...(typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : {}), hostExecution: { allow: false } };
+    };
+    const global = layer(paths.globalPath, "global");
     const projectFileExists = canRead(paths.projectPath, read) || existsSync(paths.projectPath);
-    const project = options.projectTrusted ? readOptional(paths.projectPath, read) : {};
+    const project = options.projectTrusted ? layer(paths.projectPath, "project") : {};
     return {
         config: compileConfig(global, project),
-        diagnostics: describeConfigDiagnostics(global, project, {
-            projectTrusted: options.projectTrusted,
-            projectPath: paths.projectPath,
-            projectFileExists,
-        }),
+        diagnostics: [
+            ...withheld,
+            ...describeConfigDiagnostics(global, project, {
+                projectTrusted: options.projectTrusted,
+                projectPath: paths.projectPath,
+                projectFileExists,
+            }),
+        ],
     };
 }
 /** Does the reader resolve this path? Existence must come from the same seam as
@@ -167,8 +208,12 @@ function mergeDestructive(global, project) {
     return { allowStop, allowRemove };
 }
 function mergeHostExecution(global, project) {
-    const allow = (project?.allow === true && global?.allow === true) || (project?.allow === undefined && global?.allow === true) || (project?.allow === undefined && global?.allow === undefined && false);
-    return { allow };
+    // An explicit deny from EITHER layer wins: a project file may withhold host execution, and a global
+    // file may withhold it even when a project asks for it. The shipped posture applies only when
+    // neither layer speaks, so `DEFAULTS.hostExecution` stays the one place the default lives.
+    if (project?.allow === false || global?.allow === false)
+        return { allow: false };
+    return { allow: project?.allow ?? global?.allow ?? DEFAULTS.hostExecution.allow };
 }
 function intersect(requested, ceiling) {
     return requested.filter((value) => ceiling.includes(value));

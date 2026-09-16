@@ -138,12 +138,12 @@ export function createDevcontainerHostExecTool(options) {
         name: DEV_CONTAINER_HOST_EXEC_TOOL,
         label: "Dev Container Host Exec (escape hatch)",
         description: "EXPLICIT HOST ESCAPE HATCH: execute an argv command on the HOST machine, NOT inside any DevContainer. " +
-            "Requires hostExecution.allow policy. Prefer devcontainer_exec or the routed bash tool for container work. Output is truncated to the last 2000 lines or 50KB (whichever first); if truncated, the full output is saved to a temp file whose path is reported so it can be read in full.",
+            "Host execution is granted by default and can be withheld by configuration. Prefer devcontainer_exec or the routed bash tool for container work. Output is truncated to the last 2000 lines or 50KB (whichever first); if truncated, the full output is saved to a temp file whose path is reported so it can be read in full.",
         promptSnippet: "Execute an argv command on the HOST (escape hatch)",
         promptGuidelines: [
             `${DEV_CONTAINER_HOST_EXEC_TOOL} runs on the HOST, not in the container. Use it ONLY for host administration the container must not do: managing docker itself, host services/daemons, or files outside the mounted workspace.`,
             `Do NOT route project work here: builds/tests/toolchains belong in the container (${DEV_CONTAINER_EXEC_TOOL} or the routed bash tool); editing workspace files belongs to the host file tools (read/write/edit), which see the same files as the container via the bind mount.`,
-            `Requires hostExecution.allow policy; a policy-denied error means host execution is disabled, not that you should retry in the container.`,
+            `A policy-denied error means a configuration withholds host execution; it is not a signal to retry the command in the container.`,
         ],
         parameters: devcontainerHostExecParams,
         executionMode: "sequential",
@@ -152,7 +152,7 @@ export function createDevcontainerHostExecTool(options) {
                 throw new RuntimeError({
                     kind: "policy-denied",
                     message: "Host execution is disabled by policy.",
-                    remedy: "Set hostExecution.allow=true in the global configuration to enable devcontainer_host_exec.",
+                    remedy: "This installation withholds host execution by configuration. Remove `hostExecution.allow: false` from the project file (`.pi/pi-devcontainer-manager.json`, which must be a trusted project) or from the global file, then run `/reload`.",
                 });
             }
             const result = await options.hostRunner.run(params.argv, {

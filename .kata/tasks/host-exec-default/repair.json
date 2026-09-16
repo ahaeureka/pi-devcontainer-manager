@@ -1,0 +1,37 @@
+{
+  "taskId": "host-exec-default",
+  "fromPhase": "hardVerify",
+  "toPhase": "implement",
+  "actor": {
+    "id": "kata-agent",
+    "role": "implementer"
+  },
+  "reason": "verify_fail",
+  "scopes": [
+    {
+      "id": "AC-1",
+      "repairScope": "revision_superseded"
+    },
+    {
+      "id": "AC-2",
+      "repairScope": "revision_superseded"
+    },
+    {
+      "id": "AC-3",
+      "repairScope": "revision_superseded"
+    },
+    {
+      "id": "AC-4",
+      "repairScope": "revision_superseded"
+    },
+    {
+      "id": "AC-5",
+      "repairScope": "revision_superseded"
+    },
+    {
+      "id": "AC-6",
+      "repairScope": "revision_superseded"
+    }
+  ],
+  "createdAt": "2026-09-16T07:31:19.230Z"
+}

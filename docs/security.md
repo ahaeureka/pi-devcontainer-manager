@@ -79,11 +79,16 @@ Instead:
 
 - `bash`, `!`/`!!`, and `devcontainer_exec` are **always** the container;
   `devcontainer_host_exec` and `/devcontainer host-exec` are the only host
-  surfaces, both policy-gated (`hostExecution.allow`) and audited.
+  surfaces, both policy-gated (`hostExecution.allow`, granted by default and
+  withholdable from either configuration file) and audited.
 - Before each turn the agent receives the current target, the workspace's
   host↔container mapping, and the surface rules, so it chooses explicitly.
 - `devcontainer_host_exec` **refuses** an argv that targets a container-only
-  path (a reliable check: literal argv carries no shell syntax).
+  path, when the selected workspace's configuration declares a
+  `workspaceFolder`/`workspaceMount` to compare against (a reliable check: literal
+  argv carries no shell syntax). A configuration that declares neither leaves the
+  guard with nothing to test — that is reported as a diagnostic, because the escape
+  hatch is granted by default.
 - While a target is selected, the built-in `powershell` tool — which Pi would
   otherwise spawn on the host — is **blocked** through the `tool_call` hook
   with a message pointing at the routed surfaces. (`tool_call` can block or
@@ -134,7 +139,7 @@ extension keeps them separate:
 |---|---|---|
 | `/devcontainer stop` | `destructive.allowStop = true` | Fresh per-action confirmation naming the exact action + container ID; noninteractive callers receive `confirmation-required` and can never bypass |
 | `/devcontainer remove` | `destructive.allowRemove = true` | Same confirmation contract |
-| `devcontainer_host_exec` / `/devcontainer host-exec` | `hostExecution.allow = true` | Audited with `operation: "host-exec"`, `initiator: "host-escape"` |
+| `devcontainer_host_exec` / `/devcontainer host-exec` | `hostExecution.allow` (granted by default; a configuration can withhold it with `false`) | Audited with `operation: "host-exec"`, `initiator: "host-escape"` |
 | `/devcontainer setup` | **none** — not gated by `hostExecution.allow` | Interactive confirmation naming the exact command; fixed argv (`npm install -g @devcontainers/cli`), audited as `operation: "setup"`, 300 s timeout |
 
 ### `/devcontainer setup`

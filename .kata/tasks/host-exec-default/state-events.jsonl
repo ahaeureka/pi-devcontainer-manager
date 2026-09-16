@@ -1,1 +1,10 @@
 {"taskId":"host-exec-default","from":null,"to":"intake","actor":{"id":"system","role":"system"},"at":"2026-09-16T03:51:19.459Z"}
+{"taskId":"host-exec-default","from":"intake","to":"plan","actor":{"id":"kata-designer","role":"designer"},"at":"2026-09-16T03:58:11.068Z"}
+{"taskId":"host-exec-default","from":"plan","to":"implement","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-16T05:28:30.126Z"}
+{"taskId":"host-exec-default","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-16T05:37:49.968Z"}
+{"taskId":"host-exec-default","from":"hardVerify","to":"implement","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-16T07:31:19.230Z"}
+{"taskId":"host-exec-default","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-16T07:32:05.849Z"}
+{"taskId":"host-exec-default","from":"hardVerify","to":"review","actor":{"id":"kata-reviewer","role":"reviewer"},"at":"2026-09-16T07:41:10.168Z"}
+{"taskId":"host-exec-default","from":"review","to":"judge","actor":{"id":"kata-judge","role":"judge"},"at":"2026-09-16T08:25:34.560Z"}
+{"taskId":"host-exec-default","from":"judge","to":"distill","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-16T08:32:29.679Z"}
+{"taskId":"host-exec-default","from":"distill","to":"archive","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-16T08:32:29.684Z"}

@@ -1,0 +1,32 @@
+{
+  "id": "evidence-2e889015-79ee-4d7e-bf7b-63d0a7023961",
+  "taskId": "host-exec-default",
+  "name": "AC-1-typecheck-npm run typecheck",
+  "kind": "typecheck",
+  "command": "npm run typecheck",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-16T07:31:42.934Z",
+  "finishedAt": "2026-09-16T07:31:49.691Z",
+  "diffHash": "9f0c152aafb696d3d628f10c4a56bf6a21b4fe2fae12637c738a5e5c72371a57",
+  "log": "\n> pi-devcontainer-manager@1.0.0 typecheck\n> tsc --noEmit -p tsconfig.json\n\n",
+  "revisionId": "revision-c039d30b-8d9a-4bc0-a5c1-1436a894cd2c",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "SECURITY.md",
+      "dist",
+      "docs",
+      "examples",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "7594ad8d4887fa64aa6468d2981049aa8630b470f6ef5933b5a8d72649a8beab"
+  }
+}

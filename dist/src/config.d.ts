@@ -1,4 +1,6 @@
 import type { EffectiveConfig, ManagerConfig } from "./types.js";
+/** The shipped configuration values — the single source of truth the docs are checked against. */
+export declare const DEFAULTS: EffectiveConfig;
 export interface ConfigPaths {
     globalPath: string;
     projectPath: string;
@@ -16,12 +18,6 @@ export declare function loadConfig(paths: ConfigPaths, options: {
     projectTrusted: boolean;
     readFile?: (path: string) => string;
 }): EffectiveConfig;
-/**
- * Like {@link loadConfig}, but also explains two outcomes an operator otherwise
- * cannot see (AC-7): a project file that is never read because the project is not
- * trusted by Pi, and a project value that a host-protective ceiling silently
- * clamped.
- */
 export declare function loadConfigWithDiagnostics(paths: ConfigPaths, options: {
     projectTrusted: boolean;
     readFile?: (path: string) => string;

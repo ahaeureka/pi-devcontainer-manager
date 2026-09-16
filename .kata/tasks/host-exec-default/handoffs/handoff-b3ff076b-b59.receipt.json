@@ -1,0 +1,35 @@
+{
+  "protocolVersion": 1,
+  "taskId": "host-exec-default",
+  "handoffId": "handoff-b3ff076b-b59",
+  "platform": "pi",
+  "role": "distiller",
+  "packetSha256": "83564db950c53dcc2a3a6091b85478a029d24486871a9cb5681fc25700a8b8e4",
+  "acknowledgedAt": "2026-09-16T08:32:29.338Z",
+  "repository": {
+    "head": "3740b3abdb1adf7c896a3842f3be6a9217674e1d",
+    "branch": "feature/host-exec-default",
+    "diffHash": "7594ad8d4887fa64aa6468d2981049aa8630b470f6ef5933b5a8d72649a8beab",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-c039d30b-8d9a-4bc0-a5c1-1436a894cd2c",
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "README.zh-CN.md",
+        "SECURITY.md",
+        "dist",
+        "docs",
+        "examples",
+        "extensions",
+        "openspec",
+        "package.json",
+        "scripts",
+        "src",
+        "tests"
+      ],
+      "hash": "7594ad8d4887fa64aa6468d2981049aa8630b470f6ef5933b5a8d72649a8beab"
+    },
+    "worktreeRoot": "."
+  }
+}

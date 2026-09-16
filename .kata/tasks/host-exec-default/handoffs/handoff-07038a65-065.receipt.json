@@ -1,0 +1,23 @@
+{
+  "protocolVersion": 1,
+  "taskId": "host-exec-default",
+  "handoffId": "handoff-07038a65-065",
+  "platform": "pi",
+  "role": "designer",
+  "packetSha256": "542f2e525bbc5d0994731c884f466508ad79a792891904ce66b7e723b9261564",
+  "acknowledgedAt": "2026-09-16T03:58:10.914Z",
+  "repository": {
+    "head": "ed4741405c2f553e3647cdc217ab6251de8e4421",
+    "branch": "feature/host-exec-default",
+    "diffHash": "b65d139ccccd109ea86a472c6b33df99bc6cf71d258dfcdfb6df7ddd6f4fcfee",
+    "scope": {
+      "kind": "task_context",
+      "paths": [
+        ".kata/tasks/host-exec-default/task.json",
+        ".kata/tasks/host-exec-default/current-state.json"
+      ],
+      "hash": "b65d139ccccd109ea86a472c6b33df99bc6cf71d258dfcdfb6df7ddd6f4fcfee"
+    },
+    "worktreeRoot": "."
+  }
+}

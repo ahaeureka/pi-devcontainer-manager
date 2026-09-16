@@ -1,0 +1,7 @@
+{
+  "taskId": "host-exec-default",
+  "boundary": "implementation_gate",
+  "createdAt": "2026-09-16T03:58:11.072Z",
+  "choice": "continue_current",
+  "approvedAt": "2026-09-16T05:28:29.947Z"
+}
