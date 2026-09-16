@@ -1,16 +1,16 @@
 {
-  "id": "evidence-b1821f44-1fee-451a-bec9-939fe1adc7b8",
+  "id": "evidence-11593dc1-1390-4f67-877f-528d71da5a62",
   "taskId": "arch-review-p4-vocabulary-identity",
   "name": "test",
   "kind": "test",
   "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/vitest/dist/cli.js run",
   "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
-  "exitCode": 1,
-  "startedAt": "2026-09-16T12:46:49.908Z",
-  "finishedAt": "2026-09-16T12:47:09.835Z",
-  "diffHash": "605bdf45d70553c3a357596d107178bbb82bffad0e615bc4ba42bde7aedd725d",
-  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n ❯ tests/integration/devcontainer-manager.integration.test.ts (5 tests | 3 failed) 10048ms\n     × discovers both fixture workspaces via host + docker label merge 119ms\n     × up + exec routes to project-a, then use project-b routes to project-b (A→exec→B→exec) 7447ms\n     × requires BOTH a policy grant and a fresh confirmation token for docker stop 3ms\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/integration/devcontainer-manager.integration.test.ts > devcontainer-manager integration (real Docker + CLI) > discovers both fixture workspaces via host + docker label merge\nAssertionError: expected undefined to be '.devcontainer/devcontainer.json' // Object.is equality\n\n- Expected:\n\".devcontainer/devcontainer.json\"\n\n+ Received:\nundefined\n\n ❯ tests/integration/devcontainer-manager.integration.test.ts:208:33\n    206|     for (const key of [FIXTURE_A, FIXTURE_B]) {\n    207|       const entry = result.entries.find((e) => e.workspacePath === key…\n    208|       expect(entry?.configKind).toBe(\".devcontainer/devcontainer.json\"…\n       |                                 ^\n    209|     }\n    210|   });\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯\n\n FAIL  tests/integration/devcontainer-manager.integration.test.ts > devcontainer-manager integration (real Docker + CLI) > up + exec routes to project-a, then use project-b routes to project-b (A→exec→B→exec)\nAssertionError: expected '' not to be '' // Object.is equality\n ❯ tests/integration/devcontainer-manager.integration.test.ts:263:37\n    261|       args: [],\n    262|     });\n    263|     expect(hostA.stdout.trim()).not.toBe(hostB.stdout.trim());\n       |                                     ^\n    264|   });\n    265|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯\n\n FAIL  tests/integration/devcontainer-manager.integration.test.ts > devcontainer-manager integration (real Docker + CLI) > requires BOTH a policy grant and a fresh confirmation token for docker stop\nRuntimeError: Container missing-token-probe is not the bound target (0036ad49b1a202bd10cb8095219dfb841015ae8d86fd6c8120f2e59538b9d850); the service only acts on the target this session authorized.\n ❯ ExecutionService.bindContainer src/execution-service.ts:438:13\n    436|     const context = this.options.targetStore.bind();\n    437|     if (context.candidateId !== containerId) {\n    438|       throw new RuntimeError({\n       |             ^\n    439|         kind: \"policy-denied\",\n    440|         message: `Container ${containerId} is not the bound target (${…\n ❯ ExecutionService.lifecycle src/execution-service.ts:334:12\n ❯ tests/integration/devcontainer-manager.integration.test.ts:290:43\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯\n\n\n Test Files  1 failed | 38 passed (39)\n      Tests  3 failed | 448 passed (451)\n   Start at  20:46:50\n   Duration  19.29s (transform 25.37s, setup 0ms, import 35.52s, tests 45.62s, environment 7ms)\n\n",
-  "revisionId": "revision-ca526a41-4294-4c2a-8db1-95539c84e7b0",
+  "exitCode": 0,
+  "startedAt": "2026-09-16T13:09:06.523Z",
+  "finishedAt": "2026-09-16T13:09:21.291Z",
+  "diffHash": "f4640347562ddb257429fbc8bc989f9d7ccd0c030132c232baaf31754c278749",
+  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n\n Test Files  39 passed (39)\n      Tests  451 passed (451)\n   Start at  21:09:06\n   Duration  14.32s (transform 19.38s, setup 0ms, import 30.14s, tests 33.59s, environment 8ms)\n\n",
+  "revisionId": "revision-38efebd1-92b5-4729-9b85-6e9a28b5b593",
   "scope": {
     "paths": [
       "CHANGELOG.md",
@@ -25,6 +25,6 @@
       "src",
       "tests"
     ],
-    "hash": "e09488088ba5af40c6706c29d80ab9fb09053e28ad7cbc1f09be04457fa95469"
+    "hash": "b55b9219ff51a57a8fc66c18325f107f9d26aabc02e3d514bc154980aacad80b"
   }
 }
