@@ -127,3 +127,16 @@ Every rule below was hit for real during that cycle.
 - **`review --approve` requires the phase to be `review`**: run `kata-cli review` first (it moves
   `hardVerify → review`), then `review --confirm-host-model --approve --review-evidence <summary>`,
   which is also what creates the `judge_gate` choice file the judge demands.
+
+## 10. Evidence rules the seal enforces (and one it does not)
+
+- **Evidence commands run as argv, not through a shell.** `grep -rn 'key' README.md docs` becomes a
+  single literal argument, matches nothing and exits 1, failing the seal's gate while the code is
+  green. Keep matrix evidence quote-free and single-purpose (`grep -rn key README.md`).
+- **The matrix must be covered by the declared owned paths** (or waived), and only vitest/pytest-style
+  commands may carry a `testSelector`.
+- **The seal does NOT check that an acceptance criterion is actually verified.** A criterion whose
+  properties live inline in the facade can pass every gate while nothing would fail if they broke —
+  that is what the independent review caught on `host-exec-default`. Before sealing, ask of each
+  criterion: *if this behaviour disappeared, which test would fail?* If the answer is "none", extract
+  the behaviour into an injectable module (see `src/setup-cli.ts`, `src/host-runner.ts`) and pin it.

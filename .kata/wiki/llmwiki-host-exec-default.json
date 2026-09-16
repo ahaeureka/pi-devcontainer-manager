@@ -10,15 +10,20 @@
     ".llmwiki/concepts/host-exec-default.md"
   ],
   "sourceHashes": {
-    ".llmwiki/raw/docs/host-exec-default.md": "a475d32f735db74f6f34985a9e61dba09778e72b39b2b08a147cb4a983ed2d2c",
+    ".llmwiki/raw/docs/host-exec-default.md": "0f88da66b91c650e23a65dd3e93cca639a0b124170922eed5b440bd5e2601ce0",
     ".llmwiki/concepts/host-exec-default.md": "6405e91fd4c722aece62b3cfe966d5908ba6e468d9dd9037eab59da4c9de2809"
   },
   "validationTaskId": "llmwiki-ingest",
   "evidenceIds": [
-    "llmwiki-a475d32f735d"
+    "llmwiki-0f88da66b91c"
   ],
-  "status": "candidate",
-  "lastVerifiedAt": "2026-09-16T05:48:37.030Z",
-  "createdAt": "2026-09-16T05:48:37.030Z",
-  "updatedAt": "2026-09-16T05:48:37.030Z"
+  "status": "verified",
+  "lastVerifiedAt": "2026-09-16T08:35:09.810Z",
+  "createdAt": "2026-09-16T08:35:09.562Z",
+  "updatedAt": "2026-09-16T08:35:09.813Z",
+  "approvalEvent": {
+    "approvedBy": "geebytes",
+    "role": "distiller",
+    "approvedAt": "2026-09-16T08:35:09.810Z"
+  }
 }

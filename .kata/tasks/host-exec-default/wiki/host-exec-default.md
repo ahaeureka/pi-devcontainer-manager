@@ -65,3 +65,37 @@ grant and a fresh per-action confirmation token. Assert those alongside the defa
 - **A `verify` that returns `success: false` with every criterion PASS and `governanceReady: false`**
   is the deferred wiki-closure gate, not an implementation failure: write the note, ingest it, record
   the closure decision, re-run verify.
+
+## 6. What the review cycle added: an AC is not satisfied until something would FAIL if it broke
+
+The independent pass showed the difference between "the code does this" and "the suite would notice if
+it stopped". AC-3 asserted that audit records, literal-argv transport and the container-path guard
+were unchanged by the default flip — all true, and **all unverified**: deleting the audit writes kept
+414 tests green, because the guard and the audit calls lived inline in the facade, where this
+repository has no unit harness.
+
+The repair is the pattern to reuse: **extract the governed behaviour into an injectable module**
+(`src/host-runner.ts`, exactly as Phase 2 extracted `src/setup-cli.ts`) so the properties can be
+pinned — the audit record and its `operation`/`initiator`, the record a refusal writes *before* it
+throws, the container-path refusal *before* any spawn, the timeout ceiling, the failure record. Then
+the wiring that stays in the facade is small enough to describe honestly as smoke-covered.
+
+Two more lessons from the same pass:
+
+- **A posture change has to sweep every document that describes the old posture**, including the ones
+  the change does not otherwise touch. The entry the reviewer caught (`docs/troubleshooting.md`: "the
+  defaults are restrictive, so a grant in the wrong file simply never applies") had been true for
+  years and became false the moment the default granted — and it is exactly the page an operator
+  reads when they hit the denial.
+- **A default that GRANTS turns "unreadable input" into a policy hole.** Any layer whose
+  `hostExecution` cannot be read (`"garbage"`, `42`, `[]`, `{"hostExecution": "no"}`, `null`) used to
+  fall back to the deny-by-default. Now it must WITHHOLD and say why, because silently inheriting the
+  grant means an operator who wrote something broken gets the opposite of what they wrote.
+
+## 7. Documentation consistency as a test
+
+AC-5 ("the docs match the new posture") looked untestable and was evidenced by a grep that asserted
+nothing. It now has a real assertion: `tests/unit/docs-consistency.test.ts` reads the documents and
+requires the stated default to equal the exported `DEFAULTS` (and the two READMEs to agree). It is a
+weak test, but it fails in the right direction — move the default and forget a document, and the
+suite says so.

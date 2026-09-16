@@ -1,8 +1,0 @@
-{
-  "taskId": "host-exec-default",
-  "role": "judge",
-  "phase": "judge",
-  "branch": "feature/host-exec-default",
-  "origin": "workflow",
-  "activatedAt": "2026-09-16T08:25:34.615Z"
-}

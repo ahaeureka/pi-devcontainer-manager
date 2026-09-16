@@ -1,9 +1,9 @@
 {
   "taskId": "host-exec-default",
-  "phase": "judge",
+  "phase": "archive",
   "actor": {
-    "id": "kata-judge",
-    "role": "judge"
+    "id": "kata-agent",
+    "role": "implementer"
   },
-  "updatedAt": "2026-09-16T08:25:34.560Z"
+  "updatedAt": "2026-09-16T08:32:29.684Z"
 }

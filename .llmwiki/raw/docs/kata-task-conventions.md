@@ -1,7 +1,7 @@
 ---
 source_path: .kata/tasks/arch-review-p1-foundation/wiki/kata-task-conventions.md
-ingested: 2026-09-16T03:30:45.562Z
-sha256: c673d1000c353fe00ac804f5d7a17107fcb1d7187150a253e38df5d76ec2fbdb
+ingested: 2026-09-16T08:35:09.679Z
+sha256: fbd1e226e0ed15318ec46bcab0db8ee0f70e93ae9c776b71fba9424eb2af6df0
 ---
 # Kata task conventions in this repository
 
@@ -132,3 +132,16 @@ Every rule below was hit for real during that cycle.
 - **`review --approve` requires the phase to be `review`**: run `kata-cli review` first (it moves
   `hardVerify → review`), then `review --confirm-host-model --approve --review-evidence <summary>`,
   which is also what creates the `judge_gate` choice file the judge demands.
+
+## 10. Evidence rules the seal enforces (and one it does not)
+
+- **Evidence commands run as argv, not through a shell.** `grep -rn 'key' README.md docs` becomes a
+  single literal argument, matches nothing and exits 1, failing the seal's gate while the code is
+  green. Keep matrix evidence quote-free and single-purpose (`grep -rn key README.md`).
+- **The matrix must be covered by the declared owned paths** (or waived), and only vitest/pytest-style
+  commands may carry a `testSelector`.
+- **The seal does NOT check that an acceptance criterion is actually verified.** A criterion whose
+  properties live inline in the facade can pass every gate while nothing would fail if they broke —
+  that is what the independent review caught on `host-exec-default`. Before sealing, ask of each
+  criterion: *if this behaviour disappeared, which test would fail?* If the answer is "none", extract
+  the behaviour into an injectable module (see `src/setup-cli.ts`, `src/host-runner.ts`) and pin it.
