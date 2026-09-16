@@ -89,8 +89,10 @@ every turn.
 - **Routes the agent with facts, not guesses.** Before each turn the extension
   appends the current target, the `workspaceFolder`/`workspaceMount`
   host↔container mapping, and the execution-surface rules to the system prompt. It
-  also refuses host execution of an argv that targets a container-only path, and
-  blocks the built-in `powershell` tool while a container is selected.
+  also refuses host execution of an argv that targets a container-only path (when the
+  workspace's configuration declares a mapping to compare against — without one there
+  is nothing to test, and the extension says so as a diagnostic), and blocks the
+  built-in `powershell` tool while a container is selected.
 - **Keeps file tools on the host.** `read`/`write`/`edit`/`grep`/`find`/`ls`
   always operate on the host filesystem — never routed into the container.
 - **Manages** lifecycle: `up`, `build`, `stop`, `remove` (stop/remove need a

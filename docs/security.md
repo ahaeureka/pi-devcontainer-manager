@@ -84,7 +84,11 @@ Instead:
 - Before each turn the agent receives the current target, the workspace's
   host↔container mapping, and the surface rules, so it chooses explicitly.
 - `devcontainer_host_exec` **refuses** an argv that targets a container-only
-  path (a reliable check: literal argv carries no shell syntax).
+  path, when the selected workspace's configuration declares a
+  `workspaceFolder`/`workspaceMount` to compare against (a reliable check: literal
+  argv carries no shell syntax). A configuration that declares neither leaves the
+  guard with nothing to test — that is reported as a diagnostic, because the escape
+  hatch is granted by default.
 - While a target is selected, the built-in `powershell` tool — which Pi would
   otherwise spawn on the host — is **blocked** through the `tool_call` hook
   with a message pointing at the routed surfaces. (`tool_call` can block or

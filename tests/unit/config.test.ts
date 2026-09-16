@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { compileConfig, defaultAgentDirectory, defaultConfigPaths } from "../../src/config.js";
+import {
+  compileConfig,
+  defaultAgentDirectory,
+  defaultConfigPaths,
+  loadConfigWithDiagnostics,
+} from "../../src/config.js";
+
+const GLOBAL_PATH = "/cfg/extensions/pi-devcontainer-manager.json";
+const PROJECT_PATH = "/ws/.pi/pi-devcontainer-manager.json";
 
 describe("compileConfig", () => {
   it("applies secure defaults", () => {
@@ -103,5 +111,48 @@ describe("hostExecution.allow (granted by default, withholdable)", () => {
     expect(config.destructive).toEqual({ allowStop: false, allowRemove: false });
     expect(config.allowedWorkspaceRoots).toEqual([]);
     expect(config.environmentAllowlist).toEqual([]);
+  });
+});
+
+describe("a malformed configuration layer withholds host execution", () => {
+  // Host execution is granted by default, so a layer that is present but unreadable must not fall
+  // back to that default: an operator who wrote something broken has not said "grant it".
+  const cases: { label: string; contents: string }[] = [
+    { label: "a bare string", contents: '"garbage"' },
+    { label: "a number", contents: "42" },
+    { label: "an array", contents: "[]" },
+    { label: "a boolean", contents: "true" },
+    { label: "hostExecution as a string", contents: '{"hostExecution": "no"}' },
+    { label: "hostExecution as null", contents: '{"hostExecution": null}' },
+  ];
+
+  for (const testCase of cases) {
+    it(`withholds and explains when the global file is ${testCase.label}`, () => {
+      const files = new Map([[GLOBAL_PATH, testCase.contents]]);
+      const loaded = loadConfigWithDiagnostics(
+        { globalPath: GLOBAL_PATH, projectPath: PROJECT_PATH },
+        { projectTrusted: false, readFile: (path) => {
+          const contents = files.get(path);
+          if (contents === undefined) throw new Error("ENOENT");
+          return contents;
+        } },
+      );
+
+      expect(loaded.config.hostExecution.allow).toBe(false);
+      expect(loaded.diagnostics.some((line) => line.includes("hostExecution"))).toBe(true);
+    });
+  }
+
+  it("still grants when a well-formed file simply does not mention hostExecution", () => {
+    const loaded = loadConfigWithDiagnostics(
+      { globalPath: GLOBAL_PATH, projectPath: PROJECT_PATH },
+      { projectTrusted: false, readFile: (path) => {
+        if (path !== GLOBAL_PATH) throw new Error("ENOENT");
+        return '{"routeMode": "container-required"}';
+      } },
+    );
+
+    expect(loaded.config.hostExecution.allow).toBe(true);
+    expect(loaded.diagnostics).toEqual([]);
   });
 });

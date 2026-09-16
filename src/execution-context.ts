@@ -65,7 +65,7 @@ export function renderExecutionContext(facts: ExecutionContextFacts): string | u
   lines.push("");
   lines.push("Execution surfaces (choose by WHAT the command operates on, not by its name):");
   lines.push("- `bash`, `!`, `!!`, `devcontainer_exec` → run INSIDE the container (default).");
-  lines.push("- `devcontainer_host_exec` → runs on the HOST (explicit; requires hostExecution.allow).");
+  lines.push("- `devcontainer_host_exec` → runs on the HOST (explicit, audited; a configuration can withhold it).");
   lines.push("");
   lines.push("Decision rules:");
   lines.push("- Result depends on the container toolchain, or on a container-only path → container surfaces.");

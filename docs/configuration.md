@@ -252,7 +252,9 @@ own; for every other form the extension passes the discovered path as
   a `false` in the **global** file cannot be widened by a project `true`, and a
   project `false` withholds even the default grant. A changed configuration
   needs `/reload` (or a restart) because the effective config is composed at
-  `session_start`.
+  `session_start`. A trusted project may also write `allow: true`; it is equivalent
+  to leaving it unset, since the default already grants it — the project layer exists
+  to withhold, never to widen.
 - `hostExecution.allow` does **not** gate `/devcontainer setup`, which runs a
   single fixed `npm install -g @devcontainers/cli` behind an interactive
   confirmation — see

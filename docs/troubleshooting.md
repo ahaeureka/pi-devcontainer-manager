@@ -160,8 +160,14 @@ withholding it. Check, in order:
 3. Did you change either file in this session? The effective configuration is
    composed at `session_start`, so a change needs `/reload` (or a restart).
 
-Delete the `hostExecution` block (or set `allow: true`) in the file that has the
-`false`, then `/reload`. A denial here is not a signal to retry the command in
+Delete the `hostExecution` block (or set `allow: true`) in **every** file that has
+the `false` — a global deny is not widened by a project, and both layers are read —
+then `/reload`.
+
+One more case: a file that exists but cannot be parsed, or whose `hostExecution` is
+not an object with a boolean `allow`, is reported as a diagnostic and **withholds**
+host execution rather than falling back to the granted default. Fix the file rather
+than looking for a `false` that is not there. A denial here is not a signal to retry the command in
 the container: check which surface the command actually needs.
 
 ### Nothing is written to the audit directory
@@ -219,11 +225,16 @@ Check the path first: the global config follows Pi's config directory —
 `PI_CODING_AGENT_DIR` is set (for example to `/data/work/pi`), a file under
 `~/.pi/agent/extensions/` is **not** read.
 
-The failure is quiet, because the defaults are restrictive: a grant in the wrong
-file does not error, it simply never applies — `/devcontainer host-exec` keeps
-returning `policy-denied`, `destructive.*` stays disabled, and so on. If an edit to
-the global file appears to do nothing, run `echo "$PI_CODING_AGENT_DIR"`, place the
-file accordingly, then `/reload`.
+The failure is quiet: a value in the wrong file does not error, it simply never
+applies. Which direction that hurts depends on the value — a **withholding** value
+(`destructive.*`, `hostExecution.allow: false`, a narrower allowlist) in a file the
+runtime does not read leaves the restrictive behaviour in place, while a **grant**
+in that file does nothing at all. `hostExecution.allow` is the one grant that ships
+enabled, so `host-exec` failing with `policy-denied` means a file the runtime DOES
+read sets `false` (see
+[`devcontainer_host_exec` is denied](#devcontainer_host_exec-is-denied)), not that a
+grant was misplaced. If an edit to the global file appears to do nothing, run
+`echo "$PI_CODING_AGENT_DIR"`, place the file accordingly, then `/reload`.
 
 Two other causes of the same symptom: the project file is ignored unless Pi reports
 the project trusted, and a `routeMode` other than `container-required` is rejected

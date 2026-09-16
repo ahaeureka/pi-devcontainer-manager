@@ -141,16 +141,14 @@
           "design.md §2.3"
         ],
         "implementationPaths": [
-          "src/policy.ts",
-          "src/tools.ts",
-          "src/commands.ts",
-          "src/runtime/docker-lifecycle.ts"
+          "src/host-runner.ts",
+          "extensions/index.ts",
+          "src/policy.ts"
         ],
         "testPaths": [
-          "tests/unit/tools.test.ts",
-          "tests/unit/commands.test.ts",
-          "tests/unit/audit.test.ts",
-          "tests/unit/docker-lifecycle.test.ts"
+          "tests/unit/host-runner.test.ts",
+          "tests/unit/docker-lifecycle.test.ts",
+          "tests/unit/audit.test.ts"
         ],
         "evidence": [
           {
@@ -170,11 +168,13 @@
           "design.md §2.2"
         ],
         "implementationPaths": [
+          "src/host-runner.ts",
           "src/tools.ts",
           "src/commands.ts",
           "extensions/index.ts"
         ],
         "testPaths": [
+          "tests/unit/host-runner.test.ts",
           "tests/unit/tools.test.ts",
           "tests/unit/commands.test.ts"
         ],
@@ -206,12 +206,12 @@
           "examples/pi-devcontainer-manager.settings.json"
         ],
         "testPaths": [
-          "tests/unit/config.test.ts"
+          "tests/unit/docs-consistency.test.ts"
         ],
         "evidence": [
           {
-            "kind": "lint",
-            "command": "grep -rn hostExecution README.md"
+            "kind": "test",
+            "command": "npm run test:unit"
           },
           {
             "kind": "typecheck",
