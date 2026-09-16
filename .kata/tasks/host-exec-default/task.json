@@ -211,7 +211,7 @@
         "evidence": [
           {
             "kind": "lint",
-            "command": "grep -rn 'hostExecution' README.md README.zh-CN.md docs SECURITY.md examples"
+            "command": "grep -rn hostExecution README.md"
           },
           {
             "kind": "typecheck",
@@ -249,5 +249,20 @@
         "verificationLevel": "integration"
       }
     ]
-  }
+  },
+  "ownedPaths": [
+    "CHANGELOG.md",
+    "README.md",
+    "README.zh-CN.md",
+    "SECURITY.md",
+    "dist",
+    "docs",
+    "examples",
+    "extensions",
+    "openspec",
+    "package.json",
+    "scripts",
+    "src",
+    "tests"
+  ]
 }

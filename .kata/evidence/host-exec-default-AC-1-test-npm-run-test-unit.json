@@ -1,0 +1,32 @@
+{
+  "id": "evidence-011698ab-6fa7-481b-b543-235e46cf5459",
+  "taskId": "host-exec-default",
+  "name": "AC-1-test-npm run test:unit",
+  "kind": "test",
+  "command": "npm run test:unit",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-16T05:28:51.467Z",
+  "finishedAt": "2026-09-16T05:28:53.927Z",
+  "diffHash": "4384219e09691162d610248c9f1fac6fb1ea7574d6710b40a577b4b8cfd38290",
+  "log": "\n> pi-devcontainer-manager@1.0.0 test:unit\n> vitest --run tests/unit\n\n\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  32 passed (32)\n      Tests  398 passed (398)\n   Start at  13:28:51\n   Duration  1.85s (transform 8.07s, setup 0ms, import 13.76s, tests 4.31s, environment 6ms)\n\n",
+  "revisionId": "revision-123877d2-3e51-4fae-ac08-573590f5c877",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "SECURITY.md",
+      "dist",
+      "docs",
+      "examples",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "380940211ff14bd9f97fd16edd896f92ad12a31a42d14fe367f93c5111768434"
+  }
+}

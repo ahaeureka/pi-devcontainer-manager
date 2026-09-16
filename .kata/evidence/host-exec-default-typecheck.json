@@ -1,0 +1,31 @@
+{
+  "id": "evidence-a4c9cff7-1e0a-400c-9ae3-30ed52b5662d",
+  "taskId": "host-exec-default",
+  "name": "typecheck",
+  "kind": "typecheck",
+  "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/typescript/lib/tsc.js --noEmit",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-16T05:28:30.191Z",
+  "finishedAt": "2026-09-16T05:28:36.215Z",
+  "diffHash": "4384219e09691162d610248c9f1fac6fb1ea7574d6710b40a577b4b8cfd38290",
+  "revisionId": "revision-123877d2-3e51-4fae-ac08-573590f5c877",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "SECURITY.md",
+      "dist",
+      "docs",
+      "examples",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "380940211ff14bd9f97fd16edd896f92ad12a31a42d14fe367f93c5111768434"
+  }
+}
