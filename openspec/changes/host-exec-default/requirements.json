@@ -1,0 +1,34 @@
+{
+  "requirements": [
+    {
+      "id": "AC-1",
+      "statement": "Host execution is granted by default: with neither the global nor the project configuration specifying `hostExecution.allow`, both `devcontainer_host_exec` and `/devcontainer host-exec` are permitted. The default is expressible in code (not duplicated as a literal) and is covered by tests that build the effective config from an empty global and an empty project file.",
+      "source": "user decision 2026-09-16: `devcontainer_host_exec` answered \"Host execution is disabled by policy\" in every project on this host because no global configuration file existed, and the operator expected the escape hatch to work out of the box."
+    },
+    {
+      "id": "AC-2",
+      "statement": "Withholding still wins, and nothing can widen beyond a deny: a project file that sets `hostExecution.allow: false` withholds host execution regardless of the default, and a global file that sets `false` withholds it even when the project sets `true`. No other configuration semantic changes — `destructive.allowStop`/`allowRemove` stay fail-closed, and `routeMode`, `activation`, the timeout/output ceilings and the discovery limits keep their current defaults (covered by tests).",
+      "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraint 6 (host execution stays an explicit, audited escape hatch, gated on `hostExecution.allow`) plus the existing merge rule in src/config.ts."
+    },
+    {
+      "id": "AC-3",
+      "statement": "The governed properties of the host surface are unchanged by the default flip: every host run is still audited under `operation: \"host-exec\"` with `initiator: \"host-escape\"` and the configured capture mode, argv is still transported literally (no shell), `/devcontainer setup` is still ungated by `hostExecution.allow`, and `stop`/`remove` still require both the policy grant and a fresh per-action confirmation token.",
+      "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — constraints 4, 6 and 9."
+    },
+    {
+      "id": "AC-4",
+      "statement": "The denial messages describe the CURRENT policy truth instead of a stale remedy: when host execution is refused, the typed error and the command text say that a configuration is withholding it and which layer can (project or global), and no message still instructs the operator to set `hostExecution.allow=true` globally when the default already grants it. Covered by tests on both surfaces.",
+      "source": "The remedy strings in src/tools.ts and src/commands.ts, which named `hostExecution.allow=true` as the fix when the default was `false`."
+    },
+    {
+      "id": "AC-5",
+      "statement": "Documentation matches the new posture: `README.md` and `README.zh-CN.md`, `docs/configuration.md`, `docs/security.md` and `SECURITY.md` state the grant-by-default plus the withhold rules, `CHANGELOG.md` records it as an explicitly called-out behaviour change for existing installs (an operator who relied on deny-by-default must now set `false`), and `docs/troubleshooting.md` gains a \"host-exec is denied by policy\" entry naming the two files to check, the merge rule, and the `/reload` needed after a configuration change.",
+      "source": "README.md, docs/configuration.md, docs/security.md, SECURITY.md and CHANGELOG.md all documented the default as `false`; the operator hitting the denial had no troubleshooting entry to follow."
+    },
+    {
+      "id": "AC-6",
+      "statement": "No regression: the full gate set stays green — `npm run typecheck`, the unit suite (including the updated default-config assertions), `node scripts/verify-package.mjs --unit-tests`, a rebuilt `dist/` that matches a fresh build, the packed `smoke-pi-package.mjs --no-model`, and `npm run install:local -- --check`.",
+      "source": "Repository convention (the Phase 1/2/3 acceptance matrices all end with the same no-regression criterion)."
+    }
+  ]
+}
