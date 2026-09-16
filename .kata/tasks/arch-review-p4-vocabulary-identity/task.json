@@ -44,13 +44,7 @@
       "strategy": "manual",
       "branch": "feature/arch-review-p4-vocabulary-identity",
       "baseBranch": "main",
-      "status": "pending_confirmation",
-      "command": [
-        "switch",
-        "-c",
-        "feature/arch-review-p4-vocabulary-identity",
-        "main"
-      ]
+      "status": "active"
     }
   },
   "requirements": [
