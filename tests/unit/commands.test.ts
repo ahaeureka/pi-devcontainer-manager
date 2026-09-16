@@ -537,6 +537,7 @@ describe("reconcileSelection identity validation", () => {
         select: async (target: unknown) => {
           selected.push(target);
         },
+        snapshot: () => ({ status: "none", workspaceKey: undefined, candidateId: undefined, detail: undefined }),
       },
     } as unknown as Pick<CommandServices, "targetStore" | "registry">;
     const ctx = { persistSelection: (record: unknown) => void persisted.push(record) };
@@ -656,10 +657,13 @@ describe("CommandResult.target (L1-06)", () => {
       })),
     });
 
-    const result = await handlers["use"]!("", makeCtx());
+    const ctx = makeCtx();
+    const result = await handlers["use"]!("", ctx);
 
     expect(result.text).toContain("[ambiguous-candidate]");
     expect(result.target).toBeUndefined();
+    // A failed selection must not leave persisted evidence that engages the session after a reload.
+    expect(ctx.persisted).toHaveLength(0);
   });
 });
 
@@ -735,18 +739,28 @@ describe("persisted selection intent (L1-02 / L1-04)", () => {
   });
 });
 
-describe("reconcileSelection keeps the selected configuration (L1-04)", () => {
-  function harness(entries: RegistryEntry[]) {
+function reconcileHarness(entries: RegistryEntry[], seed?: { workspaceKey: string; configPath: string }) {
     const selected: unknown[] = [];
     const persisted: { configPath?: string }[] = [];
+    const snapshot: Record<string, unknown> = {
+      status: seed !== undefined ? "selected-valid" : "none",
+      workspaceKey: seed?.workspaceKey,
+      candidateId: undefined,
+      detail: undefined,
+      ...(seed !== undefined ? { configPath: seed.configPath } : {}),
+    };
     const services = {
       registry: async () => ({ entries, diagnostics: [] }),
-      targetStore: { select: async (target: unknown) => void selected.push(target) },
+      targetStore: {
+        select: async (target: unknown) => void selected.push(target),
+        snapshot: () => snapshot,
+      },
     } as unknown as Pick<CommandServices, "targetStore" | "registry">;
-    const ctx = { persistSelection: (record: { configPath?: string }) => void persisted.push(record) };
-    return { services, ctx, persisted };
-  }
+  const ctx = { persistSelection: (record: { configPath?: string }) => void persisted.push(record) };
+  return { services, ctx, persisted, snapshot };
+}
 
+describe("reconcileSelection keeps the selected configuration (L1-04)", () => {
   const withConfig = (configPath: string): RegistryEntry =>
     ({
       ...entry,
@@ -760,7 +774,7 @@ describe("reconcileSelection keeps the selected configuration (L1-04)", () => {
 
   it("restores the configuration the operator had selected", async () => {
     const path = "/ws/project-a/.devcontainer/python/devcontainer.json";
-    const { services, ctx, persisted } = harness([withConfig(path)]);
+    const { services, ctx, persisted } = reconcileHarness([withConfig(path)]);
 
     const result = await reconcileSelection(services, ctx, { workspaceKey: entry.workspacePath, configPath: path });
 
@@ -769,7 +783,7 @@ describe("reconcileSelection keeps the selected configuration (L1-04)", () => {
   });
 
   it("drops a configuration the workspace no longer discovers", async () => {
-    const { services, ctx, persisted } = harness([withConfig("/ws/project-a/.devcontainer/python/devcontainer.json")]);
+    const { services, ctx, persisted } = reconcileHarness([withConfig("/ws/project-a/.devcontainer/python/devcontainer.json")]);
 
     const result = await reconcileSelection(services, ctx, {
       workspaceKey: entry.workspacePath,
@@ -778,5 +792,54 @@ describe("reconcileSelection keeps the selected configuration (L1-04)", () => {
 
     expect(result.candidate?.configPath).toBeUndefined();
     expect(persisted[0]!.configPath).toBeUndefined();
+  });
+});
+
+describe("reconcileSelection preserves an already-selected configuration (L1-04 regression)", () => {
+  const named = "/ws/project-a/.devcontainer/python/devcontainer.json";
+  const entryWithBoth: RegistryEntry = {
+    ...entry,
+    containerState: "running",
+    containerId: "c1",
+    containerCandidates: [{ id: "c1", state: "running" }],
+    configPath: "/ws/project-a/.devcontainer/devcontainer.json",
+    configKind: ".devcontainer/devcontainer.json",
+    configCandidates: [
+      { configPath: "/ws/project-a/.devcontainer/devcontainer.json", configKind: ".devcontainer/devcontainer.json" },
+      { configPath: named, configKind: ".devcontainer/<name>/devcontainer.json" },
+    ],
+  };
+
+  it("keeps the configuration the session already selected when the caller passes no hint", async () => {
+    // `/devcontainer up` and the `list` repair call reconcileSelection with only a workspace key.
+    // Falling back to the discovered primary there silently reverted the operator's choice — and
+    // re-persisted it — right after the `use`/`up` flow that recommends itself.
+    const { services, ctx, persisted, snapshot } = reconcileHarness(
+      [entryWithBoth],
+      { workspaceKey: "/ws/project-a", configPath: named },
+    );
+
+    const result = await reconcileSelection(services, ctx, { workspaceKey: "/ws/project-a" });
+
+    expect(result.candidate?.configPath).toBe(named);
+    expect(snapshot.status).toBe("selected-valid");
+    expect(persisted[0]!.configPath).toBe(named);
+  });
+
+  it("still prefers an explicit hint over the carried-over configuration", async () => {
+    const primary = "/ws/project-a/.devcontainer/devcontainer.json";
+    const { services, ctx } = reconcileHarness([entryWithBoth], { workspaceKey: "/ws/project-a", configPath: named });
+
+    const result = await reconcileSelection(services, ctx, { workspaceKey: "/ws/project-a", configPath: primary });
+
+    expect(result.candidate?.configPath).toBe(primary);
+  });
+
+  it("does not carry a configuration across workspaces", async () => {
+    const { services, ctx } = reconcileHarness([entryWithBoth], { workspaceKey: "/ws/other", configPath: named });
+
+    const result = await reconcileSelection(services, ctx, { workspaceKey: "/ws/project-a" });
+
+    expect(result.candidate?.configPath).toBeUndefined();
   });
 });

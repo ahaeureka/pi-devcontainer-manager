@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { decideActivation } from "../../src/activation.js";
+import { allowsAutoSelection, decideActivation } from "../../src/activation.js";
 import {
   compileConfig,
   describeConfigDiagnostics,
@@ -267,5 +267,15 @@ describe("decideActivation with a persisted opt-out (L1-02)", () => {
       active: true,
       reason: "workspace-config",
     });
+  });
+});
+
+describe("allowsAutoSelection", () => {
+  it("permits auto-selection only while the session is engaged", () => {
+    expect(allowsAutoSelection({ active: true, reason: "explicit-selection" })).toBe(true);
+    expect(allowsAutoSelection({ active: false, reason: "no-evidence" })).toBe(false);
+    // After `/devcontainer off` the container tools stay registered for the session, so an
+    // auto-selecting exec would resurrect the target the operator just turned off (L1-02).
+    expect(allowsAutoSelection({ active: false, reason: "opted-out" })).toBe(false);
   });
 });

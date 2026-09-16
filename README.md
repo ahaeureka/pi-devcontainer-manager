@@ -213,7 +213,7 @@ If the Dev Containers CLI is missing, run `/devcontainer setup` once.
 | `/devcontainer logs [--tail N]` | Bounded `docker logs` (default 100 lines); policy-checked and audited |
 | `/devcontainer host-exec <argv...>` | Audited host escape hatch (requires `hostExecution.allow`) |
 | `/devcontainer setup` | Install/upgrade the Dev Containers CLI globally (confirmed, audited) |
-| `/devcontainer off` | Clear the target and hand this session back to the host (dormant); the opt-out is persisted, so `/reload` does not restore the target until you select one again |
+| `/devcontainer off` | Clear the target and hand this session back to the host (dormant); the opt-out is persisted, so `/reload` does not restore the target (nor auto-engage it) until you select one again — unless `activation` is `"always"`, which always takes over |
 
 ### Tools
 

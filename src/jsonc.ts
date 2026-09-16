@@ -39,7 +39,10 @@ function skipComment(text: string, from: number): number | undefined {
   if (next === "*") {
     let i = from + 2;
     while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i += 1;
-    return i + 2 > text.length ? text.length : i + 2;
+    // Swallowing the rest of the file here would let a TRUNCATED document parse into a partial
+    // configuration, which is the fail-open shape this module exists to prevent: report it instead.
+    if (i + 2 > text.length) throw new SyntaxError("Unterminated block comment");
+    return i + 2;
   }
   return undefined;
 }

@@ -205,3 +205,20 @@ describe("TargetStore.selectIfNone", () => {
     expect(s.snapshot().candidateId).toBe(candidate().id);
   });
 });
+
+describe("TargetStore.selectIfNone under the production ordering", () => {
+  it("refuses when an explicit selection lands while auto-selection is still discovering", async () => {
+    const s = store();
+
+    // The real window: the execution service reads the snapshot, awaits discovery, and only then
+    // commits the auto-selection. An explicit `/devcontainer use` landing inside that await wins.
+    const auto = (async () => {
+      await Promise.resolve();
+      return s.selectIfNone({ status: "selected-valid", candidate: candidate({ name: "auto" }) });
+    })();
+    await s.select({ status: "selected-valid", candidate: candidate({ name: "explicit" }) });
+
+    expect(await auto).toBe(false);
+    expect(s.snapshot().candidateId).toBe(candidate().id);
+  });
+});

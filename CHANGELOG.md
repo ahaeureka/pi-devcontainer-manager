@@ -9,8 +9,10 @@ to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - The session selection is one persisted contract now. `/devcontainer off` appends an **opt-out**
-  that survives `/reload` (and suppresses the workspace-derived activation until you select a target
-  again), and the selected configuration travels with the selection: it drives the prompt context,
+  that survives `/reload` — it suppresses the workspace-derived activation and in-session
+  auto-selection until you select a target again (an explicit `activation: "always"` still takes
+  over, and a project file can still withhold it) — and the selected configuration travels with the
+  selection: it drives the prompt context,
   the exec-path presentation and the host container-path guard instead of those falling back to the
   workspace's primary configuration. Sessions written before this change restore unchanged.
 - `/devcontainer use` engages the container surfaces only when it actually established a target: a

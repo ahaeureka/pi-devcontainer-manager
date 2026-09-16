@@ -66,3 +66,11 @@ describe("stripJsonc", () => {
     expect(() => parseJsonc("{ \"a\": }")).toThrow();
   });
 });
+
+describe("stripJsonc rejections", () => {
+  it("refuses an unterminated block comment instead of swallowing the rest of the file", () => {
+    // Swallowing it can let a truncated document parse into a PARTIAL configuration, which is the
+    // fail-open shape L0-02 is about: the caller must be able to report "unparsable".
+    expect(() => parseJsonc('{"a": 1} /* oops')).toThrow();
+  });
+});

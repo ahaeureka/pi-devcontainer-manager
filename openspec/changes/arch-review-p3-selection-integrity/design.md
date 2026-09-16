@@ -238,7 +238,7 @@ cheap pre-check — it is no longer load-bearing.
 | AC-5 (`L1-05`) | `src/path-mapper.ts`, `extensions/index.ts` | `tests/unit/path-mapper.test.ts` (extra mounts, workspace target excluded, expansion, malformed skipped), `tests/unit/execution-context.test.ts` (rendered when supplied) | `npm run test:unit` |
 | AC-6 (`L1-06`) | `src/commands.ts` (`CommandResult.target`), `extensions/index.ts` dispatch | `tests/unit/commands.test.ts`: success carries `target`, no-candidate/ambiguous/cancelled omit it | `npm run test:unit` |
 | AC-7 (`L2-01`) | `src/commands.ts` `up` handler | `tests/unit/commands.test.ts`: refresh called once after success and reconcile uses the refreshed entries; failed `up` does not refresh | `npm run test:unit` |
-| AC-8 (`L3-05`) | `src/target-store.ts`, `src/commands.ts`, `src/execution-service.ts` | `tests/unit/target-store.test.ts` (`selectIfNone` losing/winning), `tests/unit/execution-service.test.ts` (explicit selection during auto-select survives) | `npm run test:unit` |
+| AC-8 (`L3-05`) | `src/target-store.ts`, `src/commands.ts`, `src/execution-service.ts` | `tests/unit/target-store.test.ts` (`selectIfNone` losing/winning, plus a race test with the production await gap) | `npm run test:unit` |
 | AC-9 (no regression) | `dist/`, `CHANGELOG.md`, docs, `task.json` `acceptanceMatrix` | full suite | `npm run typecheck`, `npm run test:unit`, `node scripts/verify-package.mjs --unit-tests`, `git diff --exit-code -- dist`, `node scripts/smoke-pi-package.mjs --no-model`, `npm run install:local -- --check` |
 
 ## 5. Build order (TDD, eight slices)

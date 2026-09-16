@@ -284,10 +284,21 @@ export async function reconcileSelection(
     persisted !== undefined && (entry.containerCandidates ?? []).some((candidate) => candidate.id === persisted);
   const usableId =
     entry.ambiguous === true ? undefined : offered ? persisted : entry.containerId;
+  // A caller that does not name a configuration (a restored hint, `/devcontainer up`, the `list`
+  // repair) must not DROP the one this workspace already has selected: falling back to the
+  // discovered primary there silently reverted the operator's choice and re-persisted it — the
+  // exact regression L1-04 exists to prevent.
+  const current = services.targetStore.snapshot();
+  const carriedConfig =
+    hint.configPath ??
+    (current.workspaceKey !== undefined &&
+    canonicalWorkspaceKey(current.workspaceKey) === canonicalWorkspaceKey(hint.workspaceKey)
+      ? current.configPath
+      : undefined);
   // `selectionFor` validates the requested configuration against the workspace's DISCOVERED
   // candidates, so a configuration that was renamed or removed since the record was written drops
   // back to the discovered primary instead of travelling into the CLI's argv (L1-04).
-  const selection = selectionFor(entry, usableId, hint.configPath);
+  const selection = selectionFor(entry, usableId, carriedConfig);
   await services.targetStore.select(selection);
   if (selection.workspaceKey !== undefined) {
     ctx.persistSelection?.({
