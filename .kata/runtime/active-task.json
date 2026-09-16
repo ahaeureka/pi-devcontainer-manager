@@ -1,8 +1,8 @@
 {
   "taskId": "arch-review-p3-selection-integrity",
   "role": "reviewer",
-  "phase": "hardVerify",
+  "phase": "review",
   "branch": "feature/arch-review-p3-selection-integrity",
   "origin": "workflow",
-  "activatedAt": "2026-09-16T02:28:51.226Z"
+  "activatedAt": "2026-09-16T02:39:44.009Z"
 }
