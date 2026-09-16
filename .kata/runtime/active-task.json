@@ -3,7 +3,7 @@
   "role": "designer",
   "phase": "intake",
   "platform": "pi",
-  "branch": "main",
-  "origin": "workflow",
-  "activatedAt": "2026-09-16T03:51:19.502Z"
+  "branch": "feature/host-exec-default",
+  "origin": "handoff",
+  "activatedAt": "2026-09-16T03:58:10.930Z"
 }

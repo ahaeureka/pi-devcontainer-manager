@@ -1,9 +1,9 @@
 {
   "taskId": "host-exec-default",
-  "phase": "intake",
+  "phase": "plan",
   "actor": {
-    "id": "system",
-    "role": "system"
+    "id": "kata-designer",
+    "role": "designer"
   },
-  "updatedAt": "2026-09-16T03:51:19.459Z"
+  "updatedAt": "2026-09-16T03:58:11.068Z"
 }
