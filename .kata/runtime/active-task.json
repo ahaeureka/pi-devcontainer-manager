@@ -2,7 +2,8 @@
   "taskId": "arch-review-p3-selection-integrity",
   "role": "reviewer",
   "phase": "hardVerify",
+  "platform": "pi",
   "branch": "feature/arch-review-p3-selection-integrity",
-  "origin": "workflow",
-  "activatedAt": "2026-09-16T02:06:34.062Z"
+  "origin": "handoff",
+  "activatedAt": "2026-09-16T02:10:47.938Z"
 }

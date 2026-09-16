@@ -2,7 +2,7 @@
   "taskId": "arch-review-p3-selection-integrity",
   "result": "FAIL",
   "diffHash": "444c3e676e4ca29d7a8ebb6e77eb0a5b6f38837240be562410a16f9119b4ffbd",
-  "revisionId": "revision-9745e692-5773-48e7-9f3a-ad8c01071b62",
+  "revisionId": "revision-d05891bb-86f6-4202-94b4-4f479485452b",
   "acceptance": [
     {
       "id": "AC-1",
