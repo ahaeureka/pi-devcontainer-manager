@@ -1,7 +1,9 @@
 {
   "taskId": "host-exec-default",
-  "decision": "deferred",
-  "reason": "Awaiting a knowledge-closure decision.",
-  "candidateIds": [],
-  "updatedAt": "2026-09-16T05:37:49.965Z"
+  "decision": "captured",
+  "reason": "The host-exec default change carries the merge shape a policy default must have (the posture in DEFAULTS, deny-wins from either layer), the truth table that makes a granted default safe, the rule that a posture change includes its denial messages, the invariants a granted default must not change, and two kata mechanics (evidence commands run as argv; a governanceReady:false verify is the wiki-closure gate).",
+  "candidateIds": [
+    "llmwiki-host-exec-default"
+  ],
+  "updatedAt": "2026-09-16T05:48:37.146Z"
 }

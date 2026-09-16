@@ -82,3 +82,9 @@
 - Imported: raw/docs/kata-task-conventions.md
 - Updated: concepts/kata-task-conventions.md
 - Governed record: llmwiki-kata-task-conventions
+
+## [2026-09-16] ingest | host-exec-default.md
+
+- Imported: raw/docs/host-exec-default.md
+- Updated: concepts/host-exec-default.md
+- Governed record: llmwiki-host-exec-default

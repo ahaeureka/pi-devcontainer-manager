@@ -1,0 +1,24 @@
+{
+  "id": "llmwiki-host-exec-default",
+  "statement": "Host execution granted by default (design + policy notes)",
+  "scope": [
+    "concepts/host-exec-default.md"
+  ],
+  "kind": "llmwiki-summary",
+  "sourceRefs": [
+    ".llmwiki/raw/docs/host-exec-default.md",
+    ".llmwiki/concepts/host-exec-default.md"
+  ],
+  "sourceHashes": {
+    ".llmwiki/raw/docs/host-exec-default.md": "a475d32f735db74f6f34985a9e61dba09778e72b39b2b08a147cb4a983ed2d2c",
+    ".llmwiki/concepts/host-exec-default.md": "6405e91fd4c722aece62b3cfe966d5908ba6e468d9dd9037eab59da4c9de2809"
+  },
+  "validationTaskId": "llmwiki-ingest",
+  "evidenceIds": [
+    "llmwiki-a475d32f735d"
+  ],
+  "status": "candidate",
+  "lastVerifiedAt": "2026-09-16T05:48:37.030Z",
+  "createdAt": "2026-09-16T05:48:37.030Z",
+  "updatedAt": "2026-09-16T05:48:37.030Z"
+}
