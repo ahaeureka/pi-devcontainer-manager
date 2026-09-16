@@ -30,6 +30,7 @@ import type { ExecutionContext, TargetStore } from "./target-store.js";
 import type { DevcontainerAdapter, ExecResult } from "./runtime/devcontainer-adapter.js";
 import type { DockerLifecycleAdapter, LifecycleConfirmation, LifecycleResult } from "./runtime/docker-lifecycle.js";
 import type { DockerContainer } from "./runtime/docker-adapter.js";
+import { isWithinWorkspace } from "./workspace-path.js";
 
 export interface ExecRequest {
   readonly operation: "container-exec" | "routed-bash" | "user-bash";
@@ -176,7 +177,9 @@ export class ExecutionService {
     // audit agree.
     const requestKey = canonicalWorkspaceKey(request.workspace);
     const targetKey = canonicalWorkspaceKey(ctx.workspaceKey);
-    const withinTarget = requestKey === targetKey || requestKey.startsWith(targetKey === "/" ? "/" : `${targetKey}/`);
+    // Containment is the single owner's question (L5-01): a symlinked spelling of the bound
+    // workspace resolves to it, while a sibling whose name merely starts the same does not.
+    const withinTarget = isWithinWorkspace(targetKey, requestKey);
     // A request from outside the bound target is allowed ONLY when it comes from a
     // workspace that is not itself a DevContainer project. That is the
     // explicit-selection workflow (stand in a plain repository and drive a selected

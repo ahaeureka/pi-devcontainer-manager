@@ -1,7 +1,7 @@
 import { readdirSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { ConfigCandidate, ContainerState, DevcontainerConfigKind, DiscoveredProject, DiscoveryConfig, RegistryEntry } from "../types.js";
-import { isPathBelow, resolveRealPath, uniqueWorkspaceKeys } from "../workspace-path.js";
+import { isWithinWorkspace, resolveRealPath, uniqueWorkspaceKeys } from "../workspace-path.js";
 import type { DockerContainer } from "./docker-adapter.js";
 
 /**
@@ -232,7 +232,7 @@ function walkDir(
       }
       // A directory that resolves outside the anchoring workspace root
       // escapes the scan boundary (symlink escape); do not traverse it.
-      if (!isPathBelow(traversal.realpath(full), anchorRoot)) {
+      if (!isWithinWorkspace(anchorRoot, traversal.realpath(full))) {
         diagnostics.push(`not traversing ${full}: resolves outside allowed workspace root`);
         continue;
       }
