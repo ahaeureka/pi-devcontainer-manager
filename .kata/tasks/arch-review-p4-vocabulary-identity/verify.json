@@ -1,0 +1,67 @@
+{
+  "taskId": "arch-review-p4-vocabulary-identity",
+  "result": "PASS",
+  "diffHash": "f4640347562ddb257429fbc8bc989f9d7ccd0c030132c232baaf31754c278749",
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-1da21b8c-8c73-4594-ba33-95ad42f8808c",
+        "evidence-11593dc1-1390-4f67-877f-528d71da5a62",
+        "evidence-11593dc1-1390-4f67-877f-528d71da5a62"
+      ]
+    },
+    {
+      "id": "AC-2",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-1da21b8c-8c73-4594-ba33-95ad42f8808c",
+        "evidence-11593dc1-1390-4f67-877f-528d71da5a62",
+        "evidence-11593dc1-1390-4f67-877f-528d71da5a62"
+      ]
+    },
+    {
+      "id": "AC-3",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-1da21b8c-8c73-4594-ba33-95ad42f8808c",
+        "evidence-11593dc1-1390-4f67-877f-528d71da5a62",
+        "evidence-11593dc1-1390-4f67-877f-528d71da5a62"
+      ]
+    },
+    {
+      "id": "AC-4",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-1da21b8c-8c73-4594-ba33-95ad42f8808c",
+        "evidence-11593dc1-1390-4f67-877f-528d71da5a62",
+        "evidence-11593dc1-1390-4f67-877f-528d71da5a62"
+      ]
+    },
+    {
+      "id": "AC-5",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-1da21b8c-8c73-4594-ba33-95ad42f8808c",
+        "evidence-11593dc1-1390-4f67-877f-528d71da5a62",
+        "evidence-11593dc1-1390-4f67-877f-528d71da5a62"
+      ]
+    },
+    {
+      "id": "AC-6",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-1da21b8c-8c73-4594-ba33-95ad42f8808c",
+        "evidence-11593dc1-1390-4f67-877f-528d71da5a62",
+        "evidence-11593dc1-1390-4f67-877f-528d71da5a62"
+      ]
+    }
+  ],
+  "evidenceIds": [
+    "evidence-1da21b8c-8c73-4594-ba33-95ad42f8808c",
+    "evidence-11593dc1-1390-4f67-877f-528d71da5a62",
+    "evidence-11593dc1-1390-4f67-877f-528d71da5a62"
+  ],
+  "revisionId": "revision-38efebd1-92b5-4729-9b85-6e9a28b5b593"
+}

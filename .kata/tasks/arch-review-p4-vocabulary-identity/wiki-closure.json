@@ -1,7 +1,9 @@
 {
   "taskId": "arch-review-p4-vocabulary-identity",
-  "decision": "deferred",
-  "reason": "Awaiting a knowledge-closure decision.",
-  "candidateIds": [],
-  "updatedAt": "2026-09-16T13:09:46.006Z"
+  "decision": "captured",
+  "reason": "Phase 4 carries three durable rules: a sentinel is a claim nobody enforces (the discriminated union, one ordered identity collection, accessors instead of fields), how to convert a widely-consumed type with the compiler driving and the conversion landing whole, and the fact that adding a refusal has an observable order relative to existing gates. Plus the containment consolidation and the distinction between the lexical workspace key and the realpath containment question.",
+  "candidateIds": [
+    "llmwiki-arch-review-p4-vocabulary-identity"
+  ],
+  "updatedAt": "2026-09-16T13:22:43.709Z"
 }
