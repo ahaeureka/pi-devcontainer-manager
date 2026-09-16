@@ -1,62 +1,30 @@
 {
-  "revisionId": "revision-9745e692-5773-48e7-9f3a-ad8c01071b62",
-  "status": "changes-requested",
-  "reviewEvidence": "Review of revision-9745e692 (Phase 3 / Selection integrity) by an INDEPENDENT adversarial reviewer — a fresh-context agent with no memory of the implementation — briefed to falsify four specific claims rather than to summarise intent: (a) that a v1 session log restores exactly as before, (b) that a stale container ID can never be trusted, (c) that a failed or cancelled `use` never engages (and the converse: that a successful one cannot fail to engage), and (d) that an explicit selection can never be clobbered by auto-selection. It was also told to check every acceptance criterion against the code rather than the tests, to sweep the repository for stale consumers of the changed shapes, to run the security profile, and to attack the new JSONC scanner with hostile inputs. Its value was immediate: it falsified (a) at no cost but FOUND AND PROVED a regression of AC-4 that the author's own tests could not see, because those tests only ever called the reconciliation WITH a configuration hint. VERDICT: AC-1, AC-2, AC-3, AC-5, AC-6, AC-7, AC-8 and AC-9 are satisfied as tested; AC-4 is NOT satisfied end-to-end, so this revision is blocked. The blocking finding and the majors/minors below are fixed in the working tree (commit 6ff66c3) and await the next sealed revision, where they will be re-verified. Clean per the independent pass: typecheck (no errors), 32 files / 381 tests at that revision, `dist` carrying the new code, v1-only logs restoring identically through the real reader path, no `--config` path smuggling (every candidate is validated by `resolveConfigCandidate`/`candidatesOf`), and the host-exec / stop / remove gates untouched. Also verified clean: every store write path is either membership-tested or the (now atomic) auto-select, which is the only unguarded writer.",
+  "revisionId": "revision-5ad6d8b9-9801-4578-a4e8-73b83f0490ba",
+  "status": "approved",
+  "reviewEvidence": "Approved against revision-5ad6d8b9, the repair of revision-9745e692. The review of the ORIGINAL revision was an INDEPENDENT adversarial pass by a fresh-context agent with no memory of the implementation, briefed to falsify four named claims (that a v1 session log restores exactly as before; that a stale container ID can never be trusted; that a failed or cancelled `use` never engages, and the converse that a successful one cannot fail to engage; that an explicit selection can never be clobbered by auto-selection), to check every acceptance criterion against the code rather than the tests, to sweep for stale consumers of the changed shapes, to run the security profile, and to attack the new JSONC scanner with hostile input. It earned its cost: it PROVED an AC-4 regression the author's own tests could not see (they only ever called the reconciliation with a configuration hint), and its clean findings are worth recording — v1-only logs restore identically through the real reader path, every store write is either membership-tested or the now-atomic auto-select, no `--config` path can be smuggled (all candidates are validated by `resolveConfigCandidate`/`candidatesOf`), and the host-exec / stop / remove gates are untouched. The blocking finding and the majors/minors were fixed in commit 6ff66c3 and are re-verified here: the reconciliation now carries the current selection's configuration when the caller supplies none (per workspace; an explicit hint still wins; nothing crosses workspaces), which is pinned by three new tests including the `/ws/project-a` + named-`python` case the reviewer used to demonstrate the regression; `allowsAutoSelection(decision)` gates the extension's auto-select hook so `/devcontainer off` holds in-session and not just across a reload; an unreadable configuration is reported like an unparsable one; an unterminated block comment is a syntax error instead of swallowing the rest of the file; the AC-8 race test now reproduces the production ordering with a real await gap; and the design no longer cites a test file that does not exist. The separate claim that a failed `use` persists evidence that would engage the session after a reload was traced and found NOT to hold (the ambiguous and no-candidate paths return before `applySelection`), and is now pinned by an assertion that the persisted list stays empty. Verification of this revision: `npm run typecheck`, 32 files / 387 unit tests, `verify-package.mjs --unit-tests` (all gates), a rebuilt `dist/` that matches a fresh build, the packed `smoke-pi-package.mjs --no-model`, and `npm run install:local -- --check`; `kata-cli verify` reports all nine acceptance criteria PASS. Process note recorded for the next phase: the repair originally sealed a revision whose own gate then rebuilt `dist/` AFTER hashing the owned paths, superseding the revision instantly — rebuild and commit `dist/` BEFORE sealing whenever `src/` changes.",
   "findings": [
     {
-      "id": "finding-reconcile-drops-selected-config",
+      "id": "finding-dispatch-wiring-still-uncovered",
       "taskId": "arch-review-p3-selection-integrity",
-      "acceptanceId": "AC-4",
-      "severity": "blocking",
-      "message": "FIXED PENDING RE-SEAL. `reconcileSelection` was called without a configuration by the `up` handler and by the `list` repair, so `selectionFor` fell back to the workspace's discovered primary and `reconcileSelection` re-persisted that primary. The selected configuration therefore reverted — for the mapping, the prompt context and the host container-path guard, and across the reload — immediately after the `use` → `up` flow the extension itself tells the operator to run. Proven with a direct call against the built module: `reconcile(..., {workspaceKey})` returned `candidate.configPath = undefined` and persisted a record with no `configPath`, while the same call with the named path in the hint returned it. The AC-4 tests missed it because they only ever pass the hint. Fix (6ff66c3): the reconciliation carries the CURRENT selection's configuration whenever the caller provides none, per workspace, so an already-selected config is never dropped; an explicit hint still wins; nothing is carried across workspaces.",
-      "path": "src/commands.ts"
-    },
-    {
-      "id": "finding-optout-undone-in-session",
-      "taskId": "arch-review-p3-selection-integrity",
-      "acceptanceId": "AC-2",
-      "severity": "major",
-      "message": "FIXED PENDING RE-SEAL. `/devcontainer off` held across a reload but not within the session: Pi cannot unregister the container tools, and `ExecutionService.exec` auto-selects whenever the store is empty, so the next `devcontainer_exec` resurrected the target the operator had just turned off — while README/CHANGELOG claimed the opt-out suppresses engagement until the operator selects again. Fix (6ff66c3): `allowsAutoSelection(decision)` gates the extension's auto-select hook on the session being engaged, and `off` records its true reason (`opted-out`) instead of `no-evidence`. The docs now also name the one exception (`activation: \"always\"` outranks the opt-out, deliberately: the operator's configuration says take over).",
-      "path": "extensions/index.ts"
-    },
-    {
-      "id": "finding-unreadable-config-still-silent",
-      "taskId": "arch-review-p3-selection-integrity",
-      "acceptanceId": "AC-1",
-      "severity": "minor",
-      "message": "FIXED PENDING RE-SEAL. Parse failures were reported, but a READ failure (`EACCES`, a vanished file, a swapped symlink) still returned empty facts silently, leaving the host container-path guard inactive with nothing said — half of AC-1's \"reported rather than looking like a config that declares no mapping\". `readWorkspaceConfig` now reports read failures through the same diagnostic path. Related, recorded rather than changed: the sink is drained by the `/devcontainer` dispatch (that is the surface with a guaranteed UI), so a diagnostic raised by the per-turn context reaches the operator at the next `/devcontainer` command. The `Pi` hooks that could drain it per turn (`before_agent_start`, `tool_call`) receive no command context to notify with.",
-      "path": "extensions/index.ts"
-    },
-    {
-      "id": "finding-unterminated-block-comment-swallowed",
-      "taskId": "arch-review-p3-selection-integrity",
-      "acceptanceId": "AC-1",
-      "severity": "minor",
-      "message": "FIXED PENDING RE-SEAL. The JSONC scanner treated an unterminated block comment as a comment running to end-of-file, so `parseJsonc('{\"a\":1} /* oops')` returned a mapping from a document that was actually truncated — the same fail-open shape L0-02 is about, one layer down. It is now a syntax error, which the caller reports as `unparsable`. Everything else the reviewer threw at the scanner held: nested/escaped quotes, `\\u` escapes, CRLF, a trailing comma with a comment between the comma and the bracket, a leading BOM; a lone `/` and empty input throw.",
-      "path": "src/jsonc.ts"
-    },
-    {
-      "id": "finding-ac8-race-untested-and-design-drift",
-      "taskId": "arch-review-p3-selection-integrity",
-      "acceptanceId": "AC-8",
-      "severity": "minor",
-      "message": "FIXED PENDING RE-SEAL. The AC-8 test enqueued the explicit selection first and therefore proved FIFO ordering rather than the production window (snapshot → awaited discovery → auto-select commit). A test now reproduces that ordering with a real await gap: the auto-selection is refused and the explicit selection survives. The design's matrix also cited `tests/unit/execution-service.test.ts` for this criterion, a file the branch never touched; the row now names the test that exists.",
-      "path": "tests/unit/target-store.test.ts"
-    },
-    {
-      "id": "finding-ambiguous-use-evidence-claim-checked",
-      "taskId": "arch-review-p3-selection-integrity",
-      "acceptanceId": "AC-6",
+      "acceptanceId": "AC-9",
       "severity": "note",
-      "message": "CHECKED, NOT A DEFECT — and now pinned. The reviewer warned that a failed `use` might still persist evidence that engages the session after a reload, contradicting AC-6's \"leaves the session exactly as it was\". Traced: the ambiguous and no-candidate paths return before `applySelection`, so nothing is persisted, and the test now asserts an empty persisted list for the ambiguous case. A restored-but-ambiguous record does activate on reload by design: it records a real earlier selection, and `bind()` still fails closed with the ambiguity remedy.",
-      "path": "src/commands.ts"
+      "message": "LIMITATION, RESTATED. Four behaviours live in the extension's command dispatch, which this repository has no unit harness for: delivering a handler's rendered result, draining the discovery diagnostics, the engagement gate, and reading the workspace configuration (which now reports both parse and read failures). Their policy halves are unit-tested (`displayCommandResult`, `reportDiscoveryDiagnostics`, `allowsAutoSelection`, `readConfigFacts`) and the wiring rests on the packed smoke run; a change to the dispatch must be smoke-checked rather than trusted to the unit suite.",
+      "path": "extensions/index.ts"
+    },
+    {
+      "id": "finding-diagnostics-flush-deferred",
+      "taskId": "arch-review-p3-selection-integrity",
+      "acceptanceId": "AC-1",
+      "severity": "note",
+      "message": "RECORDED. The diagnostic sink is drained by the `/devcontainer` dispatch — the one surface with a guaranteed UI. A diagnostic raised by the per-turn execution context (an unparsable or unreadable configuration disabling the host guard) therefore reaches the operator at the next `/devcontainer` command, not immediately; the sink dedupes, so it is reported once. The Pi hooks that could drain it per turn (`before_agent_start`, `tool_call`) are not given a command context to notify with, so closing this properly means a different reporting channel, not a bigger drain.",
+      "path": "extensions/index.ts"
     },
     {
       "id": "finding-up-dormant-when-refresh-unknown",
       "taskId": "arch-review-p3-selection-integrity",
       "acceptanceId": "AC-7",
       "severity": "note",
-      "message": "RECORDED. The converse of AC-6: a successful `up` whose refreshed registry does not know the workspace now leaves the session dormant (no engagement), where the old code engaged unconditionally. Engaging would be wrong — `bind()` would refuse — and the operator is not left guessing: the `up` result reports `selection: <status>`, which reaches them now that command output is actually delivered (Phase 2's fix). Kept as a note so a future change to the engagement gate does not have to rediscover the trade-off.",
+      "message": "RECORDED. The converse of AC-6: a successful `up` whose refreshed registry does not know the workspace leaves the session dormant (no engagement), where the old code engaged unconditionally. Engaging would be wrong — `bind()` would refuse — and the operator is not left guessing: the `up` result reports `selection: <status>`, which reaches them now that command output is actually delivered (Phase 2's fix).",
       "path": "src/commands.ts"
     },
     {
@@ -64,7 +32,7 @@
       "taskId": "arch-review-p3-selection-integrity",
       "acceptanceId": "AC-5",
       "severity": "note",
-      "message": "RECORDED. When a configuration declares no `workspaceFolder`/`workspaceMount`, there is no mapping to exclude against, so every absolute mount target is reported as container-only — including a bind that in fact covers the workspace. It is a prompt fact, not a guard, and erring toward \"the host may not see this\" is the safe direction; the alternative (guessing the CLI's default workspace target) would fabricate a fact.",
+      "message": "RECORDED. When a configuration declares no `workspaceFolder`/`workspaceMount`, there is no mapping to exclude against, so every absolute mount target is reported as container-only — including a bind that in fact covers the workspace. It is a prompt fact, not a guard, and erring toward \"the host may not see this\" is the safe direction; guessing the CLI's default workspace target would fabricate a fact instead.",
       "path": "src/path-mapper.ts"
     },
     {
@@ -72,16 +40,16 @@
       "taskId": "arch-review-p3-selection-integrity",
       "acceptanceId": "AC-3",
       "severity": "note",
-      "message": "RECORDED (pre-existing). A still-listed but stopped candidate passes the new membership test while `selectionFor` stamps the entry's state, so `bind()` can report `selected-valid` for a stopped container; the adapter then hands the CLI `--container-id <stopped>` and the CLI fails. There is no wrong-container risk (the id is real), and the failure is typed; a future pass could cross-check the candidate's state instead.",
+      "message": "RECORDED (pre-existing). A still-listed but stopped candidate passes the membership test while `selectionFor` stamps the entry's state, so `bind()` can report `selected-valid` for a stopped container; the adapter then hands the CLI `--container-id <stopped>` and the CLI fails. No wrong-container risk (the id is real) and the failure is typed; a later pass could cross-check the candidate's state instead.",
       "path": "src/commands.ts"
     },
     {
-      "id": "finding-dispatch-wiring-still-uncovered",
+      "id": "finding-seal-must-follow-a-dist-rebuild",
       "taskId": "arch-review-p3-selection-integrity",
       "acceptanceId": "AC-9",
       "severity": "note",
-      "message": "LIMITATION, RESTATED. Three behaviours now live in the extension's command dispatch, which this repository has no unit harness for: delivering a handler's rendered result, draining the discovery diagnostics, and the new engagement gate. Their policy halves are unit-tested (`displayCommandResult`, `reportDiscoveryDiagnostics`, `allowsAutoSelection`) and the wiring rests on the packed smoke run; a change to the dispatch must be smoke-checked rather than trusted to the unit suite.",
-      "path": "extensions/index.ts"
+      "message": "PROCESS LESSON, recorded because it cost a full re-seal cycle. The repair changed `src/` without rebuilding `dist/`; the seal's own gate then rebuilt `dist/` AFTER hashing the owned paths, so the revision superseded itself immediately and `verify` reported `revision_superseded` for all nine criteria. Rebuild and commit `dist/` BEFORE sealing whenever anything under `src/` or `extensions/` changes — the same rule the CHANGELOG/README hygiene already implies, now with the failure mode named.",
+      "path": "dist"
     }
   ]
 }
