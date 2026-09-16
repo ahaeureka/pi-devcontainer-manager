@@ -16,7 +16,7 @@ import { ExecutionService } from "../../src/execution-service.js";
 import { RuntimeError } from "../../src/errors.js";
 import type { AuditWriter } from "../../src/audit.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
-import type { ExecutionContext, TargetStore } from "../../src/target-store.js";
+import { TargetStore, type ExecutionContext } from "../../src/target-store.js";
 import type { DevcontainerAdapter, ExecResult, UpResult, BuildResult } from "../../src/runtime/devcontainer-adapter.js";
 import type { DockerLifecycleAdapter, LifecycleConfirmation, LifecycleResult } from "../../src/runtime/docker-lifecycle.js";
 import type { DockerContainer } from "../../src/runtime/docker-adapter.js";
@@ -49,7 +49,10 @@ function fakeTargetStore(snapshotStatus: string = "selected-valid"): { store: Ta
   return {
     store: {
       bind: () => ctx,
-      snapshot: () => ({ status: snapshotStatus, workspaceKey: undefined, candidateId: undefined, detail: undefined }),
+      // The snapshot has to agree with what bind() returns: the service verifies the requested
+      // container against the snapshot, and a fake that reports no candidate made every operation
+      // look like a mismatch.
+      snapshot: () => ({ status: snapshotStatus, workspaceKey: "/ws/project-a", candidateId: "abc123", detail: undefined }),
     } as unknown as TargetStore,
     bound: ctx,
   };
@@ -458,7 +461,7 @@ describe("bound container identity (L3-07)", () => {
     // Refused before Docker runs, and the trail never records the caller's identity as the target.
     const records = recordList(audit);
     expect(records.every((record) => record.targetId !== "sibling")).toBe(true);
-    expect(records.some((record) => record.errorSummary?.includes("bound target"))).toBe(true);
+    expect(records.some((record) => record.errorSummary?.includes("is not the selected target"))).toBe(true);
   });
 
   it("acts on the bound container and records the bound identity", async () => {
@@ -503,5 +506,88 @@ describe("bound container identity (L3-07)", () => {
     });
 
     expect(result.status).toBe("done");
+  });
+});
+
+describe("bound container identity with the REAL store (L3-07)", () => {
+  // The suite above uses a fake store whose bind() always succeeds, which is exactly why the
+  // over-refusal the review found (a STOPPED target could no longer be logged, stopped or removed)
+  // was invisible. These drive the real TargetStore.
+  const realStore = (state: "running" | "exited", status: "selected-valid" | "selected-stopped") => {
+    const store = new TargetStore({ clock: () => "2026-09-16T00:00:00.000Z" });
+    return store
+      .select({
+        status,
+        workspaceKey: "/ws/project-a",
+        candidate: { id: "abc123", name: "project-a", workspaceKey: "/ws/project-a", state, status: state },
+      })
+      .then(() => store);
+  };
+
+  const withLifecycle = (store: TargetStore, config = makeConfig()) => {
+    const lifecycle: DockerLifecycleAdapter = {
+      ...fakeDockerLifecycle().adapter,
+      logs: vi.fn(async () => ({ exitCode: 0, output: "log-line", truncated: false })),
+    };
+    const audit: AuditWriter = { write: vi.fn(), prune: vi.fn() };
+    return new ExecutionService({
+      config,
+      targetStore: store,
+      devcontainer: fakeDevcontainer([]).adapter,
+      dockerLifecycle: lifecycle,
+      audit,
+    });
+  };
+
+  it("logs a STOPPED target (reading the logs of an exited container is the point)", async () => {
+    const store = await realStore("exited", "selected-stopped");
+    const service = withLifecycle(store);
+
+    await expect(
+      service.logs({ initiator: "slash-command", workspace: "/ws/project-a", containerId: "abc123" }),
+    ).resolves.toMatchObject({ output: "log-line" });
+  });
+
+  it("stops and removes a STOPPED target (cleanup must not need a running container)", async () => {
+    const store = await realStore("exited", "selected-stopped");
+    const service = withLifecycle(store, makeConfig({ destructive: { allowStop: true, allowRemove: true } }));
+    const stoppedContainer: DockerContainer = {
+      id: "abc123",
+      name: "project-a",
+      state: "exited",
+      status: "exited",
+      image: "",
+      created: "",
+      labels: {},
+    };
+
+    await expect(
+      service.lifecycle({
+        operation: "remove",
+        initiator: "slash-command",
+        workspace: "/ws/project-a",
+        container: stoppedContainer,
+        confirmation: { token: "t", action: "remove", containerId: "abc123" },
+      }),
+    ).resolves.toMatchObject({ status: "done" });
+  });
+
+  it("still refuses a container that is not the selected candidate, with the real store", async () => {
+    const store = await realStore("running", "selected-valid");
+    const service = withLifecycle(store);
+
+    await expect(
+      service.logs({ initiator: "slash-command", workspace: "/ws/project-a", containerId: "sibling" }),
+    ).rejects.toMatchObject({ kind: "policy-denied" });
+  });
+
+  it("refuses with the store's own typed error when nothing is selected at all", async () => {
+    const store = new TargetStore({ clock: () => "2026-09-16T00:00:00.000Z" });
+    const service = withLifecycle(store);
+
+    // The refusal is the selection's, not a generic denial: `no-candidate` names the remedy.
+    await expect(
+      service.logs({ initiator: "slash-command", workspace: "/ws/project-a", containerId: "abc123" }),
+    ).rejects.toMatchObject({ kind: "no-candidate" });
   });
 });

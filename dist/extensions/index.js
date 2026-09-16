@@ -233,7 +233,6 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
         execution,
         registry,
         refreshRegistry: registry,
-        logs: (container, options) => dockerLifecycle.logs(container.id, options),
         hostRunner,
         setupCli: createSetupCli({ runner, audit, config, sessionWorkspace, env }),
     };

@@ -54,7 +54,10 @@ export function isWithinWorkspace(root: string, candidate: string, platform: Nod
   const base = canonicalWorkspaceKey(resolveRealPathFor(root), platform);
   const target = canonicalWorkspaceKey(resolveRealPathFor(candidate), platform);
   if (target === base) return true;
-  return target.startsWith(`${base}/`);
+  // The filesystem root contains everything; `${base}/` would build `//` and deny every workspace
+  // under an `allowedWorkspaceRoots: ["/"]` configuration (the review caught exactly that).
+  const prefix = base.endsWith("/") ? base : `${base}/`;
+  return target.startsWith(prefix);
 }
 
 /** `realpath` when it resolves, else the path unchanged (the platform fold happens in the key). */

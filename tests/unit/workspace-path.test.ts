@@ -59,6 +59,14 @@ describe("isWithinWorkspace", () => {
     expect(isWithinWorkspace("/Repo", "/repo/app", "linux")).toBe(false);
   });
 
+  it("treats the filesystem root as containing every absolute path", () => {
+    // `allowedWorkspaceRoots: ["/"]` is the natural "allow everything" value; a prefix test that
+    // builds `"//"` from it silently denied every workspace (the review caught this).
+    expect(isWithinWorkspace("/", "/tmp")).toBe(true);
+    expect(isWithinWorkspace("/", root)).toBe(true);
+    expect(isWithinWorkspace("/", "/")).toBe(true);
+  });
+
   it("refuses a relative path on either side", () => {
     expect(isWithinWorkspace("repo", inside)).toBe(false);
     expect(isWithinWorkspace(root, "repo/app")).toBe(false);

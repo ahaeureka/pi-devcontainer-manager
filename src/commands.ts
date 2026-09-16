@@ -53,8 +53,6 @@ export interface CommandServices {
   readonly registry: () => Promise<{ entries: readonly import("./types.js").RegistryEntry[]; diagnostics: readonly string[] }>;
   /** Re-run host + docker discovery and return the fresh registry. */
   readonly refreshRegistry: () => Promise<{ entries: readonly import("./types.js").RegistryEntry[]; diagnostics: readonly string[] }>;
-  /** Bounded container logs (wired to the docker lifecycle adapter). */
-  readonly logs: (container: DockerContainer, options?: { tail?: number; signal?: AbortSignal }) => Promise<{ exitCode: number | null; output: string; truncated: boolean }>;
   /** Optional explicit host runner for `/devcontainer host-exec` (policy-gated). */
   readonly hostRunner?: {
     run(argv: readonly string[], options?: { timeoutMs?: number; signal?: AbortSignal }): Promise<{
@@ -219,7 +217,7 @@ export function selectionFor(
   // More than one running container for this workspace: Docker result order
   // must never decide the target. Fail closed until an explicit id is given.
   if (entry.ambiguous === true && candidateId === undefined) {
-    const ids = (entry.containerCandidates ?? []).map((c) => c.id).join(", ");
+    const ids = entry.containerCandidates.map((c) => c.id).join(", ");
     return {
       status: "selected-ambiguous",
       workspaceKey: entry.workspacePath,
@@ -461,7 +459,7 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     if (candidates.length === 1) {
       const only = candidates[0]!;
       if (only.ambiguous === true) {
-        const ids = (only.containerCandidates ?? []).map((c) => c.id);
+        const ids = only.containerCandidates.map((c) => c.id);
         return {
           text: `[ambiguous-candidate] Multiple running containers for \`${only.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`,
         };

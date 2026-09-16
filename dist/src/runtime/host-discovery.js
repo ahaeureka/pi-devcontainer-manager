@@ -212,12 +212,15 @@ function isExistingFile(path, traversal) {
  * Merge host configuration discoveries with Docker label candidates into a
  * single workspace registry keyed by the canonicalized real workspace path.
  *
- * - host + docker on the same key -> `"both"` with the first candidate's id/state
- * - host only -> `"host-config"`
- * - docker only -> `"docker-label"` placeholder retained with its full candidate
- *   list in `containerCandidates` (the locked `RegistryEntry`
- *   requires `configPath`/`configKind`, so a placeholder kind is recorded;
- *   `discoveredFrom: "docker-label"` is the authoritative discriminator)
+ * Each entry's variant (`kind`) says what was found — `"config"` when the host owns a configuration
+ * (with or without a labelled container), `"container-only"` when the workspace is known only through
+ * a labelled container. `discoveredFrom` records HOW it was found and is informational: it carries no
+ * state that `kind` does not already determine (review finding L4-04).
+ *
+ * - host + docker on the same key -> `kind: "config"`, `discoveredFrom: "both"`
+ * - host only -> `kind: "config"`, `discoveredFrom: "host-config"`
+ * - docker only -> `kind: "container-only"`, `discoveredFrom: "docker-label"` — no configuration path
+ *   and no placeholder kind, because there is no configuration
  * - a candidate without a `devcontainer.local_folder` label has no workspace
  *   identity and is never registered; a diagnostic is emitted instead
  */

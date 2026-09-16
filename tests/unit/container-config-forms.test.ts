@@ -244,10 +244,10 @@ describe("buildWorkspaceRegistry — configuration candidates", () => {
       "/repo/.devcontainer/python/devcontainer.json",
       "/repo/.devcontainer/node/devcontainer.json",
     ]);
-    expect(entries[0]?.configCandidates?.map((candidate) => candidate.configPath)).toEqual([
+    expect(entries[0]?.configCandidates.map((candidate) => candidate.configPath)).toEqual([
       "/repo/.devcontainer/node/devcontainer.json",
       "/repo/.devcontainer/python/devcontainer.json",
     ]);
-    expect(entries[0]?.configCandidates?.every((candidate) => candidate.configKind === ".devcontainer/<name>/devcontainer.json")).toBe(true);
+    expect(entries[0]?.configCandidates.every((candidate) => candidate.configKind === ".devcontainer/<name>/devcontainer.json")).toBe(true);
   });
 });

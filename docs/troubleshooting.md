@@ -149,10 +149,11 @@ become resolvable on PATH afterwards. See
 
 ### A command says the container "is not the bound target"
 
-`logs`, `stop` and `remove` act only on the container the session currently has selected. If the
-refusal names a different container than the one you expected, the session's selection changed (or was
-never bound); run `/devcontainer status` to see the target, then `/devcontainer use` to select the one
-you meant. This check exists so a stale id cannot make the service operate on a container the session
+`logs`, `stop` and `remove` act only on the container the session currently has selected — a stopped
+selection is fine (that is what these are for), but a *different* container is not. If the refusal
+names a container other than the one you expected, the session's selection changed (or nothing is
+selected at all, in which case the error says which state it is in); run `/devcontainer status` to see
+the target, then `/devcontainer use` to select the one you meant. This check exists so a stale id cannot make the service operate on a container the session
 never authorized.
 
 ### `devcontainer_host_exec` is denied
