@@ -1,0 +1,33 @@
+{
+  "protocolVersion": 1,
+  "taskId": "arch-review-p3-selection-integrity",
+  "handoffId": "handoff-d7ce36be-5d5",
+  "platform": "pi",
+  "role": "judge",
+  "packetSha256": "bdc981259ff80e19d5541dbec955a4c875aa9af2ed34d6ddce8fbf73417f91e3",
+  "acknowledgedAt": "2026-09-16T03:16:02.841Z",
+  "repository": {
+    "head": "fa67687f51207b5f801f2f994ad785da3145080d",
+    "branch": "feature/arch-review-p3-selection-integrity",
+    "diffHash": "e73b3482090d57a510b8da624fbed7ddb5c5405fe44f145c95c0e776d7d8a4b6",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-5ad6d8b9-9801-4578-a4e8-73b83f0490ba",
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "README.zh-CN.md",
+        "dist",
+        "docs",
+        "extensions",
+        "openspec",
+        "package.json",
+        "scripts",
+        "src",
+        "tests"
+      ],
+      "hash": "e73b3482090d57a510b8da624fbed7ddb5c5405fe44f145c95c0e776d7d8a4b6"
+    },
+    "worktreeRoot": "."
+  }
+}

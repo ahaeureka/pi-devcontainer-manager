@@ -1,5 +1,8 @@
 {
   "taskId": "arch-review-p3-selection-integrity",
   "boundary": "judge_gate",
-  "createdAt": "2026-09-16T02:39:43.961Z"
+  "createdAt": "2026-09-16T02:39:43.961Z",
+  "choice": "continue_current",
+  "approvedAt": "2026-09-16T03:16:02.479Z",
+  "consumedAt": "2026-09-16T03:16:03.223Z"
 }
