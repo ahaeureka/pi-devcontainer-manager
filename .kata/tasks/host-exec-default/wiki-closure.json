@@ -1,0 +1,7 @@
+{
+  "taskId": "host-exec-default",
+  "decision": "deferred",
+  "reason": "Awaiting a knowledge-closure decision.",
+  "candidateIds": [],
+  "updatedAt": "2026-09-16T05:37:49.965Z"
+}

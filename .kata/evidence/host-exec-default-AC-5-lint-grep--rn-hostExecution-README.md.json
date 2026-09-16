@@ -1,0 +1,32 @@
+{
+  "id": "evidence-3876746b-28fb-4b9f-bb3a-3995dfde86c1",
+  "taskId": "host-exec-default",
+  "name": "AC-5-lint-grep -rn hostExecution README.md",
+  "kind": "lint",
+  "command": "grep -rn hostExecution README.md",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-16T05:37:33.686Z",
+  "finishedAt": "2026-09-16T05:37:33.693Z",
+  "diffHash": "4384219e09691162d610248c9f1fac6fb1ea7574d6710b40a577b4b8cfd38290",
+  "log": "214:| `/devcontainer host-exec <argv...>` | Audited host escape hatch (granted by default; a configuration can withhold it with `hostExecution.allow: false`) |\n281:`hostExecution.allow` is the one grant that ships **enabled** (host execution is\n295:  \"hostExecution\": { \"allow\": true }\n364:`ambiguous-candidate`, denied `hostExecution`, a missing audit file, a container-only\n",
+  "revisionId": "revision-dd3c9baa-234a-4c43-94bb-fca084ff1647",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "SECURITY.md",
+      "dist",
+      "docs",
+      "examples",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "380940211ff14bd9f97fd16edd896f92ad12a31a42d14fe367f93c5111768434"
+  }
+}

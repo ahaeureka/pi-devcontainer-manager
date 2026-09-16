@@ -1,9 +1,8 @@
 {
   "taskId": "host-exec-default",
-  "role": "designer",
-  "phase": "intake",
-  "platform": "pi",
+  "role": "reviewer",
+  "phase": "hardVerify",
   "branch": "feature/host-exec-default",
-  "origin": "handoff",
-  "activatedAt": "2026-09-16T03:58:10.930Z"
+  "origin": "workflow",
+  "activatedAt": "2026-09-16T05:37:50.061Z"
 }
