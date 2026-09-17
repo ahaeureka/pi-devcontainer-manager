@@ -1,13 +1,13 @@
 {
-  "revisionId": "revision-1b84c6b515d35b5b",
+  "revisionId": "revision-797695aaa7a96f13",
   "findings": [
     {
-      "id": "finding-two-majors-closed",
+      "id": "finding-blocking-leak-from-own-fix",
       "taskId": "routing-hardening",
       "acceptanceId": "AC-1",
       "severity": "blocking",
-      "message": "PROCESS: the rev-14 node pair returned TWO majors — a scheme-less credential-shaped argv[0] was rendered in full by displayProgram (the URL branch only triggered on `://`), and Docker's own listing order could decide the target because containerCandidates was not running-first while `ambiguous` only trips for more than one RUNNING container — plus the claim-vs-code gaps (host-runner's sameSpot never actually delegated, containerOnlyMounts kept its own prefix math, the withheld path double-rendered, a dead keepText binding, a wrong redaction comment, and both READMEs missing the reverse guard). All fixed in this revision. Re-sealing.",
-      "path": "src/policy.ts"
+      "message": "The rev-15 review node found a BLOCKING leak introduced by the previous commit's double-render fix: the withheld-attempt notice interpolated the raw argv element, so command text (and a credential) reached the operator channel; plus a major (displayProgram's scheme-less branch rendered the last path segment verbatim, so `./alice:hunter2@host` rendered the credential) and a nit (hostToContainer still hand-rolled the prefix math). All three fixed: the notice renders through displayProgram, the scheme-less branch looks for userinfo in the whole token, and the last private segment site delegates to the shared predicate.",
+      "path": "extensions/index.ts"
     }
   ],
   "status": "pending"
