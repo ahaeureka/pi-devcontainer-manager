@@ -1,16 +1,24 @@
 {
   "fromPhase": "review",
-  "reason": "revision_superseded",
-  "baselineRevisionId": "revision-774184d3af8447ff",
-  "baselineManifestHash": "28b7416dd22b00c4e7966bd9fee70cb67d1689087d43fbd9f32715804e88981c",
-  "findings": [],
+  "reason": "review_findings",
+  "baselineRevisionId": "revision-a7379c7b00ec4380",
+  "baselineManifestHash": "81394d21e7f2950e9e9c265b791029ce7c3eb91088423633145cd0bf36fbf421",
+  "findings": [
+    {
+      "id": "finding-tree-moved-after-rev12-verify",
+      "acceptanceId": "AC-1",
+      "severity": "blocking",
+      "message": "PROCESS, not a defect: the rev-12 verify node returned two majors — my previous edit to the free-text refusal never applied (a silent no-op replace: the lesson I had just written into the wiki), and the URL rule required a non-empty username so `redis://:hunter2@cache:6379` rendered its password — plus two minors (raw-string same-path exemption, stale setCapture contract). All fixed in this revision, together with the REAL cause of the flaky real-Docker suites (vitest runs test FILES in parallel and both Docker suites use the same fixture containers). Re-sealing.",
+      "path": "src/commands.ts"
+    }
+  ],
   "taskId": "routing-hardening",
   "toPhase": "implement",
   "actor": {
     "id": "kata-agent",
     "role": "implementer"
   },
-  "createdAt": "2026-09-17T13:36:03.202Z",
-  "resolvedAt": "2026-09-17T13:36:48.912Z",
-  "resolvedRevisionId": "revision-a7379c7b00ec4380"
+  "createdAt": "2026-09-17T14:00:15.010Z",
+  "resolvedAt": "2026-09-17T14:01:46.295Z",
+  "resolvedRevisionId": "revision-d48c4ad5369ab489"
 }

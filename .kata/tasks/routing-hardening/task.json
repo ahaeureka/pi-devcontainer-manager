@@ -255,6 +255,7 @@
     "package.json",
     "scripts",
     "src",
-    "tests"
+    "tests",
+    "vitest.config.ts"
   ]
 }
