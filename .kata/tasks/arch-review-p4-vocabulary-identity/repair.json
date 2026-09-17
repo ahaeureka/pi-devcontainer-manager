@@ -1,6 +1,6 @@
 {
-  "fromPhase": "judge",
-  "reason": "judge_fail",
+  "fromPhase": "hardVerify",
+  "reason": "verify_fail",
   "scopes": [
     {
       "id": "AC-1",
@@ -33,5 +33,5 @@
     "id": "kata-agent",
     "role": "implementer"
   },
-  "createdAt": "2026-09-17T07:16:09.442Z"
+  "createdAt": "2026-09-17T07:19:52.884Z"
 }

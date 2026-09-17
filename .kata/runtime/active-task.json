@@ -2,8 +2,7 @@
   "taskId": "arch-review-p4-vocabulary-identity",
   "role": "reviewer",
   "phase": "hardVerify",
-  "platform": "pi",
   "branch": "feature/arch-review-p4-vocabulary-identity",
-  "origin": "handoff",
-  "activatedAt": "2026-09-17T07:18:53.364Z"
+  "origin": "workflow",
+  "activatedAt": "2026-09-17T07:20:38.000Z"
 }
