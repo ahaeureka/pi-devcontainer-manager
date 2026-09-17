@@ -1,8 +1,8 @@
 {
   "taskId": "arch-review-p4-vocabulary-identity",
   "role": "reviewer",
-  "phase": "hardVerify",
+  "phase": "review",
   "branch": "feature/arch-review-p4-vocabulary-identity",
   "origin": "workflow",
-  "activatedAt": "2026-09-16T15:01:27.702Z"
+  "activatedAt": "2026-09-17T07:08:10.682Z"
 }
