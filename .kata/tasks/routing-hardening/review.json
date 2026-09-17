@@ -1,31 +1,15 @@
 {
   "revisionId": "revision-77f7f98ec983bc0b",
-  "status": "approved",
+  "status": "pending",
   "reviewEvidence": "Approved against revision-77f7f98e, the repair of revision-b06b91fe. The review was an INDEPENDENT adversarial pass by a fresh-context subagent (no memory of the implementation), briefed to falsify the ledger's completeness and its one-shot semantics, the reverse guard's false positives and false negatives, the picker against its own 'Docker order never decides' rule, the review's ten contract invariants, and the test quality. It returned three majors, three minors and two nits with NO blocking defect, and all eight were real. FIXED AND RE-VERIFIED: (1) `/devcontainer status` never received the host-run summary (my patch hit `/devcontainer list`'s call site only), so AC-1's claim, the CHANGELOG bullet, `docs/security.md` and a README row were all false while the suite stayed green — fixed, and the status test now asserts the line. (2) The reverse guard's mapping read sat OUTSIDE an audit boundary: the real `mappingFor` goes through the registry (`docker ps`), so a Docker failure escaped with no record, breaking the invariant that every failure path lands on a channel someone reads; it now sits in an audited try/catch that rethrows unchanged. (3) A mirror mount was refused: a configuration that makes a host path visible in the container at its own path (`mounts: source == target`) is not a mis-route — the guard now skips paths the configuration declares visible and never refuses the container's own path space (it previously refused the very path its own remedy named when the container path sat beneath the host path). (4) The picker had no `hasUI` guard, the only prompt in that file without one — a print/json run could have hung or thrown; it now degrades to the refusal, with a test. (5) The ledger stored argv VERBATIM, so `curl -H \"authorization: Bearer sk-live-…\"` would have been rendered in `/devcontainer status` — a plaintext copy of what the audit trail deliberately captures by fingerprint; it now redacts with the same rule set (`redactText`, now exported from `src/policy.ts`) and calls them what they are, host command ATTEMPTS, because a refused attempt is exactly what an operator should see. (6) The guard was documented as not covering routed-shell text, quoted values, `~`, relative or symlinked spellings — all false NEGATIVES, i.e. the status quo, and recorded rather than silently left. (7) The notice said 'first host command' for a command that may never have run; the wording is now 'attempt', which is what the ledger counts. (8) Four documentation errors: the new 'deliberate asymmetry' section had been inserted INSIDE the gates table (orphaning its rows), the English README carried `/devcontainer use` twice, the Chinese README lacked the row, and the status row's description did not mention the new line. Its clean categories: the guard's narrowness and its audited refusal, the forward guard, the `stop`/`remove` gates, `/devcontainer setup`, the audit shape and `0600`, argv shapes and the host path to the CLI, and discovery staying lazy/read-only/bounded. Verification of this revision: `npm run typecheck`; `npx vitest run` 41 files / 491 tests; `verify-package.mjs --unit-tests`; a `dist/` rebuilt in the same commit as the sources; the packed `smoke-pi-package.mjs --no-model`; `npm run install:local -- --check`; and `kata-cli verify` reporting all six acceptance criteria PASS.",
   "findings": [
     {
-      "id": "finding-guard-holes-are-status-quo",
-      "taskId": "routing-hardening",
-      "acceptanceId": "AC-3",
-      "severity": "nit",
-      "message": "RECORDED, deliberate. The reverse guard does not see routed-shell text (`bash -c 'cat <host>/x'`), a `~`-relative or symlinked spelling, a path inside a `PATH=` style list, or a host path belonging to a DIFFERENT workspace than the bound target. All are false NEGATIVES — the status quo, not a regression — and the reasoning is the Phase-5 conclusion that a heuristic over shell text cannot be made safe. The structured surface is exact and that is where the guard lives.",
-      "path": "src/routing-guard.ts"
-    },
-    {
-      "id": "finding-picker-labels-lack-image",
+      "id": "finding-tree-moved-after-adversarial-pass",
       "taskId": "routing-hardening",
       "acceptanceId": "AC-4",
-      "severity": "nit",
-      "message": "RECORDED. The picker labels are `id — state`; `RegistryCandidate` carries no image field, and fetching one would put a Docker read inside the command path. Two candidates sharing their first 12 characters would render identical labels, in which case the first match wins — a 64-character-id collision is not a realistic case, and cancelling still keeps the refusal.",
+      "severity": "blocking",
+      "message": "PROCESS, not a defect: the recorded kata adversarial pass on revision-77f7f98e returned one major, four minors and one nit (all fixed in a0b7c14), so the tree no longer matches the sealed revision. The major was the picker being unreachable when the ambiguous workspace was not the only match (it bound an ambiguous selection and answered with a success-shaped message and no target); the minors were the operator notice rendering RAW argv (a bearer token reached the UI while the ledger and audit redacted it), the reverse guard's refusal being audited as an authorized run, the same-path exemption keying on the mount target only, and none of the new wiring being tested.",
       "path": "src/commands.ts"
-    },
-    {
-      "id": "finding-ledger-lifetime-is-the-extension",
-      "taskId": "routing-hardening",
-      "acceptanceId": "AC-1",
-      "severity": "nit",
-      "message": "RECORDED. The ledger lives for the extension instance, so a `/reload` resets the count and the one-shot notice — 'this session' means 'since the extension loaded'. Making it survive a reload would mean persisting it, which is the audit trail's job; the summary is deliberately ephemeral.",
-      "path": "extensions/index.ts"
     }
   ]
 }
