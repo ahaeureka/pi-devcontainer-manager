@@ -1,15 +1,15 @@
 {
   "fromPhase": "review",
   "reason": "review_findings",
-  "baselineRevisionId": "revision-4b7ba535f1a33572",
-  "baselineManifestHash": "1ec86555d4717c894b988bf15bb9e17b66ddb23642d8d42c89403d08d526bce4",
+  "baselineRevisionId": "revision-42a78a3bfebee0cf",
+  "baselineManifestHash": "adf09f92f08555f08665ddee72db5f6efd9a689e35d38f775ad1c1b8ddba715d",
   "findings": [
     {
-      "id": "finding-tree-moved-after-third-pass",
-      "acceptanceId": "AC-1",
+      "id": "finding-tree-moved-after-fourth-pass",
+      "acceptanceId": "AC-4",
       "severity": "blocking",
-      "message": "PROCESS, not a defect: the recorded adversarial pass on revision-4b7ba535 returned one major, three minors and one nit (all fixed in 00e40d2) — the withheld-attempt hook was wired to the tool that ignores it instead of the host-exec tool that reads it, the nested exemption exempted the whole host space, `samePathMounts` compared raw strings, the Chinese README kept a duplicate row, and the ledger was process-scoped rather than session-scoped.",
-      "path": "extensions/index.ts"
+      "message": "PROCESS, not a defect: the recorded adversarial pass on revision-42a78a3b returned ONE major finding and nothing else (all other claims refuted), fixed in d6c19f8 — `selectionFor` took the candidate state from the workspace's primary candidate while the id came from the picker, so choosing a stopped sibling of a running primary recorded `running` and choosing a running sibling of a stopped primary answered `target-stopped`. Re-sealing so the record matches the tree.",
+      "path": "src/commands.ts"
     }
   ],
   "taskId": "routing-hardening",
@@ -18,7 +18,7 @@
     "id": "kata-agent",
     "role": "implementer"
   },
-  "createdAt": "2026-09-17T10:38:48.517Z",
-  "resolvedAt": "2026-09-17T10:39:35.915Z",
-  "resolvedRevisionId": "revision-42a78a3bfebee0cf"
+  "createdAt": "2026-09-17T10:53:16.378Z",
+  "resolvedAt": "2026-09-17T10:54:03.194Z",
+  "resolvedRevisionId": "revision-08fd4eb173c0da96"
 }
