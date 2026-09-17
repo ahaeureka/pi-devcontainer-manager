@@ -393,11 +393,10 @@ export default function (pi) {
         // when set, and `enabled: false` accepts records but persists nothing.
         const audit = new JsonlAuditWriter(config.audit.directory ?? defaultAuditDirectory(), config.audit.retentionDays, config.audit.enabled);
         const rt = composeRuntime(config, audit, ctx.cwd, activation);
-        // Composition itself is synchronous, but a start that was superseded while the config was being
-        // read must not take the surface over.
-        if (superseded())
+        // The runtime assignment is a surface mutation like any other, so it goes through the guard (a
+        // start that is already superseded — e.g. by a command-path activation change — applies nothing).
+        if (!lifecycle.ifCurrent(generation, () => void (runtime = rt)))
             return;
-        runtime = rt;
         // Activation is decided BEFORE any execution surface is registered. In a
         // workspace that is not a DevContainer project the extension must leave Pi's
         // built-in `bash`, `!`/`!!`, and the host file tools alone instead of taking
@@ -429,6 +428,8 @@ export default function (pi) {
         // refires on /reload and session switches; same-name re-registration replaces
         // the prior definitions.
         const surfaces = surfacesFor(decision);
+        if (!lifecycle.ifCurrent(generation, () => undefined))
+            return;
         if (surfaces.containerTools)
             registerDevcontainerTools(pi, () => runtime);
         if (surfaces.bashReplacement)
@@ -447,14 +448,14 @@ export default function (pi) {
                 // without a manual re-`use`. The selected CONFIGURATION travels with it, so the mapping,
                 // the prompt context and the host-path guard are built from the configuration the
                 // operator chose rather than the workspace's primary one (L1-04).
-                await runtime.reconcileSelection({
+                await rt.reconcileSelection({
                     workspaceKey: record.workspaceKey,
                     ...(record.candidateId !== undefined ? { candidateId: record.candidateId } : {}),
                     ...(record.version === 2 && record.configPath !== undefined ? { configPath: record.configPath } : {}),
                 });
                 if (superseded())
                     return;
-                const restoredStatus = runtime.targetStore.snapshot().status;
+                const restoredStatus = rt.targetStore.snapshot().status;
                 ctx.ui.notify(`Restored DevContainer selection ${record.workspaceKey} (${restoredStatus}).`, "info");
             }
         }
@@ -550,10 +551,14 @@ export default function (pi) {
                 const storeStatus = rt.targetStore.snapshot().status;
                 const bindable = storeStatus === "selected-valid" || storeStatus === "selected-stopped";
                 if ((verb === "use" || verb === "up") && result.target !== undefined && bindable) {
-                    engageDevcontainerSurfaces(pi, rt, () => runtime);
+                    engageDevcontainerSurfaces(pi, rt, () => runtime, () => lifecycle.invalidate());
                 }
-                if (verb === "off")
+                if (verb === "off") {
+                    // A command-path activation change must also stop an in-flight start from re-applying the
+                    // decision it probed: the session surface is no longer what that start assumed.
+                    lifecycle.invalidate();
                     rt.activation.decision = { active: false, reason: "opted-out" };
+                }
             };
             await run(args);
         },
@@ -598,9 +603,12 @@ function registerBashReplacement(pi, getRuntime) {
  * registry per turn); if a host cannot observe that, `/reload` makes it
  * authoritative.
  */
-function engageDevcontainerSurfaces(pi, rt, getRuntime) {
+function engageDevcontainerSurfaces(pi, rt, getRuntime, onEngage) {
     if (rt.config.activation === "never" || rt.activation.decision.active)
         return;
+    // An explicit engage changes the activation decision, so any start still in flight must not
+    // re-apply the decision it probed (the guard's generation is bumped by the closure that owns it).
+    onEngage();
     rt.activation.decision = { active: true, reason: "explicit-selection" };
     registerDevcontainerTools(pi, getRuntime);
     registerBashReplacement(pi, getRuntime);
@@ -692,7 +700,7 @@ async function showVerbPicker(ctx, run) {
         "stop - stop selected container (confirmed)",
         "remove - delete selected container (confirmed)",
         "logs [--tail N] - container logs",
-        "host-exec <argv...> - HOST escape hatch (policy-gated)",
+        "host-exec --argv <value> - HOST escape hatch (audited; one --argv per argument)",
         "setup - install/upgrade the Dev Containers CLI",
         "off - return this session to the host (dormant)",
     ], ctx.signal !== undefined ? { signal: ctx.signal } : undefined);

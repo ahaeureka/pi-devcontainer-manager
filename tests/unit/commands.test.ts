@@ -480,6 +480,35 @@ describe("/devcontainer host-exec", () => {
     expect(hostRunner.run).not.toHaveBeenCalled();
   });
 
+  it("refuses a flag-looking word that is not --argv", async () => {
+    const { handlers, hostRunner } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }) });
+
+    // `--argverbose` used to be accepted as a flag and produced the argument `erbose`, i.e. a
+    // mangled command run on the host (found by the independent review of this phase).
+    const result = await handlers["host-exec"]!("--argverbose", makeCtx());
+
+    expect(result.text).toContain("[policy-denied]");
+    expect(hostRunner.run).not.toHaveBeenCalled();
+  });
+
+  it("ends an --argv=<value> at the next --argv word", async () => {
+    const { handlers, hostRunner } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }) });
+
+    await handlers["host-exec"]!("--argv=echo --argv rm -rf /", makeCtx());
+
+    // The rule is stated in the usage line: a value ends at the next --argv word, so this is two
+    // arguments — never a silent reinterpretation of the text inside the value.
+    expect(hostRunner!.run).toHaveBeenCalledWith(["echo", "rm -rf /"], undefined);
+  });
+
+  it("keeps internal whitespace from the = form and treats the trailing run as a separator", async () => {
+    const { handlers, hostRunner } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }) });
+
+    await handlers["host-exec"]!("--argv=a\tb --argv=x  ", makeCtx());
+
+    expect(hostRunner!.run).toHaveBeenCalledWith(["a\tb", "x"], undefined);
+  });
+
   it("explains itself when called with no arguments at all", async () => {
     const { handlers, hostRunner } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }) });
 

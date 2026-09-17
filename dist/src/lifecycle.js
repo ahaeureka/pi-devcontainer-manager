@@ -7,6 +7,12 @@ export function createLifecycleGuard() {
             generation += 1;
         },
         current: () => generation,
+        ifCurrent: (candidate, apply) => {
+            if (candidate !== generation)
+                return false;
+            apply();
+            return true;
+        },
     };
 }
 //# sourceMappingURL=lifecycle.js.map

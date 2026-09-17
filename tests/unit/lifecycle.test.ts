@@ -56,3 +56,40 @@ describe("createLifecycleGuard", () => {
     expect(guard.isCurrent(first + 99)).toBe(false);
   });
 });
+
+describe("the surface mutation point", () => {
+  it("applies a surface change only while the generation is current", () => {
+    const guard = createLifecycleGuard();
+    const applied: string[] = [];
+    const generation = guard.begin();
+
+    expect(guard.ifCurrent(generation, () => void applied.push("runtime"))).toBe(true);
+    expect(applied).toEqual(["runtime"]);
+  });
+
+  it("applies NOTHING for a superseded generation", () => {
+    // This is AC-1's actual claim. The facade routes every surface mutation (runtime assignment,
+    // tool registration, bash replacement) through this call, so a superseded start applying nothing
+    // is a property of this unit rather than of a call site someone can forget.
+    const guard = createLifecycleGuard();
+    const applied: string[] = [];
+    const inFlight = guard.begin();
+    guard.begin(); // a second start supersedes the first
+
+    expect(guard.ifCurrent(inFlight, () => void applied.push("runtime"))).toBe(false);
+    expect(applied).toEqual([]);
+  });
+
+  it("applies nothing after a shutdown, and applies again for the next start", () => {
+    const guard = createLifecycleGuard();
+    const applied: string[] = [];
+    const generation = guard.begin();
+    guard.invalidate();
+
+    expect(guard.ifCurrent(generation, () => void applied.push("stale"))).toBe(false);
+
+    const next = guard.begin();
+    expect(guard.ifCurrent(next, () => void applied.push("fresh"))).toBe(true);
+    expect(applied).toEqual(["fresh"]);
+  });
+});

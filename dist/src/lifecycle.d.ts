@@ -23,6 +23,14 @@ export interface LifecycleGuard {
     invalidate(): void;
     /** The generation that currently owns the surface (0 before the first start). */
     current(): number;
+    /**
+     * Run `apply` only while `generation` still owns the surface.
+     *
+     * This is the mutation point the facade uses for everything that changes the session surface
+     * (assigning the runtime, registering tools, replacing `bash`), so a superseded start applies
+     * nothing. Reports whether it ran, which lets a caller stop a multi-step flow early.
+     */
+    ifCurrent(generation: number, apply: () => void): boolean;
 }
 export declare function createLifecycleGuard(): LifecycleGuard;
 //# sourceMappingURL=lifecycle.d.ts.map

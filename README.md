@@ -213,7 +213,7 @@ If the Dev Containers CLI is missing, run `/devcontainer setup` once.
 | `/devcontainer stop` | Docker stop — policy grant + fresh confirmation |
 | `/devcontainer remove` | Docker `rm -f` — policy grant + fresh confirmation |
 | `/devcontainer logs [--tail N]` | Bounded `docker logs` (default 100 lines); policy-checked and audited |
-| `/devcontainer host-exec --argv <value> [...]` | Audited host escape hatch (granted by default; a configuration can withhold it with `hostExecution.allow: false`). One `--argv` per argument, taken verbatim; `--argv=<value>` passes an empty argument |
+| `/devcontainer host-exec --argv <value> [...]` | Audited host escape hatch (granted by default; a configuration can withhold it with `hostExecution.allow: false`). One `--argv` per argument, no shell or quote processing; a value ends at the next `--argv`, and `--argv=<value>` passes an empty argument |
 | `/devcontainer setup` | Install/upgrade the Dev Containers CLI globally (confirmed, audited) |
 | `/devcontainer off` | Clear the target and hand this session back to the host (dormant); the opt-out is persisted, so `/reload` does not restore the target (nor auto-engage it) until you select one again — unless `activation` is `"always"`, which always takes over |
 
