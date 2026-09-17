@@ -1,5 +1,5 @@
 {
-  "id": "evidence-95401026-e911-42cd-8c88-6bd7a43452d8",
+  "id": "evidence-123caf0b-167a-4dcf-8e30-4b1c60ac00f2",
   "taskId": "routing-hardening",
   "checkSource": "fallback",
   "name": "test",
@@ -7,11 +7,11 @@
   "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/vitest/dist/cli.js run",
   "environment": "cwd=/data/work/ahaeureka/pi-devcontainer-manager node=v24.19.0 platform=linux",
   "exitCode": 0,
-  "startedAt": "2026-09-17T18:53:02.065Z",
-  "finishedAt": "2026-09-17T18:53:51.192Z",
-  "diffHash": "a683c240f70ad6b6a462369a17c1024a2927aa2b2292a5b0894f11f9d3d78830",
-  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  42 passed (42)\n      Tests  508 passed (508)\n   Start at  02:53:02\n   Duration  48.57s (transform 1.56s, setup 0ms, import 5.44s, tests 36.36s, environment 6ms)\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n",
-  "revisionId": "revision-7545a57a29a67459",
+  "startedAt": "2026-09-17T19:07:33.586Z",
+  "finishedAt": "2026-09-17T19:08:22.887Z",
+  "diffHash": "40f1972e463245e31d63ba5d04e3e062d78df5e2248ae53d51e176cd8398a659",
+  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  42 passed (42)\n      Tests  508 passed (508)\n   Start at  03:07:33\n   Duration  48.84s (transform 1.11s, setup 0ms, import 5.01s, tests 37.13s, environment 6ms)\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n",
+  "revisionId": "revision-d99c30cc41d22b43",
   "scope": {
     "paths": [
       "CHANGELOG.md",
@@ -27,6 +27,6 @@
       "tests",
       "vitest.config.ts"
     ],
-    "hash": "8e8923885426218dbe26fba4da4c1595f815b48b5f545e9b33276777f7a8df73"
+    "hash": "f7d0ba45da87482680937849970aa1535057c113694d2e80a4910be145609c27"
   }
 }

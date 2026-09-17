@@ -1,170 +1,150 @@
 {
   "node": "review",
   "status": "recorded",
-  "revisionId": "revision-616b95364eab0640",
+  "revisionId": "revision-d99c30cc41d22b43",
   "executedInFreshContext": true,
-  "contextNote": "I ran as a fresh sub-agent with no authoring context: the brief was my only input and I did not continue or read any previous review node's reasoning. I read the repository from the sealed head (107e9a6), then executed the SHIPPED artifacts rather than trusting the recorded evidence: a full `npm run build` to compare the committed dist/ against a fresh compile (git status stayed clean), Node one-liners against dist/src/{policy,path-mapper,routing-guard,workspace-path,commands}.js for displayProgram/redactText/hostToContainer/findContainerPath/isAtOrUnder/parseHostExecArgv (including a 3564-token sweep embedding a marker credential in every prefix/segment/suffix position), and I re-ran every gate myself (test:unit, vitest run, typecheck, verify-package --unit-tests, smoke-pi-package --no-model, install-local --check). The only workflow material I consulted besides the brief was .kata/tasks/routing-hardening/task.json (to separate the task's own AC wording from the brief's paraphrase) and the last two commit diffs (to evaluate the inverse direction of the rev-16 fix).",
-  "briefSha256": "e8f9c5b75b29a223b27a2f9a38d76113340aee9d3093cf70faeee31312d4736e",
+  "contextNote": "Fresh adversarial pass with no prior context: I did not author this change and did not see or continue any earlier pass's reasoning. I read the sealed tree directly (HEAD d109ae1 = revision-d99c30cc41d22b43; `git status`/`git diff HEAD -- src dist tests` show the source is exactly the sealed commit, only .kata/** is dirty), exercised the COMPILED artifact (imported dist/src/policy.js, dist/src/host-run-ledger.js, dist/src/routing-guard.js, dist/src/path-mapper.js from node) rather than only the TypeScript, brute-forced displayProgram over 200000 random tokens, and re-ran every recorded gate myself (npm run typecheck; npm run test:unit; npx vitest run; node scripts/verify-package.mjs --unit-tests; node scripts/smoke-pi-package.mjs --no-model; npm run install:local -- --check) and audited the docs the fix claims to have updated. The sandbox denied writes outside the repo (both the write tool and `--outDir /tmp/...` were refused by the permission policy), so the counterexample probes ran inline via `node -e` against the shipped dist; no file outside the repo was created or left behind.",
+  "briefSha256": "f1c9853a402af264827675fecfdd56bd7eb6c9efeb707cc268af1644fbcdf473",
   "verdict": "defects_found",
   "attempts": [
     {
-      "hypothesis": "AC-1 (a): some host-run surface still interpolates raw argv input instead of displayProgram or a typed message (the rev-15 blocking defect class).",
-      "method": "Read every operator-facing interpolation in src/ and extensions/ (grep for ${argv}, ${cmd}, ${args}, ${program}, notify(...), return { text } across commands.ts, tools.ts, host-runner.ts, host-run-ledger.ts, extensions/index.ts) and inspected the three surfaces the claim names.",
+      "hypothesis": "AC-1: a token outside the program-word class can still reach the summary (the 'exactly ONE branch' rule is not actually closed).",
+      "method": "Imported the COMPILED dist/src/policy.js and ran a property test: 200000 random tokens built from the alphabet 'abZ09._+-/:@?=&%#[]\\| \\t\\u00a0\\u200b\\u2028\\\"\\u0027' (path separators, scheme, brackets, colons, unicode/zero-width/line-separator spaces, quotes), asserting every non-placeholder output matches /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/; plus a targeted list of the shapes earlier passes leaked.",
       "outcome": "refuted",
-      "evidence": "host-run-ledger.ts:45 renders displayProgram(argv); host-runner.ts:112 renders displayProgram(argv) before handing the value to onFirstHostRun; extensions/index.ts:572 renders displayProgram([program]) for the WITHHELD notice; commands.ts:836 renders displayProgram([...]) for the /devcontainer host-exec free-text refusal; audit.ts:31-32 redacts errorSummary/commandText on write. No remaining interpolation of argv/cmd/args into operator text, and src/tools.ts:228 + src/commands.ts:698 still hand the RAW first token inward exactly as the ledger expects (single render, no double render)."
+      "evidence": "200000 tokens checked, 11852 rendered, 0 out-of-class. Targeted: '/usr/bin/curl', './x', 'C:\\\\Users\\\\x', '//host/hook/TOKENISH', 'https://user:pw@h/p?q=1', '[::1]:8080', 'a|b', 'curl|nc', 'curl\\u00a0tok', 'curl\\u200bxy', 'curl\\u0000xy', 'a=b', '--token=abc', 'sk-live-abc123DEF456'-inside-structure, 'a/b', '-x', '.hidden', '_x', 'AWS_KEY=abc' all render '(no command)'; 'docker', 'systemctl', 'python3.11', 'A-B_C.D+E', and exactly-64 'a'*64 render; 'a'*65 and 'a'*5000 render '(no command)'."
     },
     {
-      "hypothesis": "AC-1 (b): displayProgram still renders a credential when the token carries userinfo, i.e. the leak the last revision claims to have closed is still open.",
-      "method": "3564-token sweep over prefix/mid/suffix templates embedding a marker credential (verified against redactText, which was also called on each token), plus the exact shapes the previous reviewers used.",
+      "hypothesis": "AC-1 (inverse, as the brief directs): a credential can still render, so the fix is not sound enough to merge.",
+      "method": "Probed bare credential-shaped tokens that DO satisfy the program-word grammar (prefixed API keys, cloud access key ids, Slack-style tokens) and probed whether the summary's ' | ' join can be spoofed by a rendered token.",
       "outcome": "refuted",
-      "evidence": "`alice:CRED@host`, `./alice:CRED@host`, `../alice:CRED@host`, `a@b@c:CRED@host`, `redis://:CRED@cache:6379`, `https://user:CRED@host`, `https://user:CRED@host/path`, `/a/b/user:CRED@host`, `ssh user:CRED@host`, `user:CRED@host x`, `postgres://alice:CRED@db/x` all render `host`/`db`/`cache:6379`/`ssh` with no trace of CRED. Every userinfo shape in the sweep is dropped in both the schemed and scheme-less branches."
+      "evidence": "displayProgram(['ghp_0123456789abcdefghij']) = 'ghp_0123456789abcdefghij' and displayProgram(['sk-live-abc123DEF456']) = 'sk-live-abc123DEF456' — these render, but that is exactly the class the claim licenses (a single [A-Za-z0-9._+-] word, leading alphanumeric, <=64) and docs/security.md:174-175 discloses it ('a credential a caller spells as a bare program word'); the summary join cannot be spoofed because a rendered token contains no whitespace (displayProgram(['curl | rm']) = 'curl'). No path segment, host authority, query, fragment, userinfo or bracket literal is rendered."
     },
     {
-      "hypothesis": "AC-1: displayProgram renders nothing credential-shaped in ANY position, i.e. the scope statement in docs/security.md is complete.",
-      "method": "Kept the sweep hits and classified them by token structure: which position in the token does the rendered string come from?",
+      "hypothesis": "AC-1: the status/notice promise ('which PROGRAM WORDS they named') holds for every host-command shape.",
+      "method": "Drove createHostRunLedger from the compiled dist through the three invocation shapes a caller must use (absolute path, explicit relative path, bare name) and read the rendered status line.",
       "outcome": "confirmed",
-      "evidence": "The rendering is not limited to a bare program name with no `@` or `/`: displayProgram([\"host@CRED\"]) -> \"CRED\", displayProgram([\"/tmp/CRED\"]) -> \"CRED\", displayProgram([\"https://CRED\"]) -> \"CRED\" (host position), displayProgram([\"--pwd=CRED\"]) -> \"--pwd=CRED\" (pwd is not a redactText secret name). Code behaviour is the documented design (the HOST/last-segment position is rendered verbatim, and credential-shaped program names are acknowledged), but docs/security.md:171 states the residual scope far more narrowly than this. Filed as R-2."
+      "evidence": "noteFirstRun(['/usr/bin/docker']) -> true, noteFirstRun(['./build.sh']) -> false, noteFirstRun(['systemctl']) -> false; summary() = '3 host command attempts this session — most recent: (no command) | (no command) | systemctl' (recent = ['(no command)','(no command)','systemctl']). The count survives, but the program name is dropped for path-spelled programs — the shape a caller uses for a script or an absolute path. README.md:209 / README.zh-CN.md:147 still promise 'the programs they named' with no such caveat (docs/security.md:169-176 does state the '(no command)' outcome)."
     },
     {
-      "hypothesis": "AC-1: the ledger count/summary and the one-shot notice are not reliably one-per-session-per-attempt (e.g. a withheld attempt missing from the count, or a second-session inheritance).",
-      "method": "Drove createHostRunLedger and both wiring paths (runner note() in host-runner.ts, onWithheldHostAttempt in extensions/index.ts) and read the reset/one-shot gating; compared with the unit suites' expectations.",
-      "outcome": "refuted",
-      "evidence": "createHostRunLedger({limit:5}); record([\"docker\",\"ps\"]); record([\"/usr/bin/systemctl\",...]) -> summary() = \"2 host command attempts this session — most recent: docker | systemctl\"; renderStatus (commands.ts:152) prints `host runs: ${summary}` for both `/devcontainer status` and `/devcontainer list`; hostRuns.reset() runs at every session_start (extensions/index.ts:546); noteFirstRun() is the single first-run gate shared by the runner path and the withheld path (extensions/index.ts:565), and refusals (policy, container-path guard, mapping-read failure) all call note() before throwing."
-    },
-    {
-      "hypothesis": "AC-2: devcontainer_exec still lets a HOST workspace path through when the configuration maps it elsewhere.",
-      "method": "Called detectHostPathOnContainerSurface directly from dist and drove the REAL ExecutionService with mappingFor wired (the service-routing-guard harness), for identity, nested, sibling, substring, flag-value and no-mapping inputs.",
-      "outcome": "refuted",
-      "evidence": "Refused: `/data/ws` (identity) and `/data/ws/src/a.ts` (segment boundary) on mapping {/data/ws -> /workspaces/app}. Not refused: `/data/wsx`, `/data/ws2`, a bare substring `data/ws`, `--directory=/data/ws/src`, and `ls /tmp`. Skipped: no mapping, and host===container. The refusal is kind:\"policy-denied\" and it names the container path; the service audit records policyAuthorized:false + policyDenialReason:\"host-path-on-container\" with a 64-hex commandFingerprint (tests/unit/service-routing-guard.test.ts asserts the same)."
-    },
-    {
-      "hypothesis": "AC-2: the refusal is skipped exactly and only in the conditions the claim lists (no mapping; container path equals host path; container path nested under the host path).",
-      "method": "Matrix over (host, container, element) triples: container nested under host, host nested under container, element under container, element equal to host.",
+      "hypothesis": "AC-1/docs: CHANGELOG, both READMEs and docs/security.md describe the single-branch contract, and the fix removed the pass-count sentences it says it removed.",
+      "method": "Read CHANGELOG.md, README.md, README.zh-CN.md, docs/security.md and the src doc headers; grepped every .md for the pass counts and for the old richer-rule wording ('basename', \"/usr/bin/docker renders 'docker'\", URL-host rendering).",
       "outcome": "confirmed",
-      "evidence": "The code's rule is a superset of the claim: an element UNDER THE CONTAINER PATH is additionally exempt (routing-guard.ts `if (!containerIsAncestorOfHost && container.length > 0 && under(candidate, container)) continue;`), and the container-under-host case alone does NOT exempt a host-file element (host=/repo, container=/repo/app, element=/repo/file.txt is still refused). The task's own AC-2 states only the first two skips, so this is a divergence in the BRIEF's paraphrase, not in the code - no finding filed."
+      "evidence": "The contract IS described in CHANGELOG.md:22-24, README.md:209, README.zh-CN.md:147 and docs/security.md:168-176, and no doc still describes the old URL-host/path-basename rule. But the pass counts now contradict each other inside the same section: docs/security.md:172 'eleven adversarial passes each found a credential reaching the summary through a richer rule' versus docs/security.md:181 'Five adversarial passes found credentials reachable through a rendered command line', and src/host-run-ledger.ts:14 'every defect five adversarial passes found in this feature'. The commit message of d109ae1 states 'the pass-count sentences are gone rather than renumbered', which is false — a stale one remains and now disagrees."
     },
     {
-      "hypothesis": "AC-3: the guard matches a substring or an unrelated flag value, or breaks at a segment boundary / the root.",
-      "method": "findContainerPath and detectHostPathOnContainerSurface over identity, sibling-with-shared-prefix, substring, flag-value, equals-attached, relative and root-base inputs.",
-      "outcome": "refuted",
-      "evidence": "`/workspaces/application` and `/workspaces/app2` are NOT matched for base `/workspaces/app`; a plain substring (`data/ws`) and a flag value (`--directory=/workspaces/app`) are NOT matched; `--directory=/data/ws/src` is NOT matched. The only over-broad case is a base of `/`, which matches every absolute path and is deliberate (documented in the path-mapper comment) - including for the forward guard, where the previous `//`-building prefix test made the guard silently inert."
-    },
-    {
-      "hypothesis": "AC-3: a refusal is not audited like any other policy denial.",
-      "method": "Read src/execution-service.ts:185-224 and its audit helper, plus the assertions in tests/unit/service-routing-guard.test.ts; also exercised the mapping-read failure path.",
-      "outcome": "refuted",
-      "evidence": "The refusal writes policyAuthorized:false, policyDenialReason:\"host-path-on-container\", outputTruncated:false, errorSummary, and the request's cmd/args (so commandIdentity emits a fingerprint); a mapping read that throws is audited with an errorSummary before the error is rethrown. Nothing escapes unrecorded."
-    },
-    {
-      "hypothesis": "AC-3: the guard is (mis)documented as covering routed-shell text.",
-      "method": "Read docs/security.md and both READMEs for the reverse-guard paragraph.",
-      "outcome": "refuted",
-      "evidence": "docs/security.md says the structured container request refuses a host path and that \"Routed-shell text is deliberately not inspected: a heuristic over shell text cannot be made safe\"; README.md:216 and README.zh-CN.md:154 say the same in table form."
-    },
-    {
-      "hypothesis": "AC-4: Docker's listing order can still decide the target, or the picker binds a candidate whose state was not taken from that candidate.",
-      "method": "Read the candidate builders and the /devcontainer use flow (both entry points), then ran the unit suites that cover them.",
-      "outcome": "refuted",
-      "evidence": "Both builders sort running-first (src/runtime/host-discovery.ts:371 and :393, stable sort, so Docker order survives only within a group); primaryCandidate is containerCandidates[0]; ambiguous is >1 RUNNING container, so the picker cannot be skipped in favour of a stopped primary. labels are `${id.slice(0,12)} — ${state}[ — ${image}]` and the choice is resolved back by index; selectionFor takes the state from `entry.containerCandidates.find(id === candidateId)` (not from the workspace primary), so the picked candidate's own state is bound and a stopped pick yields selected-stopped. Tests cover the ambiguous-single-entry path, the workspace-picker path and cancel-keeps-refusal."
-    },
-    {
-      "hypothesis": "AC-5: docs/security.md's account of what the in-session rendering can still carry is exact.",
-      "method": "Constructed counterexamples against the sentence at docs/security.md:171 and ran them through displayProgram.",
+      "hypothesis": "AC-1: the renderer's own documented contract (the first thing an auditor of a security-critical function reads) matches the implementation.",
+      "method": "Read the displayProgram doc comment at src/policy.ts:153-160 and the onFirstHostRun comment at src/host-runner.ts:62-67 against the function body, then executed the function on the shapes those comments name.",
       "outcome": "confirmed",
-      "evidence": "\"A credential can therefore only reach the operator surfaces by being spelled as a program NAME with no `@` or `/` at all\" is false as written: displayProgram([\"host@QWERTY42\"]) -> \"QWERTY42\" (has an @) and displayProgram([\"/tmp/QWERTY42\"]) -> \"QWERTY42\" (has slashes). Filed as R-2."
+      "evidence": "src/policy.ts:158 still says the rendering is the 'basename of argv[0], redacted with the audit rules (a program name CAN be credential-shaped …), capped … and never blank'; the body never calls redactText and performs no basename, and an over-long token is REJECTED rather than capped. displayProgram(['hunter2']) = 'hunter2' and displayProgram(['Bearer']) = 'Bearer' show the audit rules are demonstrably not applied; src/host-runner.ts:65 repeats '(basename, redacted, capped, never blank)'. docs/security.md and the implementation agree; the two source-header comments mislead."
     },
     {
-      "hypothesis": "AC-5: the docs are right that a withheld attempt is visible only through the in-session summary.",
-      "method": "Read the withheld handler in extensions/index.ts and compared it with the sentence at docs/security.md:188.",
-      "outcome": "confirmed",
-      "evidence": "extensions/index.ts:565-573 calls ctx.ui.notify(...) for the FIRST withheld attempt of a session, so that attempt is on the operator channel as well as in the summary; the docs sentence contradicts the same paragraph's own \"the first of a session is announced on the operator channel\". Filed as R-5."
-    },
-    {
-      "hypothesis": "AC-5: the gating asymmetry (policy grant + audit record but no per-action confirmation) is left implicit rather than documented with its reasoning and compensating controls.",
-      "method": "Read docs/security.md's \"How the host escape hatch is gated (a deliberate asymmetry)\" section against the code.",
+      "hypothesis": "AC-2: the reverse guard fires on a substring of an unrelated flag or value rather than on path identity / a segment boundary.",
+      "method": "Called detectHostPathOnContainerSurface from the compiled dist with sibling-name, flag-embedded and relative candidates against mapping {hostPath:'/host/proj', containerPath:'/workspaces/proj'}.",
       "outcome": "refuted",
-      "evidence": "The section states the asymmetry, why (an interactive confirmation would stall an autonomous run or become a rubber stamp), and names the compensating controls: the audit trail, the in-session visibility, the container-path guard, and hostExecution.allow:false in either configuration file. It also states that a withheld attempt is refused before the runner (no host-exec audit record) - the honest note the claim requires."
+      "evidence": "'/host/projX', '--flag=/host/proj', '-o/host/proj/x', './host/proj', 'C:/host/proj', '/host' (the parent) and '/HOST/proj/x' all return undefined; only identity/segment-boundary spellings match: '/host/proj', '/host/proj/x', '/host/proj/x/', '/host/./proj', '/host//proj/x', '/host/proj/.', '/host/proj/../proj/x'."
     },
     {
-      "hypothesis": "AC-6: at least one gate is red, dist/ is stale relative to src/, or the CLI argv shape changed.",
-      "method": "Ran every gate myself on the sealed head and rebuilt the package the repo's own way.",
+      "hypothesis": "AC-2: one of the documented skip conditions (no mapping, same-path mapping, container path nested under the host path, a same-path mount) is not actually implemented.",
+      "method": "Probed each skip condition through the compiled guard, including the host-sibling case that a too-broad nested exemption would let through.",
       "outcome": "refuted",
-      "evidence": "npm run test:unit -> 39 files / 500 tests passed; npx vitest run -> 42 files / 516 passed (its prepack rebuilt dist); npm run typecheck -> exit 0; node scripts/verify-package.mjs --unit-tests -> all gates passed; node scripts/smoke-pi-package.mjs --no-model -> all smoke checks passed; node scripts/install-local.mjs --check -> exit 0. `npm run build` left `git status --short` EMPTY, so the committed dist/ is byte-identical to a fresh compile. No argv-shape change was found in the CLI transport (up/build/exec still receive the host workspace; host-runner passes literal argv)."
+      "evidence": "undefined (no refusal) for mapping undefined, for hostPath === containerPath ('/host/proj' -> '/host/proj'), for container nested under host ('/host/proj' -> '/host/proj/inner', candidate '/host/proj/inner/x'), and for a containerVisiblePaths entry ('/host/proj', including a '${localWorkspaceFolder}/x' expansion); the nested case still refuses a host sibling that is not container space ('/host/proj/other' -> refused)."
     },
     {
-      "hypothesis": "AC-6: the shared predicate is not the only segment implementation left in src/, dist/ or extensions/.",
-      "method": "grepped for startsWith/prefix-and-slash math, trailing-slash normalizers and any hand-rolled `base + \"/\"` construction across src/, dist/ and extensions/.",
+      "hypothesis": "AC-2/AC-3: the root boundary is broken, so a host path under a '/' workspace root escapes the guard (the historical `base + '/'` defect).",
+      "method": "Probed mapping {hostPath:'/', containerPath:'/w'} and the isAtOrUnder('/' ) boundary directly.",
       "outcome": "refuted",
-      "evidence": "The only segment test is isAtOrUnder (src/workspace-path.ts:67-73, dist/src/workspace-path.js); isWithinWorkspace, findContainerPath, hostToContainer, containerOnlyMounts and detectHostPathOnContainerSurface all delegate to it, and the only remaining startsWith(`x/`) call site is inside isAtOrUnder itself. Local trailing-slash helpers survive (path-mapper normalize, routing-guard normalize) but they canonicalize, not compare segments."
+      "evidence": "detectHostPathOnContainerSurface(['/anything'], {hostPath:'/', containerPath:'/w'}) = '/anything' (refused), while the container's own '/w' is exempt; isAtOrUnder('/a','/'), isAtOrUnder('/','/'), isAtOrUnder('//','/') and isAtOrUnder('/a/','/') are all true — a root base matches every absolute candidate instead of building an unmatched '//'."
     },
     {
-      "hypothesis": "AC-6: the last revision's delegation of path-mapper.hostToContainer to the shared predicate is behaviour-preserving.",
-      "method": "Evaluated the pre-revision body (git show b02dadf^:src/path-mapper.ts) and the new body on the same inputs, including a hostPath of the filesystem root, and ran the new module from dist.",
-      "outcome": "confirmed",
-      "evidence": "For (`/a/b`, {hostPath:'/', containerPath:'/x'}) the old body returned undefined (it tested `candidate.startsWith(`${host}/`)`, i.e. \"//\"); the new body returns \"/xa/b\" - the root case is now taken and the join loses its separator. Reachable through readConfigFacts with `\"workspaceMount\": \"source=/,target=/x,type=bind\"` (both sides absolute), and the result is handed to ExecOutcome.workspaceKey via resolveContainerWorkspace (extensions/index.ts:280). Filed as R-1."
+      "hypothesis": "AC-2/AC-3: the refusal is not shaped like the symmetric forward guard (untyped, unaudited, or with no command identity).",
+      "method": "Re-ran tests/unit/service-routing-guard.test.ts through the real ExecutionService (part of the re-run unit suite) and read src/execution-service.ts:183-222.",
+      "outcome": "refuted",
+      "evidence": "The service rejects with kind 'policy-denied' and a message containing the container path ('…inside the container this workspace is /workspaces/proj'); the last audit record matches {policyAuthorized:false, policyDenialReason:'host-path-on-container'} and carries a 64-hex commandFingerprint; the container adapter is never called. A mapping failure is likewise recorded (errorSummary 'docker daemon unavailable') instead of escaping unaudited."
     },
     {
-      "hypothesis": "AC-6 (e): CHANGELOG, both READMEs and the docs describe what actually shipped.",
-      "method": "Diffed each shipped behaviour of this task (host-run visibility, reverse guard, container picker, structured --argv) against CHANGELOG.md, README.md, README.zh-CN.md and docs/security.md.",
-      "outcome": "confirmed",
-      "evidence": "CHANGELOG.md covers all four accurately, and docs/security.md covers the visibility and the asymmetry; both READMEs were updated for the reverse guard and the picker, but grep for \"host runs\"/\"host command attempts\"/\"尝试\" finds NO mention of the visibility in README.md or README.zh-CN.md, and README.md:209 still describes `/devcontainer status` as \"Same status block (target, registry, route, caps)\" although renderStatus now also prints `host runs: ...`. Filed as R-3."
+      "hypothesis": "AC-3: the guard's deliberate non-coverage of routed-shell text is not documented.",
+      "method": "Grepped every .md and the module headers for the routed-shell scope; read the single call site.",
+      "outcome": "refuted",
+      "evidence": "CHANGELOG.md:12-16 states 'Routed-shell text (`bash`, `!`/`!!`) is deliberately NOT inspected: the detection is reliable on literal argv and would be a guess over shell text'; src/routing-guard.ts:1-18 and src/execution-service.ts:183-186 say the same. (Only docs/ lacks this sentence — the forward guard's mirror lives in docs/troubleshooting.md — which I judged a nit, below the reporting bar, not a defect.)"
     },
     {
-      "hypothesis": "The claim that the scheme-less branch renders 'the text after the last @ of the token up to the first /' with a credential-free path keeping its basename (AC-1's rendering spec) is what the code does.",
-      "method": "Ran absolute paths whose DIRECTORY contains an @ through displayProgram and compared with the pre-revision body.",
-      "outcome": "confirmed",
-      "evidence": "displayProgram([\"/opt/app@2/dist/bin/tool\"]) -> \"2\" and displayProgram([\"/usr/lib/node_modules/@babel/cli/bin/babel.js\"]) -> \"babel\" (neither is the basename); the pre-revision body returned \"tool\" and \"babel.js\" because its @-branch only fired when the token's first `/`-segment contained an @. The branch added by the rev-16 fix (src/policy.ts:196-200) applies to ANY token containing an @, so the operator-facing visibility can name the wrong program. Filed as R-4."
+      "hypothesis": "AC-3: the guard is applied to a shell-text surface, so its narrowness claim is false.",
+      "method": "Traced every caller of detectHostPathOnContainerSurface and the routed-bash/user-bash operations.",
+      "outcome": "refuted",
+      "evidence": "One call site (execution-service.exec), gated on `request.operation === 'container-exec'`, i.e. the structured devcontainer_exec surface only; routed-bash and user-bash (shell strings) never reach it."
     },
     {
-      "hypothesis": "The claim that the guard/ledger surfaces contain no code-level contradiction with what shipped (stale claims in code comments).",
-      "method": "Read the comment blocks that the rev-14/rev-16 fixes touched.",
-      "outcome": "confirmed",
-      "evidence": "src/runtime/host-discovery.ts:356-357 still says candidates are \"ordered by Docker's own listing (which puts the running container first)\" immediately above the `.sort(running-first)` that was added because that Docker assumption was the rev-14 major. Filed as R-6."
+      "hypothesis": "AC-4: only one of the two entry points offers the container picker.",
+      "method": "Read src/commands.ts:438-537 and re-ran the picker tests in tests/unit/commands.test.ts.",
+      "outcome": "refuted",
+      "evidence": "Both the single-ambiguous-match path and the workspace-chosen-from-the-workspace-picker path call the same chooseAmbiguousContainer; tests 'offers a container picker when the matched workspace is ambiguous' and 'offers the container picker for an ambiguous workspace chosen from the workspace picker' pass (2 ui.select calls, candidateId 'b2'), and the no-UI and cancelled-picker cases keep the refusal."
+    },
+    {
+      "hypothesis": "AC-4: a picked candidate is not bound exactly, or its recorded state comes from the workspace's primary candidate.",
+      "method": "Read selectionFor and ran the state-binding test plus the picker test assertions on result.target.",
+      "outcome": "refuted",
+      "evidence": "selectionFor(entry,'bb22') = selected-stopped for a stopped sibling of a running primary and selected-valid for a running sibling of a stopped primary; the picker passes choice.id into select(), and result.target.candidateId equals the picked id ('aa12', 'b2')."
+    },
+    {
+      "hypothesis": "AC-4: Docker's listing order still decides a target somewhere in this flow.",
+      "method": "Read the candidate ordering in src/runtime/host-discovery.ts:360-405 and the ambiguity predicate, then traced what a workspace with exactly one running container binds.",
+      "outcome": "refuted",
+      "evidence": "Candidates are sorted running-first and `ambiguous` is runningCount > 1, so a workspace with one running container binds that container irrespective of Docker order, and 2+ running containers go to the picker. The only order-dependent case left is a workspace whose containers are ALL stopped (`ambiguous` is false there, so the first stopped candidate binds) — outside the claim's stated scope ('more than one running container matches'), so recorded as a scope note rather than a defect."
+    },
+    {
+      "hypothesis": "AC-5: docs/security.md does not really state the gating asymmetry as deliberate with the reasoning, the compensating controls and the exact redaction scope.",
+      "method": "Read docs/security.md:156-199 in full.",
+      "outcome": "refuted",
+      "evidence": "The section 'How the host escape hatch is gated (a deliberate asymmetry)' states grant + audit record and no per-action confirmation, why (agent-driven surface; a prompt would stall or become a rubber stamp), names the four compensating controls (audit trail, the REQ-1 in-session visibility incl. the first-attempt notice, the container-path guard, hostExecution.allow:false in either file), and the preceding section enumerates exactly what redactText does and does not cover; it also notes a withheld attempt 'is refused before it and appears in the in-session summary and in the first-attempt notice, not in an audit record'."
+    },
+    {
+      "hypothesis": "AC-5: the honest note that a WITHHELD attempt never reaches the runner is false (a withheld attempt does exec).",
+      "method": "Traced the withheld branch on both surfaces (the tool and the slash command) plus the extension wiring.",
+      "outcome": "refuted",
+      "evidence": "src/tools.ts:225-234 and src/commands.ts:694-704 check hostExecution.allow and call onWithheldHostAttempt then throw before hostRunner.run is ever invoked; extensions/index.ts:559-575 records the attempt on the ledger and announces it with 'host execution is withheld by configuration — no audit record'."
+    },
+    {
+      "hypothesis": "AC-6: one of the recorded gates is not actually green on this tree.",
+      "method": "Re-ran every gate the revision records, from the sealed checkout.",
+      "outcome": "refuted",
+      "evidence": "`npm run typecheck` exit 0; `npm run test:unit` 39 files / 492 tests passed; `npx vitest run` 42 files / 508 tests passed (incl. the docker-driving integration/e2e files); `node scripts/verify-package.mjs --unit-tests` 'all gates passed' (engines, pinned @devcontainers/cli 0.88.0, typecheck, test:unit, build, pack:check); `node scripts/smoke-pi-package.mjs --no-model` 'all smoke checks passed' (packed tarball registers /devcontainer, user_bash, the three tools and the bash override; dormant session registers no execution surface); `npm run install:local -- --check` OK (pi 0.85.1 at the user install, repo registered)."
+    },
+    {
+      "hypothesis": "AC-6: dist/ is stale relative to src, so the shipped renderer is not the one that was reviewed.",
+      "method": "Imported the compiled dist/src/policy.js (not the .ts) and exercised it, then compared the tree after the suites' own `npm run build` (prepack/prepare) re-ran.",
+      "outcome": "refuted",
+      "evidence": "dist/src/policy.js returns the new single-branch behavior ('/usr/bin/curl' -> '(no command)', 'docker' -> 'docker'), and after the full vitest run rebuilt dist, `git status`/`git diff --stat HEAD -- src dist tests` showed no changes — the committed dist matches the sources."
+    },
+    {
+      "hypothesis": "AC-6: the vocabulary split regressed — the CLI now receives a container path, or hostToContainer maps a path that is not genuinely below the mount source.",
+      "method": "Read the CLI argv builders and the presentation-only resolver, and probed hostToContainer/findContainerPath on the segment-boundary edge cases.",
+      "outcome": "refuted",
+      "evidence": "src/runtime/devcontainer-adapter.ts builds `up|build|exec --workspace-folder <host workspace>` (lines 126/137/159); resolveContainerWorkspace is used only to set the presented workspaceKey (execution-service.ts:287-288). hostToContainer returns undefined for '/host/projx' and for '/host/proj/../other' while mapping '/host/proj/x' -> '/workspaces/proj/x'; with host '/' it yields '/workspaces/w/x' (not '/workspaces/wx'); findContainerPath('/x','/') = '/x' and findContainerPath('-o/workspaces/wx','/workspaces/w') = undefined."
     }
   ],
   "findings": [
     {
-      "id": "RH-R16-01",
+      "id": "review-d99c30cc41d22b43-pass-count-contradiction",
       "taskId": "routing-hardening",
       "severity": "minor",
-      "message": "hostToContainer's new delegation to the shared predicate inherits the root special case but not a matching join, so a mapping whose host path is `/` now returns a mangled container path instead of no mapping. `hostToContainer(\"/a/b\", {hostPath:\"/\", containerPath:\"/x\"})` returns `/xa/b` (missing separator); the pre-revision body returned undefined for the same input because it tested `candidate.startsWith(`${host}/`)` (i.e. `//`). Reachable: readConfigFacts accepts `\"workspaceMount\": \"source=/,target=/x,type=bind\"` (both sides absolute) -> buildPathMapping -> {hostPath:'/', containerPath:'/x'}, and extensions/index.ts:280 (resolveContainerWorkspace) feeds the value into ExecOutcome.workspaceKey, i.e. the workspace path the tool reports to the model. The same root rule also makes containerOnlyMounts treat every mount target as already covered when the workspace container path is `/`.",
-      "path": "src/path-mapper.ts"
-    },
-    {
-      "id": "RH-R16-02",
-      "taskId": "routing-hardening",
-      "severity": "minor",
-      "message": "docs/security.md:171 states a narrower residual scope than the renderer implements, in the one paragraph that is supposed to be the exact non-absolute scope. It says a credential can only reach the operator surfaces \"by being spelled as a program NAME with no `@` or `/` at all (`argv[0]=\"hunter2\"`)\", but displayProgram([\"host@QWERTY42\"]) -> \"QWERTY42\" and displayProgram([\"/tmp/QWERTY42\"]) -> \"QWERTY42\", i.e. the credential also reaches the surfaces as the segment after the last `@` or as the basename of a path. The sentence immediately before it (\"renders the HOST of whatever that token looks like\") is accurate; the gloss that follows overstates the protection.",
+      "message": "The documentation the last fix touched now states two different pass counts for the same fact, and the fix's own stated intent (removing the pass-count sentences) is not met. docs/security.md:172 says 'eleven adversarial passes each found a credential reaching the summary through a richer rule', while docs/security.md:181 (same section, ten lines below) says 'Five adversarial passes found credentials reachable through a rendered command line (two of them through fixes for the previous one)', and src/host-run-ledger.ts:14 says 'every defect five adversarial passes found in this feature'. d109ae1's message asserts 'the pass-count sentences are gone rather than renumbered' after an earlier commit (79ab97f) had deliberately reconciled three disagreeing counts — so the disagreement was reintroduced rather than removed. Confirmed by grepping every .md/src header for the counts.",
       "path": "docs/security.md"
     },
     {
-      "id": "RH-R16-03",
+      "id": "review-d99c30cc41d22b43-renderer-contract-comment-stale",
       "taskId": "routing-hardening",
       "severity": "minor",
-      "message": "The change's headline feature (AC-1, host-run visibility) is absent from both READMEs while the other two behaviour changes of the same revision are documented there. README.md:209 still describes `/devcontainer status` as \"Same status block (target, registry, route, caps)\", but renderStatus now also prints `host runs: N host command attempts this session — most recent: ...`; grep for \"host runs\"/\"host command attempts\"/\"尝试\" finds no mention of the visibility in README.md or README.zh-CN.md, although the reverse guard and the container picker were added to both (README.md:215-216, README.zh-CN.md:154-155). CHANGELOG.md and docs/security.md do cover it.",
-      "path": "README.md"
-    },
-    {
-      "id": "RH-R16-04",
-      "taskId": "routing-hardening",
-      "severity": "minor",
-      "message": "The scheme-less `@` branch added by the rev-16 fix applies to every token containing an `@`, including an absolute path whose directory contains one, so a credential-free path does not keep its basename (AC-1's rendering spec) and the visibility can name a program that is not the one being run: displayProgram([\"/opt/app@2/dist/bin/tool\"]) -> \"2\" and displayProgram([\"/usr/lib/node_modules/@babel/cli/bin/babel.js\"]) -> \"babel\". The pre-revision body returned \"tool\" and \"babel.js\" (its @-branch only fired when the first `/`-segment contained an @), so this is a fidelity regression introduced by the fix that closed the real leak - the safe direction for credentials, but it degrades the very signal the ledger exists to provide.",
+      "message": "The doc comment on the security-critical renderer still describes the rule that was deleted, contradicting both the implementation and docs/security.md. src/policy.ts:158 states displayProgram produces the 'basename of `argv[0]`, redacted with the audit rules (a program name CAN be credential-shaped …), capped so a pathological argument cannot flood the operator channel or the status block, and never blank'; the body performs no basename, never calls redactText, and REJECTS an over-long token instead of capping it (displayProgram(['a'.repeat(5000)]) === '(no command)'). src/host-runner.ts:65 repeats the same stale '(basename, redacted, capped, never blank)' description. Behavioural evidence that no redaction happens: displayProgram(['hunter2']) = 'hunter2', displayProgram(['Bearer']) = 'Bearer'. An auditor reading the function header (the natural entry point for this surface) is told there is a redaction step that does not exist.",
       "path": "src/policy.ts"
     },
     {
-      "id": "RH-R16-05",
+      "id": "review-d99c30cc41d22b43-program-signal-narrowed",
       "taskId": "routing-hardening",
-      "severity": "nit",
-      "message": "docs/security.md:188 says a withheld attempt \"is visible only through the in-session summary\", which the code contradicts and the same paragraph contradicts two lines later. extensions/index.ts:565-573 announces the FIRST withheld attempt of a session through ctx.ui.notify (\"first host command attempt this session: <program> ... no audit record\"), and the following clause of the same sentence says \"the first of a session is announced on the operator channel\". The honest note the claim requires (a withheld attempt never reaches the runner) is present; only the word \"only\" is wrong.",
-      "path": "docs/security.md"
-    },
-    {
-      "id": "RH-R16-06",
-      "taskId": "routing-hardening",
-      "severity": "nit",
-      "message": "src/runtime/host-discovery.ts:356-357 still reads \"Expose EVERY candidate, ordered by Docker's own listing (which puts the running container first), and fail closed when more than one is running so result order never decides the target\" directly above the `.sort((l,r) => Number(r.state==='running') - Number(l.state==='running'))` that was added precisely because that Docker assumption was false (the rev-14 major: a stopped container listed first became a workspace's primary candidate). The comment now states the opposite of the enforced invariant.",
-      "path": "src/runtime/host-discovery.ts"
+      "severity": "minor",
+      "message": "AC-1's naming promise holds only for bare-word programs, narrower than stated. The sealed acceptance says `/devcontainer status` shows 'which PROGRAMS they named', and README.md:209 / README.zh-CN.md:147 repeat 'the programs they named' without qualification, but the single-branch rule renders every token carrying a separator as '(no command)'. Verified against the shipped ledger: noteFirstRun(['/usr/bin/docker']), noteFirstRun(['./build.sh']), noteFirstRun(['systemctl']) yields '3 host command attempts this session — most recent: (no command) | (no command) | systemctl'. The drift signal (the count, and the first-attempt notice) survives and docs/security.md:169-176 does disclose the '(no command)' outcome, so this is a wording/scope gap between the AC + README promise and the implemented rendering for path-spelled invocations (absolute paths and scripts — a normal way to call a host program), not a leak.",
+      "path": "README.md"
     }
   ],
-  "createdAt": "2026-09-17T15:32:18.088Z"
+  "createdAt": "2026-09-17T19:18:39Z",
+  "manifestHash": "f7d0ba45da87482680937849970aa1535057c113694d2e80a4910be145609c27"
 }
