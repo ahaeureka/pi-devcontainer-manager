@@ -1,15 +1,15 @@
 {
   "fromPhase": "review",
   "reason": "review_findings",
-  "baselineRevisionId": "revision-18abd4d1236368b8",
-  "baselineManifestHash": "32309378afa48393ad60eb6092ddcb51ae13dfb2fa8f879ed3f0acb0952f7d0a",
+  "baselineRevisionId": "revision-4b7ba535f1a33572",
+  "baselineManifestHash": "1ec86555d4717c894b988bf15bb9e17b66ddb23642d8d42c89403d08d526bce4",
   "findings": [
     {
-      "id": "finding-tree-moved-after-second-pass",
-      "acceptanceId": "AC-4",
+      "id": "finding-tree-moved-after-third-pass",
+      "acceptanceId": "AC-1",
       "severity": "blocking",
-      "message": "PROCESS, not a defect: the recorded adversarial pass on revision-18abd4d1 returned six minors and two nits (no major), all fixed in c4a2916 — the guard's refusal lacked command identity, a withheld host attempt was invisible, the container-space exemption swallowed the host path when the container path was an ancestor, `${localWorkspaceFolder}` was not expanded in same-path mounts, the ledger ignored a `none` capture policy, the picker did not name the image, and two claims had no test. Re-sealing so the record matches the tree.",
-      "path": "src/routing-guard.ts"
+      "message": "PROCESS, not a defect: the recorded adversarial pass on revision-4b7ba535 returned one major, three minors and one nit (all fixed in 00e40d2) — the withheld-attempt hook was wired to the tool that ignores it instead of the host-exec tool that reads it, the nested exemption exempted the whole host space, `samePathMounts` compared raw strings, the Chinese README kept a duplicate row, and the ledger was process-scoped rather than session-scoped.",
+      "path": "extensions/index.ts"
     }
   ],
   "taskId": "routing-hardening",
@@ -18,7 +18,7 @@
     "id": "kata-agent",
     "role": "implementer"
   },
-  "createdAt": "2026-09-17T10:18:37.455Z",
-  "resolvedAt": "2026-09-17T10:18:56.902Z",
-  "resolvedRevisionId": "revision-4b7ba535f1a33572"
+  "createdAt": "2026-09-17T10:38:48.517Z",
+  "resolvedAt": "2026-09-17T10:39:35.915Z",
+  "resolvedRevisionId": "revision-42a78a3bfebee0cf"
 }

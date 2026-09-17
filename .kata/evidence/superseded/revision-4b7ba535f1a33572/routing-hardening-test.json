@@ -1,0 +1,31 @@
+{
+  "id": "evidence-f279044e-91db-4629-8844-0fff5403e73c",
+  "taskId": "routing-hardening",
+  "checkSource": "fallback",
+  "name": "test",
+  "kind": "test",
+  "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/vitest/dist/cli.js run",
+  "environment": "cwd=/data/work/ahaeureka/pi-devcontainer-manager node=v24.19.0 platform=linux",
+  "exitCode": 0,
+  "startedAt": "2026-09-17T10:18:37.770Z",
+  "finishedAt": "2026-09-17T10:18:52.881Z",
+  "diffHash": "f118b6b1eba094432eb6fbb65766059c0e0e3284375791cb91910df067c7f872",
+  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  42 passed (42)\n      Tests  502 passed (502)\n   Start at  18:18:38\n   Duration  14.67s (transform 25.63s, setup 0ms, import 36.04s, tests 36.42s, environment 9ms)\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n",
+  "revisionId": "revision-4b7ba535f1a33572",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "1ec86555d4717c894b988bf15bb9e17b66ddb23642d8d42c89403d08d526bce4"
+  }
+}
