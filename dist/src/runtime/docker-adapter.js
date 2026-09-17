@@ -66,17 +66,15 @@ export class NodeDockerAdapter {
         return this.parseInspect(result, stdout, "inspectContainer");
     }
     async safeRun(args, signal) {
-        const chunks = [];
         const result = await runBounded(this.runner, this.options.dockerPath, args, {
             cwd: this.options.cwd,
             env: this.options.env,
             maxOutputBytes: this.options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
             timeoutMs: 30_000,
             ...(signal !== undefined ? { signal } : {}),
-            onData: (chunk) => chunks.push(chunk),
             spawnError: dockerSpawnErrorSpec(this.options.dockerPath),
         });
-        return { result, stdout: Buffer.concat(chunks) };
+        return { result, stdout: Buffer.from(result.stdout ?? "", "utf8") };
     }
     parsePsAll(result, stdout, source) {
         if (result.exitCode !== 0) {

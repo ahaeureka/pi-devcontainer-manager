@@ -60,8 +60,6 @@ export function createAuditedHostRunner(deps) {
                     });
                 }
             }
-            const stdoutChunks = [];
-            const stderrChunks = [];
             const startedAt = process.hrtime.bigint();
             // Host execution is bounded by the same configured ceiling as the container path: an omitted
             // or zero timeout defaults to `maxTimeoutSeconds` and a requested one is clamped to it, so an
@@ -77,8 +75,6 @@ export function createAuditedHostRunner(deps) {
                     cwd: deps.sessionWorkspace,
                     env: { ...deps.env },
                     maxOutputBytes: config.maxOutputBytes,
-                    onData: (chunk) => stdoutChunks.push(chunk),
-                    onStderr: (chunk) => stderrChunks.push(chunk),
                     timeoutMs,
                     ...(options?.signal !== undefined ? { signal: options.signal } : {}),
                 });
@@ -103,8 +99,9 @@ export function createAuditedHostRunner(deps) {
             return {
                 exitCode: result.exitCode,
                 signal: result.signal,
-                stdout: Buffer.concat(stdoutChunks).toString("utf8"),
-                stderr: Buffer.concat(stderrChunks).toString("utf8"),
+                // The boundary captured both streams because no callbacks were supplied (L5-03).
+                stdout: result.stdout ?? "",
+                stderr: result.stderr ?? "",
                 truncated: result.truncated,
             };
         },

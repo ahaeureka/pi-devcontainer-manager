@@ -39,8 +39,13 @@ export class NodeProcessRunner {
     async exec(file, args, options) {
         const startedAt = process.hrtime.bigint();
         const maxOutput = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
-        const stdout = options.onData ?? (() => undefined);
-        const stderr = options.onStderr ?? (() => undefined);
+        // Capture a stream only when the caller is not streaming it: the bytes then land on the result
+        // (bounded by `maxOutput`, exactly as a callback's copy would be).
+        const captureStdout = options.onData === undefined;
+        const captureStderr = options.onStderr === undefined;
+        const collected = { out: [], err: [] };
+        const stdout = options.onData ?? ((chunk) => void collected.out.push(chunk));
+        const stderr = options.onStderr ?? ((chunk) => void collected.err.push(chunk));
         let child;
         try {
             child = spawn(file, [...args], {
@@ -150,6 +155,9 @@ export class NodeProcessRunner {
                     signal,
                     durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6,
                     truncated,
+                    // Present only for the streams this caller was not streaming.
+                    ...(captureStdout ? { stdout: Buffer.concat(collected.out).toString("utf8") } : {}),
+                    ...(captureStderr ? { stderr: Buffer.concat(collected.err).toString("utf8") } : {}),
                 });
             });
         });

@@ -8,6 +8,18 @@ export interface ProcessResult {
   readonly signal: string | null;
   readonly durationMs: number;
   readonly truncated: boolean;
+  /**
+   * The bounded stdout/stderr this run captured, when the caller did NOT supply a callback for that
+   * stream.
+   *
+   * Before this existed the result carried no output at all: bytes were reachable only through
+   * `onData`/`onStderr`, so every consumer re-implemented the same chunk collection and a caller that
+   * forgot the callbacks received a clean exit code with silently discarded output (review finding
+   * L5-03). A stream the caller IS streaming is deliberately absent — the caller already has the
+   * bytes, and duplicating them would double the memory for the largest outputs.
+   */
+  readonly stdout?: string;
+  readonly stderr?: string;
 }
 
 export interface ProcessRunnerOptions {
@@ -87,8 +99,13 @@ export class NodeProcessRunner implements ProcessRunner {
   ): Promise<ProcessResult> {
     const startedAt = process.hrtime.bigint();
     const maxOutput = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
-    const stdout = options.onData ?? (() => undefined);
-    const stderr = options.onStderr ?? (() => undefined);
+    // Capture a stream only when the caller is not streaming it: the bytes then land on the result
+    // (bounded by `maxOutput`, exactly as a callback's copy would be).
+    const captureStdout = options.onData === undefined;
+    const captureStderr = options.onStderr === undefined;
+    const collected: { out: Buffer[]; err: Buffer[] } = { out: [], err: [] };
+    const stdout = options.onData ?? ((chunk: Buffer) => void collected.out.push(chunk));
+    const stderr = options.onStderr ?? ((chunk: Buffer) => void collected.err.push(chunk));
 
     let child: SpawnedChild;
     try {
@@ -203,6 +220,9 @@ export class NodeProcessRunner implements ProcessRunner {
           signal,
           durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6,
           truncated,
+          // Present only for the streams this caller was not streaming.
+          ...(captureStdout ? { stdout: Buffer.concat(collected.out).toString("utf8") } : {}),
+          ...(captureStderr ? { stderr: Buffer.concat(collected.err).toString("utf8") } : {}),
         });
       });
     });

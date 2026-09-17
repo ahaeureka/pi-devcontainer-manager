@@ -100,16 +100,12 @@ export class NodeDockerLifecycleAdapter implements DockerLifecycleAdapter {
       });
     }
     const tail = options.tail ?? 200;
-    const chunks: Buffer[] = [];
-    const errChunks: Buffer[] = [];
     const result = await runBounded(this.runner, this.options.dockerPath, ["logs", "--tail", String(tail), id], {
       cwd: this.options.cwd,
       env: this.options.env,
       maxOutputBytes: this.options.maxOutputBytes ?? LOGS_MAX_OUTPUT_BYTES,
       timeoutMs: 30_000,
       ...(options.signal !== undefined ? { signal: options.signal } : {}),
-      onData: (chunk) => chunks.push(chunk),
-      onStderr: (chunk) => errChunks.push(chunk),
       spawnError: dockerSpawnErrorSpec(this.options.dockerPath),
     });
     return {
@@ -117,8 +113,8 @@ export class NodeDockerLifecycleAdapter implements DockerLifecycleAdapter {
       // `docker logs` splits the container's two streams across the CLI's two streams, so
       // capturing only stdout silently discarded half of every log read.
       output: combineCommandOutput(
-        Buffer.concat(chunks).toString("utf8"),
-        Buffer.concat(errChunks).toString("utf8"),
+        result.stdout ?? "",
+        result.stderr ?? "",
       ),
       truncated: result.truncated,
     };
@@ -153,22 +149,18 @@ export class NodeDockerLifecycleAdapter implements DockerLifecycleAdapter {
         instruction: `Type "confirm ${action} ${container.id.slice(0, 12)}" to proceed.`,
       };
     }
-    const chunks: Buffer[] = [];
-    const errChunks: Buffer[] = [];
     const result = await runBounded(this.runner, this.options.dockerPath, [...argv], {
       cwd: this.options.cwd,
       env: this.options.env,
       maxOutputBytes: this.options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
       timeoutMs: 60_000,
-      onData: (chunk) => chunks.push(chunk),
-      onStderr: (chunk) => errChunks.push(chunk),
       spawnError: dockerSpawnErrorSpec(this.options.dockerPath),
     });
     if (result.exitCode !== 0) {
       // A destructive failure used to report only the exit code, so the daemon's own reason
       // ('Error response from daemon: …') never reached the operator.
       const detail = describeOutput(
-        combineCommandOutput(Buffer.concat(chunks).toString("utf8"), Buffer.concat(errChunks).toString("utf8")),
+        combineCommandOutput(result.stdout ?? "", result.stderr ?? ""),
       );
       throw new RuntimeError({
         kind: "docker-cli-failure",

@@ -34,7 +34,7 @@ const confirmationFor = (action: "stop" | "remove"): LifecycleConfirmation => ({
 function runner(handler: () => Partial<ProcessResult>): ProcessRunner {
   return {
     async exec() {
-      return { exitCode: 0, signal: null, durationMs: 1, truncated: false, ...handler() };
+      return { exitCode: 0, signal: null, durationMs: 1, truncated: false, stdout: "", stderr: "", ...handler() };
     },
   };
 }
@@ -57,9 +57,16 @@ describe("NodeDockerLifecycleAdapter.remove", () => {
     // The failure path captured neither stream and reported only the exit code, so the actual
     // reason ('Error response from daemon: ...') never reached the operator.
     const r: ProcessRunner = {
-      async exec(_file, _args, options) {
-        options.onStderr?.(Buffer.from("Error response from daemon: container is not running\n", "utf8"));
-        return { exitCode: 1, signal: null, durationMs: 1, truncated: false };
+      async exec(_file, _args, _options) {
+        // The boundary supplies the streams now (L5-03): the fake returns them instead of streaming.
+        return {
+          exitCode: 1,
+          signal: null,
+          durationMs: 1,
+          truncated: false,
+          stdout: "",
+          stderr: "Error response from daemon: container is not running\n",
+        };
       },
     };
 
@@ -137,9 +144,15 @@ describe("NodeDockerLifecycleAdapter.logs", () => {
     // silently discarded with no fallback and no label.
     const r: ProcessRunner = {
       async exec(_file, _args, options) {
-        options.onData?.(Buffer.from("container out\n", "utf8"));
-        options.onStderr?.(Buffer.from("container err\n", "utf8"));
-        return { exitCode: 0, signal: null, durationMs: 1, truncated: false };
+        // The boundary captures both streams because no callbacks were supplied (L5-03).
+        return {
+          exitCode: 0,
+          signal: null,
+          durationMs: 1,
+          truncated: false,
+          stdout: "container out\n",
+          stderr: "container err\n",
+        };
       },
     };
 

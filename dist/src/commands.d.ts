@@ -188,8 +188,29 @@ export declare function configPathFor(entry: RegistryEntry, requested: {
 export declare function resolveConfigCandidate(entry: RegistryEntry, requested: string): ConfigResolution;
 /** Namespaced command handler surface. */
 export declare function createCommandHandlers(services: CommandServices): Record<string, (args: string, ctx: CommandContextLike) => Promise<CommandResult>>;
-/** Minimal argv splitter for `/devcontainer host-exec` (whitespace + quotes). */
-export declare function parseArgv(input: string): string[];
+/**
+ * Parse `/devcontainer host-exec`'s ARGV grammar.
+ *
+ * The old form was shell-like free text split by a three-alternative regex, which reinterpreted
+ * escaped quotes, concatenated segments (`a"b"c`) and empty arguments — on the one surface that then
+ * executes the result on the HOST (review finding L2-04). The grammar is now explicit:
+ *
+ *   host-exec --argv <value>      one argument, taken verbatim (spaces included)
+ *   host-exec --argv=<value>      the same, and the only way to pass an EMPTY argument
+ *
+ * One flag per argument, no quote processing anywhere: quotes belong to the caller's shell (which has
+ * already removed the ones it processed) or are part of the value the caller wants. The old bare-word
+ * form fails closed and names the migration, and a flag without a value is refused rather than
+ * silently dropped.
+ */
+export type HostExecArgv = {
+    readonly ok: true;
+    readonly argv: string[];
+} | {
+    readonly ok: false;
+    readonly text: string;
+};
+export declare function parseHostExecArgv(input: string): HostExecArgv;
 /** Format a typed error into command output (kind surfaced). */
 export declare function describeError(error: unknown): string;
 export { SELECTION_ENTRY_KIND, isWorkspaceAllowed, isEnvironmentAllowed, canonicalWorkspaceKey, errorKindOf };

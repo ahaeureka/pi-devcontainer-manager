@@ -55,6 +55,7 @@ import { SELECTION_ENTRY_KIND, recoverSelectionIntent, } from "../src/selection-
 import { evaluatePolicy, commandIdentity } from "../src/policy.js";
 import { createSetupCli } from "../src/setup-cli.js";
 import { createAuditedHostRunner } from "../src/host-runner.js";
+import { createLifecycleGuard } from "../src/lifecycle.js";
 import { RuntimeError } from "../src/errors.js";
 import { renderExecutionContext } from "../src/execution-context.js";
 function composeRuntime(config, audit, sessionWorkspace, activation) {
@@ -376,7 +377,13 @@ function restoreSelection(ctx) {
 export default function (pi) {
     // Lazy composition: heavy work only on session_start / reload.
     let runtime;
+    // One owner for the session surface (review finding L0-04): a start opens a generation before its
+    // first await and re-checks after each one, so a superseded start cannot overwrite `runtime`,
+    // register surfaces from a stale activation decision, or notify for a session that is gone.
+    const lifecycle = createLifecycleGuard();
     pi.on("session_start", async (_event, ctx) => {
+        const generation = lifecycle.begin();
+        const superseded = () => !lifecycle.isCurrent(generation);
         const paths = defaultConfigPaths(ctx.cwd);
         const loaded = loadConfigWithDiagnostics(paths, { projectTrusted: ctx.isProjectTrusted() });
         const config = composeRuntimeConfig(ctx.cwd, loaded.config);
@@ -386,6 +393,10 @@ export default function (pi) {
         // when set, and `enabled: false` accepts records but persists nothing.
         const audit = new JsonlAuditWriter(config.audit.directory ?? defaultAuditDirectory(), config.audit.retentionDays, config.audit.enabled);
         const rt = composeRuntime(config, audit, ctx.cwd, activation);
+        // Composition itself is synchronous, but a start that was superseded while the config was being
+        // read must not take the surface over.
+        if (superseded())
+            return;
         runtime = rt;
         // Activation is decided BEFORE any execution surface is registered. In a
         // workspace that is not a DevContainer project the extension must leave Pi's
@@ -407,6 +418,8 @@ export default function (pi) {
             // when every cheaper one missed. Its failure modes (no daemon, timeout) mean
             // "no evidence": the decision fails toward dormancy, never toward takeover.
             evidence.workspaceHasRunningContainer = await probeRunningContainer(rt, ctx.cwd);
+            if (superseded())
+                return;
             decision = decideActivation(evidence);
         }
         activation.decision = decision;
@@ -439,12 +452,16 @@ export default function (pi) {
                     ...(record.candidateId !== undefined ? { candidateId: record.candidateId } : {}),
                     ...(record.version === 2 && record.configPath !== undefined ? { configPath: record.configPath } : {}),
                 });
+                if (superseded())
+                    return;
                 const restoredStatus = runtime.targetStore.snapshot().status;
                 ctx.ui.notify(`Restored DevContainer selection ${record.workspaceKey} (${restoredStatus}).`, "info");
             }
         }
     });
     pi.on("session_shutdown", async () => {
+        // Invalidate anything in flight so a start that resumes after this shutdown cannot take over.
+        lifecycle.invalidate();
         runtime = undefined;
     });
     // --- Execution-context injection ---------------------------------------

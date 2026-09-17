@@ -499,10 +499,10 @@ export function createCommandHandlers(services) {
         if (services.hostRunner === undefined) {
             return { text: "[unexpected] Host runner is not wired in this environment." };
         }
-        const argv = parseArgv(args);
-        if (argv.length === 0) {
-            return { text: "Usage: /devcontainer host-exec <argv...>\nRuns a command on the HOST machine (audited escape hatch)." };
-        }
+        const parsed = parseHostExecArgv(args);
+        if (!parsed.ok)
+            return { text: parsed.text };
+        const argv = parsed.argv;
         try {
             const result = await services.hostRunner.run(argv, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
             return {
@@ -572,15 +572,43 @@ function parseTail(args) {
         return Number(match[1]);
     return 100;
 }
-/** Minimal argv splitter for `/devcontainer host-exec` (whitespace + quotes). */
-export function parseArgv(input) {
-    const out = [];
-    const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
-    let match;
-    while ((match = re.exec(input)) !== null) {
-        out.push((match[1] ?? match[2] ?? match[3] ?? "").toString());
+const HOST_EXEC_USAGE = "Usage: /devcontainer host-exec --argv <value> [--argv <value> ...]\n" +
+    "One --argv per argument; use --argv=<value> to pass an empty argument. Values are taken verbatim\n" +
+    "(no shell or quote processing). Runs the command on the HOST machine (audited escape hatch).";
+export function parseHostExecArgv(input) {
+    const trimmed = input.trim();
+    if (trimmed.length === 0)
+        return { ok: false, text: HOST_EXEC_USAGE };
+    if (!trimmed.startsWith("--argv")) {
+        return {
+            ok: false,
+            text: `[policy-denied] Free-text arguments are not accepted here: \`${trimmed.split(/\s+/)[0]}\` would be ` +
+                `reinterpreted before it runs on the host.\n${HOST_EXEC_USAGE}`,
+        };
     }
-    return out;
+    const argv = [];
+    // Each `--argv` (optionally `=`) starts one argument, which runs until the next `--argv`.
+    const parts = trimmed.split(/(?=(?:^|\s)--argv(?:\s|=|$))/);
+    for (const raw of parts) {
+        const part = raw.trim();
+        if (part.length === 0)
+            continue;
+        if (!part.startsWith("--argv")) {
+            return { ok: false, text: `[policy-denied] Unexpected arguments before --argv.\n${HOST_EXEC_USAGE}` };
+        }
+        const rest = part.slice("--argv".length);
+        if (rest.startsWith("=")) {
+            argv.push(rest.slice(1));
+            continue;
+        }
+        if (rest.trim().length === 0) {
+            return { ok: false, text: `[policy-denied] --argv needs a value (use --argv= for an empty one).\n${HOST_EXEC_USAGE}` };
+        }
+        argv.push(rest.trim());
+    }
+    if (argv.length === 0)
+        return { ok: false, text: HOST_EXEC_USAGE };
+    return { ok: true, argv };
 }
 /** Format a typed error into command output (kind surfaced). */
 export function describeError(error) {

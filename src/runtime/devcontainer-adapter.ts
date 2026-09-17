@@ -169,20 +169,17 @@ export class NodeDevcontainerAdapter implements DevcontainerAdapter {
     }
     argv.push("--", cmd, ...args);
 
-    const chunks: Buffer[] = [];
-    const errChunks: Buffer[] = [];
     const result = await runBounded(this.runner, this.options.devcontainerPath, argv, {
       cwd: this.options.cwd,
       env: this.options.env,
       maxOutputBytes: this.options.limits?.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
       timeoutMs: this.options.limits?.timeoutMs ?? CLI_TIMEOUT_MS,
       ...(options.signal !== undefined ? { signal: options.signal } : {}),
-      onData: (chunk) => chunks.push(chunk),
-      onStderr: (chunk) => errChunks.push(chunk),
       spawnError: devcontainerSpawnErrorSpec(this.options.devcontainerPath),
     });
-    const stdout = Buffer.concat(chunks).toString("utf8");
-    const stderr = Buffer.concat(errChunks).toString("utf8");
+    // The process boundary carries its bounded streams now (L5-03); no callback collection here.
+    const stdout = result.stdout ?? "";
+    const stderr = result.stderr ?? "";
     this.rejectStructuralFailure(result, stdout, stderr);
     return {
       exitCode: result.exitCode,
@@ -199,19 +196,19 @@ export class NodeDevcontainerAdapter implements DevcontainerAdapter {
     args: readonly string[],
     signal?: AbortSignal,
   ): Promise<{ result: ProcessResult; stdout: Buffer; stderr: Buffer }> {
-    const chunks: Buffer[] = [];
-    const errChunks: Buffer[] = [];
     const result = await runBounded(this.runner, this.options.devcontainerPath, args, {
       cwd: this.options.cwd,
       env: this.options.env,
       maxOutputBytes: this.options.limits?.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
       timeoutMs: this.options.limits?.timeoutMs ?? CLI_TIMEOUT_MS,
       ...(signal !== undefined ? { signal } : {}),
-      onData: (chunk) => chunks.push(chunk),
-      onStderr: (chunk) => errChunks.push(chunk),
       spawnError: devcontainerSpawnErrorSpec(this.options.devcontainerPath),
     });
-    return { result, stdout: Buffer.concat(chunks), stderr: Buffer.concat(errChunks) };
+    return {
+      result,
+      stdout: Buffer.from(result.stdout ?? "", "utf8"),
+      stderr: Buffer.from(result.stderr ?? "", "utf8"),
+    };
   }
 
   private parseUp(result: ProcessResult, stdout: Buffer, stderr: Buffer): UpResult {

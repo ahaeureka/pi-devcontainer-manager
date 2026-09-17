@@ -31,11 +31,17 @@ function makeConfig(overrides: Partial<EffectiveConfig> = {}): EffectiveConfig {
   };
 }
 
+/**
+ * A scripted run. `stdout`/`stderr` are the fields the process boundary supplies when the caller
+ * does not stream (L5-03); this runner used to hand the probe's bytes to an `onData` callback.
+ */
 const result = (overrides: Partial<ProcessResult> = {}): ProcessResult => ({
   exitCode: 0,
   signal: null,
   durationMs: 1,
   truncated: false,
+  stdout: "",
+  stderr: "",
   ...overrides,
 });
 
@@ -69,10 +75,7 @@ function harness(
 }
 
 /** Probe handler that reports a version the way the real CLI does (stdout). */
-const probeReporting = (version: string): Handler => (options) => {
-  options.onData?.(Buffer.from(`devcontainer ${version}\n`, "utf8"));
-  return result();
-};
+const probeReporting = (version: string): Handler => (_options) => result({ stdout: `devcontainer ${version}\n` });
 
 describe("createSetupCli", () => {
   it("installs through the fixed argv and audits exactly one successful attempt", async () => {
@@ -100,10 +103,7 @@ describe("createSetupCli", () => {
   });
 
   it("returns a structured failure when npm exits nonzero", async () => {
-    const { setup, records } = harness((options) => {
-      options.onStderr?.(Buffer.from("npm ERR! 403 Forbidden\n", "utf8"));
-      return result({ exitCode: 1 });
-    });
+    const { setup, records } = harness(() => result({ exitCode: 1, stderr: "npm ERR! 403 Forbidden\n" }));
 
     const outcome = await setup();
 
@@ -225,8 +225,7 @@ describe("createSetupCli", () => {
 
   it("redacts secrets from the failure it hands back to the operator and the model", async () => {
     const { setup } = harness((options) => {
-      options.onStderr?.(Buffer.from("npm ERR! //registry.npmjs.org/:_authToken=supersecret-token-value\n", "utf8"));
-      return result({ exitCode: 1 });
+      return result({ exitCode: 1, stderr: "npm ERR! //registry.npmjs.org/:_authToken=supersecret-token-value\n" });
     });
 
     const outcome = await setup();
