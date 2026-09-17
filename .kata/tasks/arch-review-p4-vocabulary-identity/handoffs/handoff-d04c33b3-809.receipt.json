@@ -1,0 +1,33 @@
+{
+  "protocolVersion": 1,
+  "taskId": "arch-review-p4-vocabulary-identity",
+  "handoffId": "handoff-d04c33b3-809",
+  "platform": "pi",
+  "role": "reviewer",
+  "packetSha256": "4ce292031cb5c1211b4a494f1c0f18a23ba12270f6c6b8fa153e61319e4f0cbb",
+  "acknowledgedAt": "2026-09-17T07:18:53.335Z",
+  "repository": {
+    "head": "fff866d7d786623f1a5060090d888f229b7161b7",
+    "branch": "feature/arch-review-p4-vocabulary-identity",
+    "diffHash": "dc4c5d0509c6bb9e9cc3f34333bf675b8ef8159083dc7ba67f76b0dcb7dcb0af",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-fc74cc9a-99a2-4548-8e5c-959479ce491c",
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "README.zh-CN.md",
+        "dist",
+        "docs",
+        "extensions",
+        "openspec",
+        "package.json",
+        "scripts",
+        "src",
+        "tests"
+      ],
+      "hash": "dc4c5d0509c6bb9e9cc3f34333bf675b8ef8159083dc7ba67f76b0dcb7dcb0af"
+    },
+    "worktreeRoot": "."
+  }
+}

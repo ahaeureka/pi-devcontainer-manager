@@ -1,0 +1,360 @@
+{
+  "protocolVersion": 1,
+  "id": "handoff-a21a8a85-fd1",
+  "taskId": "arch-review-p4-vocabulary-identity",
+  "createdAt": "2026-09-17T07:18:42.039Z",
+  "from": {
+    "role": "implementer"
+  },
+  "to": {
+    "role": "reviewer"
+  },
+  "phase": "hardVerify",
+  "repository": {
+    "head": "5a9c87492f5d93a4b86c7043ecda6f9f6955ca02",
+    "branch": "feature/arch-review-p4-vocabulary-identity",
+    "diffHash": "dc4c5d0509c6bb9e9cc3f34333bf675b8ef8159083dc7ba67f76b0dcb7dcb0af",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-fc74cc9a-99a2-4548-8e5c-959479ce491c",
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "README.zh-CN.md",
+        "dist",
+        "docs",
+        "extensions",
+        "openspec",
+        "package.json",
+        "scripts",
+        "src",
+        "tests"
+      ],
+      "hash": "dc4c5d0509c6bb9e9cc3f34333bf675b8ef8159083dc7ba67f76b0dcb7dcb0af"
+    },
+    "worktreeRoot": "."
+  },
+  "task": {
+    "id": "arch-review-p4-vocabulary-identity",
+    "title": "`RegistryEntry` states its own state (L4-04): the entry becomes a discriminated ",
+    "phase": "intake",
+    "acceptance": [
+      {
+        "id": "AC-1",
+        "statement": "`RegistryEntry` states its own state (L4-04): the entry becomes a discriminated union whose variants make the state readable from one field, `configPath` exists only on variants where a configuration actually exists (the required `\"\"` sentinel is gone), and container identity lives in one collection with an explicit primary marker so the primary candidate cannot disagree with its siblings. Consumers can no longer reconstruct entry state by combining optional fields."
+      },
+      {
+        "id": "AC-2",
+        "statement": "The union conversion lands whole (L4-04's blast radius): every consumer of `RegistryEntry` — the command layer, the execution service, discovery, the facade's mapping/context/guard reads, and the prompt rendering — is converted in the same revision, and the phase is not split mid-conversion. Tests that exercise each consumed field keep passing against the new shape, rewritten to read the discriminant rather than a sentinel."
+      },
+      {
+        "id": "AC-3",
+        "statement": "Container identity stops being caller-supplied (L3-07): `logs`, `stop` and `remove` derive the container from the bound target, or verify a supplied container id against the bound target's registry candidates before the adapter call, and the audit record's `targetId` comes from that binding. An identity that is not the bound target's candidate is refused with a typed error before Docker runs; `exec`'s existing discipline (re-resolve, refuse a workspace that differs, always send the bound workspace) stays the single invariant across all four operations."
+      },
+      {
+        "id": "AC-4",
+        "statement": "The status-to-error mapping is exhaustive and single-sourced (L3-09): `TargetStore.bind()` dispatches on `SelectionStatus` through one exhaustive construct with a `never` guard, so adding a status is a compile error rather than a silent fall-through to `unexpected`; the unreachable defensive branch is gone and the typed refusals (kind, message, remedy) are unchanged for every existing status."
+      },
+      {
+        "id": "AC-5",
+        "statement": "Workspace identity and containment have one owner (L5-01): one canonicalization function and one containment function live in `src/workspace-path.ts` and are used by policy, discovery and the execution service; `canonicalForPolicy`, `isPathBelow`'s private prefix logic and the inline key comparison in `exec` are gone. The chosen fallback semantics (including a path that does not exist, and a case-differing path on win32) are pinned by tests, so a symlinked or case-differing workspace cannot pass one check and fail another."
+      },
+      {
+        "id": "AC-6",
+        "statement": "No regression, and the review's invariants hold: host-side and container-side paths stay distinct (the CLI always receives the host path), refusals stay fail-closed with their typed kinds, discovery stays lazy/read-only/bounded, targets are never auto-started, `stop`/`remove` keep both the policy grant and the fresh per-action confirmation token, host execution stays withheld-able and audited, and the full gate set is green (`npm run typecheck`, the unit suite, `verify-package.mjs --unit-tests`, a rebuilt `dist/` that matches a fresh build and is committed with the source, the packed smoke run, and `npm run install:local -- --check`)."
+      }
+    ],
+    "branch": "main",
+    "createdAt": "2026-09-16T09:01:06.987Z",
+    "updatedAt": "2026-09-16T09:01:06.987Z",
+    "workflowProfile": {
+      "version": 1,
+      "isolationMode": "git_flow",
+      "developmentMode": "tdd",
+      "reviewMode": "security",
+      "comet": {
+        "projectInit": "not_requested",
+        "openStatus": "acknowledged"
+      },
+      "gitFlow": {
+        "strategy": "manual",
+        "branch": "feature/arch-review-p4-vocabulary-identity",
+        "baseBranch": "main",
+        "status": "active"
+      }
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "statement": "`RegistryEntry` states its own state (L4-04): the entry becomes a discriminated union whose variants make the state readable from one field, `configPath` exists only on variants where a configuration actually exists (the required `\"\"` sentinel is gone), and container identity lives in one collection with an explicit primary marker so the primary candidate cannot disagree with its siblings. Consumers can no longer reconstruct entry state by combining optional fields.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L4-04",
+        "confirmedAt": "2026-09-16T09:01:06.987Z"
+      },
+      {
+        "id": "REQ-2",
+        "statement": "The union conversion lands whole (L4-04's blast radius): every consumer of `RegistryEntry` — the command layer, the execution service, discovery, the facade's mapping/context/guard reads, and the prompt rendering — is converted in the same revision, and the phase is not split mid-conversion. Tests that exercise each consumed field keep passing against the new shape, rewritten to read the discriminant rather than a sentinel.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Phase 4 risk flag (`cross-module`): the union conversion is the phase's widest change.",
+        "confirmedAt": "2026-09-16T09:01:06.987Z"
+      },
+      {
+        "id": "REQ-3",
+        "statement": "Container identity stops being caller-supplied (L3-07): `logs`, `stop` and `remove` derive the container from the bound target, or verify a supplied container id against the bound target's registry candidates before the adapter call, and the audit record's `targetId` comes from that binding. An identity that is not the bound target's candidate is refused with a typed error before Docker runs; `exec`'s existing discipline (re-resolve, refuse a workspace that differs, always send the bound workspace) stays the single invariant across all four operations.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L3-07",
+        "confirmedAt": "2026-09-16T09:01:06.987Z"
+      },
+      {
+        "id": "REQ-4",
+        "statement": "The status-to-error mapping is exhaustive and single-sourced (L3-09): `TargetStore.bind()` dispatches on `SelectionStatus` through one exhaustive construct with a `never` guard, so adding a status is a compile error rather than a silent fall-through to `unexpected`; the unreachable defensive branch is gone and the typed refusals (kind, message, remedy) are unchanged for every existing status.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L3-09",
+        "confirmedAt": "2026-09-16T09:01:06.987Z"
+      },
+      {
+        "id": "REQ-5",
+        "statement": "Workspace identity and containment have one owner (L5-01): one canonicalization function and one containment function live in `src/workspace-path.ts` and are used by policy, discovery and the execution service; `canonicalForPolicy`, `isPathBelow`'s private prefix logic and the inline key comparison in `exec` are gone. The chosen fallback semantics (including a path that does not exist, and a case-differing path on win32) are pinned by tests, so a symlinked or case-differing workspace cannot pass one check and fail another.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L5-01",
+        "confirmedAt": "2026-09-16T09:01:06.987Z"
+      },
+      {
+        "id": "REQ-6",
+        "statement": "No regression, and the review's invariants hold: host-side and container-side paths stay distinct (the CLI always receives the host path), refusals stay fail-closed with their typed kinds, discovery stays lazy/read-only/bounded, targets are never auto-started, `stop`/`remove` keep both the policy grant and the fresh per-action confirmation token, host execution stays withheld-able and audited, and the full gate set is green (`npm run typecheck`, the unit suite, `verify-package.mjs --unit-tests`, a rebuilt `dist/` that matches a fresh build and is committed with the source, the packed smoke run, and `npm run install:local -- --check`).",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraints 1-10, plus the repository's no-regression convention.",
+        "confirmedAt": "2026-09-16T09:01:06.987Z"
+      }
+    ],
+    "acceptanceMatrix": {
+      "version": 1,
+      "rows": [
+        {
+          "acceptanceId": "AC-1",
+          "designRefs": [
+            "design.md §3.3"
+          ],
+          "implementationPaths": [
+            "src/types.ts",
+            "src/runtime/host-discovery.ts",
+            "src/registry-entry.ts"
+          ],
+          "testPaths": [
+            "tests/unit/host-discovery.test.ts",
+            "tests/unit/registry-entry.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-2",
+          "designRefs": [
+            "design.md §3.3"
+          ],
+          "implementationPaths": [
+            "src/commands.ts",
+            "src/execution-service.ts",
+            "extensions/index.ts",
+            "tests/unit/fixtures"
+          ],
+          "testPaths": [
+            "tests/unit/commands.test.ts",
+            "tests/unit/command-config-selection.test.ts",
+            "tests/unit/container-config-routing.test.ts",
+            "tests/unit/execution-service.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-3",
+          "designRefs": [
+            "design.md §3.4"
+          ],
+          "implementationPaths": [
+            "src/execution-service.ts"
+          ],
+          "testPaths": [
+            "tests/unit/execution-service.test.ts",
+            "tests/unit/execution-routing.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-4",
+          "designRefs": [
+            "design.md §3.2"
+          ],
+          "implementationPaths": [
+            "src/target-store.ts"
+          ],
+          "testPaths": [
+            "tests/unit/target-store.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-5",
+          "designRefs": [
+            "design.md §3.1"
+          ],
+          "implementationPaths": [
+            "src/workspace-path.ts",
+            "src/policy.ts",
+            "src/execution-service.ts",
+            "src/runtime/host-discovery.ts"
+          ],
+          "testPaths": [
+            "tests/unit/workspace-path.test.ts",
+            "tests/unit/policy.test.ts",
+            "tests/unit/host-discovery.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-6",
+          "designRefs": [
+            "design.md §5"
+          ],
+          "implementationPaths": [
+            "dist",
+            "CHANGELOG.md"
+          ],
+          "testPaths": [
+            "tests/unit"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            },
+            {
+              "kind": "integration",
+              "command": "node scripts/smoke-pi-package.mjs --no-model"
+            }
+          ],
+          "verificationLevel": "integration"
+        }
+      ]
+    },
+    "ownedPaths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ]
+  },
+  "context": {
+    "requiredReads": [
+      "AGENTS.md",
+      ".llmwiki/SCHEMA.md",
+      ".llmwiki/index.md",
+      ".llmwiki/log.md",
+      ".kata/tasks/arch-review-p4-vocabulary-identity/task.json",
+      ".kata/tasks/arch-review-p4-vocabulary-identity/current-state.json",
+      "openspec/changes/arch-review-p4-vocabulary-identity/design.md"
+    ],
+    "designRefs": [
+      "openspec/changes/arch-review-p4-vocabulary-identity/design.md"
+    ],
+    "sourceRefs": [
+      "AC-1",
+      "AC-2",
+      "AC-3",
+      "AC-4",
+      "AC-5",
+      "AC-6"
+    ],
+    "authoritativeWiki": [],
+    "excludedWiki": [
+      {
+        "id": "llmwiki-arch-review-p1-foundation",
+        "reason": "not-authoritative"
+      },
+      {
+        "id": "llmwiki-arch-review-p4-vocabulary-identity",
+        "reason": "not-authoritative"
+      }
+    ],
+    "evidencePaths": [
+      ".kata/evidence/arch-review-p4-vocabulary-identity-AC-1-test-npm-run-test-unit.json",
+      ".kata/evidence/arch-review-p4-vocabulary-identity-AC-1-typecheck-npm-run-typecheck.json",
+      ".kata/evidence/arch-review-p4-vocabulary-identity-AC-6-integration-node-scripts-smoke-pi-package.mjs---no-model.json",
+      ".kata/evidence/arch-review-p4-vocabulary-identity-test.json",
+      ".kata/evidence/arch-review-p4-vocabulary-identity-typecheck.json"
+    ],
+    "priorArtifacts": [
+      ".kata/tasks/arch-review-p4-vocabulary-identity/review.json",
+      ".kata/tasks/arch-review-p4-vocabulary-identity/judge.json",
+      ".kata/tasks/arch-review-p4-vocabulary-identity/repair.json"
+    ]
+  },
+  "permissions": {
+    "allowedWrites": [
+      ".kata/tasks/arch-review-p4-vocabulary-identity/review.json"
+    ],
+    "guardInstructions": [
+      "You may only write review findings to review.json.",
+      "Check that acceptance criteria are met by the implementation.",
+      "Assign severity: blocking (must fix), major, minor, note.",
+      "Fresh evidence must be collected after any repair.",
+      "Work on feature/arch-review-p4-vocabulary-identity; do not start, finish, or switch Git Flow branches outside the recorded task action.",
+      "Security review: inspect trust boundaries, secrets, dependency changes, input validation, and authorization effects."
+    ]
+  },
+  "nextAction": "Perform reviewer work after verifying this handoff."
+}

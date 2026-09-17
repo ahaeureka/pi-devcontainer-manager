@@ -1,14 +1,10 @@
 import type { CommandCaptureMode, EffectiveConfig, OperationPolicySnapshot, PolicyInput } from "./types.js";
 export declare function evaluatePolicy(config: EffectiveConfig, input: PolicyInput, now?: () => Date): OperationPolicySnapshot;
 /**
- * Filesystem-identity-aware workspace containment.
+ * Workspace containment, delegated to the single owner (review finding L5-01).
  *
- * Containment is checked on `realpath`-resolved paths, not lexical ones: a
- * symlink created beneath an allowed root that points outside it must not pass
- * (`/allowed/link -> /outside`). Paths that do not exist fall back to their
- * resolved lexical form so configuration/selection flows for not-yet-created
- * workspaces keep working; operations that require an existing workspace still
- * fail closed downstream when the path cannot be resolved by the CLI.
+ * The realpath-aware comparison and its fallback for a path that does not exist live in
+ * `workspace-path.ts`; this function only applies it to the configured roots.
  */
 export declare function isWorkspaceAllowed(workspace: string, roots: readonly string[]): boolean;
 export declare function isEnvironmentAllowed(name: string, allowlist: readonly string[]): boolean;

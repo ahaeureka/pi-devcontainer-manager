@@ -1,0 +1,37 @@
+{
+  "fromPhase": "hardVerify",
+  "reason": "verify_fail",
+  "scopes": [
+    {
+      "id": "AC-1",
+      "repairScope": "missing_test_evidence"
+    },
+    {
+      "id": "AC-2",
+      "repairScope": "missing_test_evidence"
+    },
+    {
+      "id": "AC-3",
+      "repairScope": "missing_test_evidence"
+    },
+    {
+      "id": "AC-4",
+      "repairScope": "missing_test_evidence"
+    },
+    {
+      "id": "AC-5",
+      "repairScope": "missing_test_evidence"
+    },
+    {
+      "id": "AC-6",
+      "repairScope": "missing_test_evidence"
+    }
+  ],
+  "taskId": "arch-review-p4-vocabulary-identity",
+  "toPhase": "implement",
+  "actor": {
+    "id": "kata-agent",
+    "role": "implementer"
+  },
+  "createdAt": "2026-09-17T07:19:52.884Z"
+}

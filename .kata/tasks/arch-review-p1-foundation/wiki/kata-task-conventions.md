@@ -140,3 +140,25 @@ Every rule below was hit for real during that cycle.
   that is what the independent review caught on `host-exec-default`. Before sealing, ask of each
   criterion: *if this behaviour disappeared, which test would fail?* If the answer is "none", extract
   the behaviour into an injectable module (see `src/setup-cli.ts`, `src/host-runner.ts`) and pin it.
+
+## 11. The toolchain moves under you — validate artifacts against the CURRENT bundle
+
+Learned the hard way on `arch-review-p4-vocabulary-identity`: `verify` passed, then 20 minutes later
+`verify` and `judge` reported `missing_test_evidence` for every criterion. The kata CLI bundle had been
+rebuilt in between and its schemas had tightened (requirement ids `REQ-N`, evidence `kind` without
+`integration`/`entrypoint`, an evidence `name` pattern its own seal violates for multi-word commands,
+review severities ending in `nit` not `note`). A single schema-invalid evidence envelope makes the
+reader throw for the whole directory, so the gates disagree with each other about the same tree.
+
+- **Check `ls -la <kata>/dist/cli.js`** before believing a gate that contradicts an earlier gate —
+  and before re-running a workflow "to fix" something.
+- The schemas are embedded in the bundle as `kata-asset:/app/kata/schemas/*.json`; read them and
+  validate the task's artifacts (task.json, evidence envelopes, review.json) against them by hand.
+- Repair by making the artifacts conform, changing no facts: relabel `name`, re-declare a matrix row's
+  evidence kind, rename requirement ids or severities, then re-seal so envelopes are regenerated.
+- **A failing judge persists per-criterion blocking obligations** that then make `verify` fail with
+  `unresolved_repair_obligation`; only a successful `build --seal` resolves them. Two different
+  failures with two different causes — do not treat the second as a new defect.
+- Re-running `kata-cli review` (without `--approve`) RESETS `review.json` (findings and evidence
+  dropped); the `--approve --review-evidence` run is the one that writes the record, and it only binds
+  a revisionId when the evidence is readable.

@@ -1,0 +1,40 @@
+{
+  "revisionId": "revision-f1172221-ad60-4d71-81dc-3991cc7e262f",
+  "findings": [
+    {
+      "id": "finding-real-store-coverage",
+      "taskId": "arch-review-p4-vocabulary-identity",
+      "acceptanceId": "AC-3",
+      "severity": "nit",
+      "message": "CLOSED — and it is the reason the blocking finding was invisible. Every AC-3 test used a fake store whose `bind()` always succeeded and whose snapshot reported no candidate, so the fake could not express the states the check now depends on. The fake agrees with what it binds, and four tests drive the real `TargetStore` (stopped target logged, stopped target removed, sibling refused, empty selection delegating to `no-candidate`).",
+      "path": "tests/unit/execution-service.test.ts"
+    },
+    {
+      "id": "finding-deliberate-containment-loosening",
+      "taskId": "arch-review-p4-vocabulary-identity",
+      "acceptanceId": "AC-5",
+      "severity": "nit",
+      "message": "RECORDED, intended. Realpathing the request side means a symlinked spelling of the bound workspace now passes `exec`'s target check where the old lexical inline comparison refused it. Both spellings resolve to the same directory on disk, the service still sends the BOUND workspace to the CLI, and the tests state the distinction: `canonicalWorkspaceKey` stays the LEXICAL identity used for registry keys and CLI argv, while containment is explicitly the realpath question.",
+      "path": "src/workspace-path.ts"
+    },
+    {
+      "id": "finding-state-label-cosmetic",
+      "taskId": "arch-review-p4-vocabulary-identity",
+      "acceptanceId": "AC-1",
+      "severity": "nit",
+      "message": "RECORDED. Two cosmetic consequences of removing the optional `containerState`: an unmappable Docker state now renders as `[unknown]` rather than falling back to `[config-only]`, and a container-only entry now exposes `containerCandidates` (so `/devcontainer use <container-id>` works for a labelled container with no host configuration — a genuine tightening, since the old docker-only branch populated neither that field nor `ambiguous`).",
+      "path": "src/commands.ts"
+    },
+    {
+      "id": "finding-session-start-wiring-untested",
+      "taskId": "arch-review-p4-vocabulary-identity",
+      "acceptanceId": "AC-6",
+      "severity": "nit",
+      "message": "LIMITATION, unchanged. The converted consumers live in tested modules, but the facade's `session_start` config composition and the guard-mapping resolver still sit where this repository has no unit harness; their policy halves are tested and the wiring rests on the packed smoke run.",
+      "path": "extensions/index.ts"
+    }
+  ],
+  "status": "approved",
+  "reviewEvidence": "Approved against revision-913cee03, the repair of revision-38efebd1. The review of the ORIGINAL revision was an INDEPENDENT adversarial pass by a fresh-context agent with no memory of the implementation, briefed against the widest change in this review: falsify the union's completeness, the identity binding (in both directions), the containment consolidation input by input, the review's ten contract invariants, the test quality, and any consumer the repository's own suite cannot see. It earned its cost decisively. (1) BLOCKING and self-inflicted: `bindContainer` routed every request through `TargetStore.bind()`, which refuses a STOPPED target, so `/devcontainer logs` on an exited container, `docker stop` and `docker rm -f` cleanup all started failing — operations that worked on `main`. (2) MAJOR: `isWithinWorkspace(\"/\", \"/tmp\")` was false, because a root of `/` made the prefix test `\"//\"`, so `allowedWorkspaceRoots: [\"/\"]` silently denied every workspace. (3) MINOR: the audit `targetId` for the three operations still passed the CALLER's id rather than the binding's, and the dead `CommandServices.logs` seam would have bypassed policy, audit and the new check if ever wired. Its sharpest point was about the tests: every AC-3 test ran against a fake store whose `bind()` always succeeded and whose snapshot reported no candidate, which is exactly why the over-refusal was invisible. All of that is fixed (commit 6c969b2, re-sealed here) and re-verified: the check reads the selection snapshot and accepts both bindable states while delegating a selection that cannot name a container to the store's own typed refusal; the root boundary is handled; `bindContainer` RETURNS the verified identity and the records use it; the dead seam is gone; and four new tests drive the REAL `TargetStore` (logging a stopped target, removing a stopped target, refusing a sibling container, delegating \"nothing is selected\" to `no-candidate`). Its clean findings are recorded because they carry weight: the union sweep found no remaining `configPath: \"\"`, no `configKind`-as-discriminator and no `containerId`-as-entry-field anywhere in `src`, `extensions`, `dist`, tests or `scripts`, and no unbound path to Docker or to an audit `targetId`; the two deliberate behaviour changes (a symlinked spelling of the bound workspace is now accepted by `exec` where the old lexical inline check refused it, and a docker-only entry now exposes its candidate list so `/devcontainer use <container-id>` works for it) are the design's intent, not drift; AC-4 is pinned by the existing per-status target-store tests (its `never` guard is compile-time only, which the design states). Verification of this revision: `npm run typecheck`; `npx vitest run` (the whole suite the seal runs, unit + integration) 39 files / 456 tests; `verify-package.mjs --unit-tests`; a `dist/` rebuilt in the same commit as the sources and confirmed byte-equal to a fresh build; the packed `smoke-pi-package.mjs --no-model`; `npm run install:local -- --check`. No blocking or major finding remains open against this revision. The five defects that pass found, with their dispositions and the tests that now pin them: (1) BLOCKING — the stopped-target over-refusal, fixed by reading the selection snapshot and accepting `selected-valid` as well as `selected-stopped`, pinned by four tests against the real `TargetStore`; (2) MAJOR — `isWithinWorkspace('/', '/tmp')` was false because the prefix became `'//'`, fixed and covered by a root case in the workspace-path suite; (3) MINOR — the audit `targetId` now comes from the verified identity that `bindContainer` returns, across all six records; (4) MINOR — the stale producer comment and the leftover optional reads are gone, and `discoveredFrom` is documented as informational; (5) MINOR — the dead `CommandServices.logs` seam, which would have bypassed policy, audit and the new check, is removed.",
+  "approvedAt": "2026-09-17T07:22:48.671Z"
+}

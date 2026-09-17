@@ -1,6 +1,6 @@
 import { readdirSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { isPathBelow, resolveRealPath, uniqueWorkspaceKeys } from "../workspace-path.js";
+import { isWithinWorkspace, resolveRealPath, uniqueWorkspaceKeys } from "../workspace-path.js";
 /**
  * Priority used only to pick a single entry when multiple configuration
  * forms exist for one workspace root. This is a design compatibility
@@ -169,7 +169,7 @@ function walkDir(dir, depth, anchorRoot, discovery, traversal, found, diagnostic
             }
             // A directory that resolves outside the anchoring workspace root
             // escapes the scan boundary (symlink escape); do not traverse it.
-            if (!isPathBelow(traversal.realpath(full), anchorRoot)) {
+            if (!isWithinWorkspace(anchorRoot, traversal.realpath(full))) {
                 diagnostics.push(`not traversing ${full}: resolves outside allowed workspace root`);
                 continue;
             }
@@ -212,12 +212,15 @@ function isExistingFile(path, traversal) {
  * Merge host configuration discoveries with Docker label candidates into a
  * single workspace registry keyed by the canonicalized real workspace path.
  *
- * - host + docker on the same key -> `"both"` with the first candidate's id/state
- * - host only -> `"host-config"`
- * - docker only -> `"docker-label"` placeholder retained with its full candidate
- *   list in `containerCandidates` (the locked `RegistryEntry`
- *   requires `configPath`/`configKind`, so a placeholder kind is recorded;
- *   `discoveredFrom: "docker-label"` is the authoritative discriminator)
+ * Each entry's variant (`kind`) says what was found — `"config"` when the host owns a configuration
+ * (with or without a labelled container), `"container-only"` when the workspace is known only through
+ * a labelled container. `discoveredFrom` records HOW it was found and is informational: it carries no
+ * state that `kind` does not already determine (review finding L4-04).
+ *
+ * - host + docker on the same key -> `kind: "config"`, `discoveredFrom: "both"`
+ * - host only -> `kind: "config"`, `discoveredFrom: "host-config"`
+ * - docker only -> `kind: "container-only"`, `discoveredFrom: "docker-label"` — no configuration path
+ *   and no placeholder kind, because there is no configuration
  * - a candidate without a `devcontainer.local_folder` label has no workspace
  *   identity and is never registered; a diagnostic is emitted instead
  */
@@ -232,29 +235,26 @@ export function buildWorkspaceRegistry(input) {
         const existing = byKey.get(project.workspacePath);
         if (existing === undefined) {
             byKey.set(project.workspacePath, {
+                kind: "config",
                 workspacePath: project.workspacePath,
-                configPath: candidate.configPath,
-                configKind: candidate.configKind,
                 discoveredFrom: "host-config",
                 configCandidates: [candidate],
+                primaryConfig: candidate,
+                containerCandidates: [],
+                ambiguous: false,
             });
             continue;
         }
         // A workspace can own several configurations: the CLI's default lookup plus
-        // any number of named ones. Keep them all, ordered by lookup priority, and
-        // let the primary fields stay the highest-priority entry.
-        const configCandidates = [
-            ...(existing.configCandidates ?? [
-                { configPath: existing.configPath, configKind: existing.configKind },
-            ]),
-            candidate,
-        ].sort(compareConfigCandidates);
-        const primary = configCandidates[0];
+        // any number of named ones. Keep them all, ordered by lookup priority; the
+        // primary is the highest-priority one and always a member of the collection.
+        if (existing.kind !== "config")
+            continue;
+        const configCandidates = [...existing.configCandidates, candidate].sort(compareConfigCandidates);
         byKey.set(project.workspacePath, {
             ...existing,
-            configPath: primary.configPath,
-            configKind: primary.configKind,
             configCandidates,
+            primaryConfig: configCandidates[0],
         });
     }
     const dockerByKey = new Map();
@@ -277,38 +277,35 @@ export function buildWorkspaceRegistry(input) {
             entries.push(hostEntry);
             continue;
         }
-        const first = dockerList[0];
-        if (first === undefined)
-            continue;
-        // Expose EVERY candidate and fail closed when more than one is running,
-        // so Docker result order never silently decides the target.
+        // Expose EVERY candidate, ordered by Docker's own listing (which puts the running container
+        // first), and fail closed when more than one is running so result order never decides the target.
         const candidates = dockerList
             .filter((c) => c.id !== "")
             .map((c) => ({ id: c.id, state: mapContainerState(c.state) ?? "unknown" }));
         const runningCount = candidates.filter((c) => c.state === "running").length;
-        entries.push({
-            ...hostEntry,
-            discoveredFrom: "both",
-            ...(first.id !== "" ? { containerId: first.id } : {}),
-            ...containerStateField(first.state),
-            containerCandidates: candidates,
-            ...(runningCount > 1 ? { ambiguous: true } : {}),
-        });
+        // `byKey` only ever holds host-config entries, so the variant is known here; `both` says the
+        // containers were discovered alongside a configuration rather than instead of one.
+        if (hostEntry.kind !== "config")
+            continue; // `byKey` only ever holds host-config entries
+        const configEntry = { ...hostEntry, kind: "config", discoveredFrom: "both" };
+        entries.push({ ...configEntry, containerCandidates: candidates, ambiguous: runningCount > 1 });
     }
     for (const [key, list] of dockerByKey) {
         if (byKey.has(key))
             continue;
-        const first = list[0];
-        if (first === undefined)
+        // A labelled container with no host configuration: its own variant, so there is no configuration
+        // path to invent and no placeholder kind to explain away (review finding L4-04).
+        const candidates = list
+            .filter((c) => c.id !== "")
+            .map((c) => ({ id: c.id, state: mapContainerState(c.state) ?? "unknown" }));
+        if (candidates.length === 0)
             continue;
         entries.push({
+            kind: "container-only",
             workspacePath: key,
-            // Placeholder: never read as a real configuration; docker-label is authoritative.
-            configPath: "",
-            configKind: "root/devcontainer.json",
             discoveredFrom: "docker-label",
-            ...(first.id !== "" ? { containerId: first.id } : {}),
-            ...containerStateField(first.state),
+            containerCandidates: candidates,
+            ambiguous: candidates.filter((c) => c.state === "running").length > 1,
         });
     }
     entries.sort((a, b) => a.workspacePath.localeCompare(b.workspacePath));
@@ -320,11 +317,6 @@ function compareConfigCandidates(left, right) {
 }
 function kindPriority(kind) {
     return KIND_PRIORITY[kind] ?? Number.MAX_SAFE_INTEGER;
-}
-/** Spread helper: omits `containerState` entirely when there is no state. */
-function containerStateField(state) {
-    const mapped = mapContainerState(state);
-    return mapped === undefined ? {} : { containerState: mapped };
 }
 function errorMessage(error) {
     return error instanceof Error ? error.message : String(error);

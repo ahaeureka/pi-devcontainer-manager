@@ -21,6 +21,7 @@ import { isWorkspaceAllowed, isEnvironmentAllowed } from "./policy.js";
 import { combineCommandOutput } from "./tool-output.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
 import type { ConfigCandidate, EffectiveConfig, RegistryEntry } from "./types.js";
+import { configCandidatesOf, configPathOf, containerStateOf, primaryCandidate, primaryConfigOf } from "./registry-entry.js";
 import { SELECTION_ENTRY_KIND, SELECTION_PAYLOAD_VERSION } from "./selection-state.js";
 import { needsExplicitConfig } from "./runtime/devcontainer-adapter.js";
 
@@ -52,8 +53,6 @@ export interface CommandServices {
   readonly registry: () => Promise<{ entries: readonly import("./types.js").RegistryEntry[]; diagnostics: readonly string[] }>;
   /** Re-run host + docker discovery and return the fresh registry. */
   readonly refreshRegistry: () => Promise<{ entries: readonly import("./types.js").RegistryEntry[]; diagnostics: readonly string[] }>;
-  /** Bounded container logs (wired to the docker lifecycle adapter). */
-  readonly logs: (container: DockerContainer, options?: { tail?: number; signal?: AbortSignal }) => Promise<{ exitCode: number | null; output: string; truncated: boolean }>;
   /** Optional explicit host runner for `/devcontainer host-exec` (policy-gated). */
   readonly hostRunner?: {
     run(argv: readonly string[], options?: { timeoutMs?: number; signal?: AbortSignal }): Promise<{
@@ -138,7 +137,7 @@ export function renderStatus(
   lines.push("");
   lines.push(`**Registry (${entries.length}):**`);
   for (const entry of entries) {
-    const state = entry.containerState !== undefined ? entry.containerState : "config-only";
+    const state = containerStateOf(entry) ?? "config-only";
     const marker = entry.workspacePath === snapshot.workspaceKey ? " ▸" : "";
     lines.push(`- \`${entry.workspacePath}\` [${state}]${marker}`);
   }
@@ -204,7 +203,7 @@ export function selectionFor(
   candidateId: string | undefined,
   configPath?: string,
 ): TargetSelection {
-  const state = entry.containerState ?? "exited";
+  const state = containerStateOf(entry) ?? "exited";
   // A named configuration (or the legacy root form) is invisible to the CLI's own
   // lookup, so it must travel with the operation. Only a DISCOVERED path is ever
   // carried — a caller cannot smuggle an arbitrary `--config` into the argv — and the
@@ -212,13 +211,13 @@ export function selectionFor(
   const resolvedConfig =
     configPath !== undefined
       ? candidatesOf(entry).find((candidate) => candidate.configPath === configPath)?.configPath
-      : needsExplicitConfig(entry.configKind) && entry.configPath.length > 0
-        ? entry.configPath
+      : entry.kind === "config" && needsExplicitConfig(entry.primaryConfig.configKind)
+        ? entry.primaryConfig.configPath
         : undefined;
   // More than one running container for this workspace: Docker result order
   // must never decide the target. Fail closed until an explicit id is given.
   if (entry.ambiguous === true && candidateId === undefined) {
-    const ids = (entry.containerCandidates ?? []).map((c) => c.id).join(", ");
+    const ids = entry.containerCandidates.map((c) => c.id).join(", ");
     return {
       status: "selected-ambiguous",
       workspaceKey: entry.workspacePath,
@@ -281,9 +280,9 @@ export async function reconcileSelection(
   // decides an ambiguous workspace (review finding L1-03).
   const persisted = hint.candidateId;
   const offered =
-    persisted !== undefined && (entry.containerCandidates ?? []).some((candidate) => candidate.id === persisted);
+    persisted !== undefined && entry.containerCandidates.some((candidate) => candidate.id === persisted);
   const usableId =
-    entry.ambiguous === true ? undefined : offered ? persisted : entry.containerId;
+    entry.ambiguous ? undefined : offered ? persisted : primaryCandidate(entry)?.id;
   // A caller that does not name a configuration (a restored hint, `/devcontainer up`, the `list`
   // repair) must not DROP the one this workspace already has selected: falling back to the
   // discovered primary there silently reverted the operator's choice and re-persisted it — the
@@ -332,9 +331,14 @@ function selectorNameOf(candidate: ConfigCandidate): string {
   return parts[parts.length - 2] ?? "default";
 }
 
-/** Every configuration discovered for one workspace (primary form when unlisted). */
+/**
+ * Every configuration discovered for one workspace.
+ *
+ * A container-only entry has none, so the union accessor answers `[]` — the invariant the old
+ * `entry.configPath: ""` sentinel was there to encode (review finding L4-04).
+ */
 function candidatesOf(entry: RegistryEntry): readonly ConfigCandidate[] {
-  return entry.configCandidates ?? (entry.configPath.length > 0 ? [{ configPath: entry.configPath, configKind: entry.configKind }] : []);
+  return configCandidatesOf(entry);
 }
 
 /**
@@ -359,9 +363,10 @@ export function configPathFor(
     const validated = resolveConfigCandidate(entry, selectedConfigPath);
     if (validated.ok) return validated;
   }
+  const primary = primaryConfigOf(entry);
   return {
     ok: true,
-    ...(needsExplicitConfig(entry.configKind) && entry.configPath.length > 0 ? { configPath: entry.configPath } : {}),
+    ...(primary !== undefined && needsExplicitConfig(primary.configKind) ? { configPath: primary.configPath } : {}),
   };
 }
 
@@ -435,7 +440,7 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     // An explicit CONTAINER id selects that candidate of an ambiguous workspace
     // (the only way to resolve 2+ running containers for one workspace).
     if (wanted.length > 0) {
-      const byCandidate = entries.find((e) => (e.containerCandidates ?? []).some((c) => c.id === wanted));
+      const byCandidate = entries.find((e) => e.containerCandidates.some((c) => c.id === wanted));
       if (byCandidate !== undefined) {
         const failure = await select(byCandidate, wanted);
         if (failure !== undefined) return { text: failure };
@@ -454,27 +459,27 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     if (candidates.length === 1) {
       const only = candidates[0]!;
       if (only.ambiguous === true) {
-        const ids = (only.containerCandidates ?? []).map((c) => c.id);
+        const ids = only.containerCandidates.map((c) => c.id);
         return {
           text: `[ambiguous-candidate] Multiple running containers for \`${only.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`,
         };
       }
-      const failure = await select(only, only.containerId);
+      const failure = await select(only, primaryCandidate(only)?.id);
       if (failure !== undefined) return { text: failure };
       return withTarget(
-        `Selected \`${only.workspacePath}\` (${only.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.`,
+        `Selected \`${only.workspacePath}\` (${containerStateOf(only) ?? "config-only"}).\nRun /devcontainer up if it is not running.`,
       );
     }
-    const labels = candidates.map((e) => `${e.workspacePath} [${e.containerState ?? "config-only"}]`);
+    const labels = candidates.map((e) => `${e.workspacePath} [${containerStateOf(e) ?? "config-only"}]`);
     const choice = await ctx.ui.select("Select DevContainer target", labels, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
     if (choice === undefined) return { text: "Selection cancelled." };
     const idx = labels.indexOf(choice);
     if (idx === -1) return { text: "[unexpected] Unknown selection." };
     const picked = candidates[idx]!;
-    const pickedFailure = await select(picked, picked.ambiguous === true ? undefined : picked.containerId);
+    const pickedFailure = await select(picked, picked.ambiguous ? undefined : primaryCandidate(picked)?.id);
     if (pickedFailure !== undefined) return { text: pickedFailure };
     return withTarget(
-      `Selected \`${picked.workspacePath}\` (${picked.containerState ?? "config-only"}).\nRun /devcontainer up if it is not running.`,
+      `Selected \`${picked.workspacePath}\` (${containerStateOf(picked) ?? "config-only"}).\nRun /devcontainer up if it is not running.`,
     );
   };
 

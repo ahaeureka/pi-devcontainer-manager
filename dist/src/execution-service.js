@@ -24,6 +24,7 @@ import { commandIdentity as commandIdentityFor, evaluatePolicy, buildChildEnviro
 import { workspaceHasConfig } from "./runtime/host-discovery.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
 import { RuntimeError } from "./errors.js";
+import { isWithinWorkspace } from "./workspace-path.js";
 export class ExecutionService {
     options;
     clock;
@@ -68,7 +69,9 @@ export class ExecutionService {
         // audit agree.
         const requestKey = canonicalWorkspaceKey(request.workspace);
         const targetKey = canonicalWorkspaceKey(ctx.workspaceKey);
-        const withinTarget = requestKey === targetKey || requestKey.startsWith(targetKey === "/" ? "/" : `${targetKey}/`);
+        // Containment is the single owner's question (L5-01): a symlinked spelling of the bound
+        // workspace resolves to it, while a sibling whose name merely starts the same does not.
+        const withinTarget = isWithinWorkspace(targetKey, requestKey);
         // A request from outside the bound target is allowed ONLY when it comes from a
         // workspace that is not itself a DevContainer project. That is the
         // explicit-selection workflow (stand in a plain repository and drive a selected
@@ -207,6 +210,19 @@ export class ExecutionService {
             workspace: request.workspace,
         });
         const startedAt = Date.now();
+        let verifiedId;
+        try {
+            verifiedId = this.bindContainer(request.container.id);
+        }
+        catch (error) {
+            this.audit(snapshot, undefined, request, {
+                durationMs: Date.now() - startedAt,
+                exitCode: null,
+                outputTruncated: false,
+                errorSummary: this.asAuditError(error).message,
+            });
+            throw error;
+        }
         let result;
         try {
             result = await this.options.dockerLifecycle[request.operation](request.container, request.confirmation);
@@ -217,11 +233,11 @@ export class ExecutionService {
                 exitCode: null,
                 outputTruncated: false,
                 errorSummary: this.asAuditError(error).message,
-            }, request.container.id);
+            }, verifiedId);
             throw error;
         }
         if (result.status === "done") {
-            this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false }, request.container.id);
+            this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false }, verifiedId);
         }
         else {
             this.audit(snapshot, undefined, request, {
@@ -229,7 +245,7 @@ export class ExecutionService {
                 exitCode: null,
                 outputTruncated: false,
                 errorSummary: "confirmation required",
-            }, request.container.id);
+            }, verifiedId);
         }
         return result;
     }
@@ -245,6 +261,20 @@ export class ExecutionService {
             workspace: request.workspace,
         });
         const startedAt = Date.now();
+        let verifiedId;
+        try {
+            verifiedId = this.bindContainer(request.containerId);
+        }
+        catch (error) {
+            // Refused, and recorded — without ever writing the caller's identity as the target.
+            this.audit(snapshot, undefined, { operation: "logs", initiator: request.initiator, workspace: request.workspace }, {
+                durationMs: Date.now() - startedAt,
+                exitCode: null,
+                outputTruncated: false,
+                errorSummary: this.asAuditError(error).message,
+            });
+            throw error;
+        }
         let result;
         try {
             result = await this.options.dockerLifecycle.logs(request.containerId, {
@@ -258,7 +288,7 @@ export class ExecutionService {
                 exitCode: null,
                 outputTruncated: false,
                 errorSummary: this.asAuditError(error).message,
-            }, request.containerId);
+            }, verifiedId);
             throw error;
         }
         this.audit(snapshot, undefined, { operation: "logs", initiator: request.initiator, workspace: request.workspace }, {
@@ -267,6 +297,40 @@ export class ExecutionService {
             outputTruncated: result.truncated,
         }, request.containerId);
         return result;
+    }
+    /**
+     * The container identity a `logs` or lifecycle request may act on.
+     *
+     * `exec` already refuses a request whose workspace differs from the bound target; `logs`, `stop`
+     * and `remove` trusted a caller-supplied identity, never bound it, and recorded that value as the
+     * audit target — so two surfaces of the same service held different invariants about whether the
+     * operated container belonged to the authorized workspace (review finding L3-07). They now verify
+     * the requested identity against the current SELECTION and return it, so every audit record below
+     * writes the identity the service authorized rather than the one the caller supplied.
+     *
+     * The check deliberately does not route the bindable states through `bind()`: `bind()` refuses a
+     * STOPPED target, and reading the logs of an exited container, stopping it, or removing it are
+     * exactly what those operations are for. Only a selection that cannot name a container at all
+     * (`none`, `refreshing`, `selected-ambiguous`, `selected-missing`, `selected-policy-denied`) is
+     * delegated to the store, so the typed refusal is the store's own.
+     */
+    bindContainer(containerId) {
+        const snapshot = this.options.targetStore.snapshot();
+        if (snapshot.status !== "selected-valid" && snapshot.status !== "selected-stopped") {
+            this.options.targetStore.bind(); // throws the selection's own typed refusal
+            throw new RuntimeError({
+                kind: "unexpected",
+                message: `Selection ${snapshot.status} cannot name a container to act on.`,
+            });
+        }
+        if (snapshot.candidateId !== containerId) {
+            throw new RuntimeError({
+                kind: "policy-denied",
+                message: `Container ${containerId} is not the selected target (${snapshot.candidateId ?? "none"}); the service only acts on the container this session selected.`,
+                remedy: "Re-select the target with /devcontainer use, then retry.",
+            });
+        }
+        return snapshot.candidateId;
     }
     /**
      * Frozen policy gate before target resolution or spawn.

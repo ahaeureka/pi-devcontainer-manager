@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { candidate, configCandidate, configEntry, containerOnlyEntry } from "./fixtures/registry-entry.js";
 import type { DiscoveryConfig } from "../../src/types.js";
 import type { DockerContainer } from "../../src/runtime/docker-adapter.js";
 import {
@@ -312,21 +313,7 @@ describe("buildWorkspaceRegistry", () => {
     const docker = [dockerCandidate({ id: "aa11", workspaceKey: "/work/a", state: "running" })];
     const result = registry(fs, docker);
     expect(result.entries).toEqual([
-      {
-        workspacePath: "/work/a",
-        configPath: "/work/a/.devcontainer/devcontainer.json",
-        configKind: ".devcontainer/devcontainer.json",
-        discoveredFrom: "both",
-        containerId: "aa11",
-        containerState: "running",
-        containerCandidates: [{ id: "aa11", state: "running" }],
-        configCandidates: [
-          {
-            configPath: "/work/a/.devcontainer/devcontainer.json",
-            configKind: ".devcontainer/devcontainer.json",
-          },
-        ],
-      },
+      configEntry({ workspacePath: "/work/a", containers: [candidate("aa11")] }),
     ]);
     // A healthy scan reports nothing — the diagnostics channel is for degraded scans only. (The
     // removed `configOnly`/`orphanDockerCandidates` fields are pinned by the registry-shape test
@@ -339,15 +326,10 @@ describe("buildWorkspaceRegistry", () => {
     addFile(fs, "/work/a/devcontainer.json");
     const result = registry(fs, []);
     expect(result.entries).toEqual([
-      {
+      configEntry({
         workspacePath: "/work/a",
-        configPath: "/work/a/devcontainer.json",
-        configKind: "root/devcontainer.json",
-        discoveredFrom: "host-config",
-        configCandidates: [
-          { configPath: "/work/a/devcontainer.json", configKind: "root/devcontainer.json" },
-        ],
-      },
+        configCandidates: [configCandidate("/work/a/devcontainer.json", "root/devcontainer.json")],
+      }),
     ]);
   });
 
@@ -358,14 +340,8 @@ describe("buildWorkspaceRegistry", () => {
     const result = registry(fs, docker);
     expect(result.entries).toHaveLength(2);
     const orphan = result.entries.find((e) => e.workspacePath === "/work/foreign");
-    expect(orphan).toEqual({
-      workspacePath: "/work/foreign",
-      configPath: "",
-      configKind: "root/devcontainer.json",
-      discoveredFrom: "docker-label",
-      containerId: "dd22",
-      containerState: "exited",
-    });
+    // No invented configuration path and no placeholder kind: the entry says it is container-only.
+    expect(orphan).toEqual(containerOnlyEntry({ workspacePath: "/work/foreign", containers: [candidate("dd22", "exited")] }));
   });
 
   it("unifies symlinked roots with Docker label real paths", () => {
@@ -375,21 +351,7 @@ describe("buildWorkspaceRegistry", () => {
     const docker = [dockerCandidate({ workspaceKey: "/work/real/a", state: "running" })];
     const result = registry(fs, docker, { sessionCwd: "/link" });
     expect(result.entries).toEqual([
-      {
-        workspacePath: "/work/real/a",
-        configPath: "/work/real/a/.devcontainer/devcontainer.json",
-        configKind: ".devcontainer/devcontainer.json",
-        discoveredFrom: "both",
-        containerId: "c1",
-        containerState: "running",
-        containerCandidates: [{ id: "c1", state: "running" }],
-        configCandidates: [
-          {
-            configPath: "/work/real/a/.devcontainer/devcontainer.json",
-            configKind: ".devcontainer/devcontainer.json",
-          },
-        ],
-      },
+      configEntry({ workspacePath: "/work/real/a", containers: [candidate("c1")] }),
     ]);
   });
 
@@ -417,7 +379,9 @@ describe("buildWorkspaceRegistry", () => {
       dockerCandidate({ id: "aa12", workspaceKey: "/work/a", state: "exited" }),
     ];
     const result = registry(fs, docker);
-    expect(result.entries[0]?.ambiguous).toBeUndefined();
+    // `ambiguous` is a plain boolean on the union (no field-combination to reconstruct): one running
+    // container means "not ambiguous", which is now stated rather than implied by absence.
+    expect(result.entries[0]?.ambiguous).toBe(false);
     expect(result.entries[0]?.containerCandidates).toHaveLength(2);
   });
 
@@ -431,13 +395,16 @@ describe("buildWorkspaceRegistry", () => {
     const result = registry(fs, docker);
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]?.discoveredFrom).toBe("both");
-    expect(result.entries[0]?.containerId).toBe("aa11");
+    // Identity lives in the collection now; the first element is the primary.
+    expect(result.entries[0]?.containerCandidates[0]?.id).toBe("aa11");
     // both duplicates are diagnostics material when no host config exists
     const fs2 = fsTree();
     const result2 = registry(fs2, docker);
-    expect(result2.entries.filter((e) => e.discoveredFrom === "docker-label").map((e) => e.containerId)).toEqual([
-      "aa11",
-    ]);
+    expect(
+      result2.entries
+        .filter((e) => e.discoveredFrom === "docker-label")
+        .map((e) => e.containerCandidates[0]?.id),
+    ).toEqual(["aa11"]);
     expect(result2.entries.filter((e) => e.discoveredFrom === "docker-label")).toHaveLength(1);
   });
 
@@ -459,10 +426,11 @@ describe("buildWorkspaceRegistry", () => {
       dockerCandidate({ id: "aa12", workspaceKey: "/work/b", state: "" }),
     ]);
     const both = result.entries.find((e) => e.workspacePath === "/work/a");
-    expect(both?.containerState).toBe("unknown");
+    expect(both?.containerCandidates[0]?.state).toBe("unknown");
     const empty = result.entries.find((e) => e.workspacePath === "/work/b");
-    expect(empty?.containerState).toBeUndefined();
-    expect("containerState" in (empty ?? {})).toBe(false);
+    // An unmappable/empty state is still recorded as "unknown" on the candidate rather than being
+    // omitted (there is no optional state field left to omit).
+    expect(empty?.containerCandidates[0]?.state).toBe("unknown");
   });
 
   it("skips docker candidates without a local_folder label and emits a diagnostic", () => {
@@ -483,6 +451,6 @@ describe("buildWorkspaceRegistry", () => {
     addFile(fs, "/work/a/devcontainer.json");
     const result = registry(fs, []);
     expect(result.entries).toHaveLength(1);
-    expect(result.entries[0]?.configKind).toBe(".devcontainer/devcontainer.json");
+    expect(result.entries[0]?.kind === "config" && result.entries[0].primaryConfig.configKind).toBe(".devcontainer/devcontainer.json");
   });
 });

@@ -1,7 +1,7 @@
 ---
 source_path: .kata/tasks/arch-review-p1-foundation/wiki/kata-task-conventions.md
-ingested: 2026-09-16T08:35:09.679Z
-sha256: fbd1e226e0ed15318ec46bcab0db8ee0f70e93ae9c776b71fba9424eb2af6df0
+ingested: 2026-09-17T07:24:57.535Z
+sha256: 2e54dcca229d7c8e0e6d5503b8e7f4b0a768bafaa5155dc836d730898cb8a5f5
 ---
 # Kata task conventions in this repository
 
@@ -145,3 +145,25 @@ Every rule below was hit for real during that cycle.
   that is what the independent review caught on `host-exec-default`. Before sealing, ask of each
   criterion: *if this behaviour disappeared, which test would fail?* If the answer is "none", extract
   the behaviour into an injectable module (see `src/setup-cli.ts`, `src/host-runner.ts`) and pin it.
+
+## 11. The toolchain moves under you — validate artifacts against the CURRENT bundle
+
+Learned the hard way on `arch-review-p4-vocabulary-identity`: `verify` passed, then 20 minutes later
+`verify` and `judge` reported `missing_test_evidence` for every criterion. The kata CLI bundle had been
+rebuilt in between and its schemas had tightened (requirement ids `REQ-N`, evidence `kind` without
+`integration`/`entrypoint`, an evidence `name` pattern its own seal violates for multi-word commands,
+review severities ending in `nit` not `note`). A single schema-invalid evidence envelope makes the
+reader throw for the whole directory, so the gates disagree with each other about the same tree.
+
+- **Check `ls -la <kata>/dist/cli.js`** before believing a gate that contradicts an earlier gate —
+  and before re-running a workflow "to fix" something.
+- The schemas are embedded in the bundle as `kata-asset:/app/kata/schemas/*.json`; read them and
+  validate the task's artifacts (task.json, evidence envelopes, review.json) against them by hand.
+- Repair by making the artifacts conform, changing no facts: relabel `name`, re-declare a matrix row's
+  evidence kind, rename requirement ids or severities, then re-seal so envelopes are regenerated.
+- **A failing judge persists per-criterion blocking obligations** that then make `verify` fail with
+  `unresolved_repair_obligation`; only a successful `build --seal` resolves them. Two different
+  failures with two different causes — do not treat the second as a new defect.
+- Re-running `kata-cli review` (without `--approve`) RESETS `review.json` (findings and evidence
+  dropped); the `--approve --review-evidence` run is the one that writes the record, and it only binds
+  a revisionId when the evidence is readable.

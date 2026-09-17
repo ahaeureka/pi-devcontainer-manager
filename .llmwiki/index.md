@@ -23,6 +23,8 @@
 
 - [[concepts/host-exec-default.md]] — Host execution granted by default (design + policy notes)
 
+- [[concepts/arch-review-p4-vocabulary-identity.md]] — Vocabulary and identity shapes (Phase 4 build notes)
+
 ## Comparisons
 
 ## Queries

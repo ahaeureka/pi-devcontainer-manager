@@ -135,53 +135,17 @@ export class TargetStore {
    */
   public bind(): ExecutionContext {
     const selection = this.selection;
-    if (selection.status === "none") {
-      throw new RuntimeError({
-        kind: "no-candidate",
-        message: "No DevContainer target is selected.",
-        remedy: "Run /devcontainer list then /devcontainer use <workspace>.",
-      });
-    }
-    if (selection.status === "refreshing") {
-      throw new RuntimeError({
-        kind: "target-refreshing",
-        message: "Target state is refreshing; retry the operation.",
-        remedy: "Retry after the refresh completes.",
-      });
-    }
-    if (selection.status === "selected-ambiguous") {
-      throw new RuntimeError({
-        kind: "ambiguous-candidate",
-        message: `Ambiguous target for ${selection.workspaceKey ?? "workspace"} (multiple candidates).`,
-        remedy: "Select an explicit candidate ID with /devcontainer use.",
-      });
-    }
-    if (selection.status === "selected-missing") {
-      throw new RuntimeError({
-        kind: "target-stopped",
-        message: `Selected target for ${selection.workspaceKey ?? "workspace"} no longer exists.`,
-        remedy: "Run /devcontainer up to recreate it.",
-      });
-    }
-    if (selection.status === "selected-stopped") {
-      throw new RuntimeError({
-        kind: "target-stopped",
-        message: `Selected target for ${selection.workspaceKey ?? "workspace"} is stopped.`,
-        remedy: "Run /devcontainer up to start it.",
-      });
-    }
-    if (selection.status === "selected-policy-denied") {
-      throw new RuntimeError({
-        kind: "policy-denied",
-        message: selection.detail ?? "Selected target was denied by policy.",
-        remedy: "Review workspace-root and environment policy.",
-      });
-    }
+    const refusal = refusalFor(selection);
+    if (refusal !== undefined) throw refusal;
+
     const candidate = selection.candidate;
-    if (selection.status !== "selected-valid" || candidate === undefined) {
+    if (candidate === undefined) {
+      // Unreachable through this store's own transitions: `selected-valid` is only ever committed
+      // with a candidate. Kept as a guard for a hand-built state rather than as part of the status
+      // mapping (which is exhaustive below).
       throw new RuntimeError({
         kind: "unexpected",
-        message: `TargetStore is in an invalid state: ${selection.status}`,
+        message: `TargetStore is in an invalid state: ${selection.status} carries no candidate`,
       });
     }
     if (candidate.state !== "running") {
@@ -205,5 +169,60 @@ export class TargetStore {
     // Keep the queue alive even when a prior operation rejects.
     this.queue = next.catch(() => undefined);
     return next;
+  }
+}
+
+/**
+ * The typed refusal for a selection that cannot be bound, or `undefined` when it can.
+ *
+ * One dispatch, one place (review finding L3-09): this used to be seven repeated `RuntimeError`
+ * constructions inside `bind()`, so adding a `SelectionStatus` produced no compiler signal — the new
+ * status silently fell through to `unexpected`. The `never` guard below turns that into a build
+ * failure, and the refusals keep their kinds, messages and remedies exactly.
+ */
+function refusalFor(selection: TargetSelection): RuntimeError | undefined {
+  switch (selection.status) {
+    case "none":
+      return new RuntimeError({
+        kind: "no-candidate",
+        message: "No DevContainer target is selected.",
+        remedy: "Run /devcontainer list then /devcontainer use <workspace>.",
+      });
+    case "refreshing":
+      return new RuntimeError({
+        kind: "target-refreshing",
+        message: "Target state is refreshing; retry the operation.",
+        remedy: "Retry after the refresh completes.",
+      });
+    case "selected-ambiguous":
+      return new RuntimeError({
+        kind: "ambiguous-candidate",
+        message: `Ambiguous target for ${selection.workspaceKey ?? "workspace"} (multiple candidates).`,
+        remedy: "Select an explicit candidate ID with /devcontainer use.",
+      });
+    case "selected-missing":
+      return new RuntimeError({
+        kind: "target-stopped",
+        message: `Selected target for ${selection.workspaceKey ?? "workspace"} no longer exists.`,
+        remedy: "Run /devcontainer up to recreate it.",
+      });
+    case "selected-stopped":
+      return new RuntimeError({
+        kind: "target-stopped",
+        message: `Selected target for ${selection.workspaceKey ?? "workspace"} is stopped.`,
+        remedy: "Run /devcontainer up to start it.",
+      });
+    case "selected-policy-denied":
+      return new RuntimeError({
+        kind: "policy-denied",
+        message: selection.detail ?? "Selected target was denied by policy.",
+        remedy: "Review workspace-root and environment policy.",
+      });
+    case "selected-valid":
+      return undefined;
+    default: {
+      const unhandled: never = selection.status;
+      throw new Error(`Unhandled selection status: ${String(unhandled)}`);
+    }
   }
 }

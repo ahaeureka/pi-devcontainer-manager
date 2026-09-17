@@ -1,7 +1,7 @@
 ---
 title: Kata task conventions in this repository
-created: 2026-09-16
-updated: 2026-09-16
+created: 2026-09-17
+updated: 2026-09-17
 type: concept
 tags: [project, source]
 sources: [raw/docs/kata-task-conventions.md]

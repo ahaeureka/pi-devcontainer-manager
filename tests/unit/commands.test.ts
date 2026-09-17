@@ -15,6 +15,7 @@ import {
   type CommandServices,
 } from "../../src/commands.js";
 import { RuntimeError } from "../../src/errors.js";
+import { candidate, configCandidate, configEntry } from "./fixtures/registry-entry.js";
 import type { EffectiveConfig } from "../../src/types.js";
 import type { RegistryEntry } from "../../src/types.js";
 import type { ExecutionService, LifecycleServiceResult, UpBuildOutcome } from "../../src/execution-service.js";
@@ -40,14 +41,10 @@ function makeConfig(overrides: Partial<EffectiveConfig> = {}): EffectiveConfig {
   };
 }
 
-const entry: RegistryEntry = {
+const entry: RegistryEntry = configEntry({
   workspacePath: "/ws/project-a",
-  configPath: "/ws/project-a/.devcontainer/devcontainer.json",
-  configKind: ".devcontainer/devcontainer.json",
-  discoveredFrom: "both",
-  containerId: "abc123456789",
-  containerState: "running",
-};
+  containers: [candidate("abc123456789")],
+});
 
 const container: DockerContainer = {
   id: "abc123456789",
@@ -154,12 +151,10 @@ describe("/devcontainer use", () => {
   });
 
   it("persists config-only selection intent (End-State use project-b flow)", async () => {
-    const { containerId: _cid, containerState: _cstate, ...configOnly } = entry;
-    const configOnlyEntry: RegistryEntry = {
-      ...configOnly,
+    const configOnlyEntry: RegistryEntry = configEntry({
       workspacePath: "/ws/project-b",
       configPath: "/ws/project-b/.devcontainer/devcontainer.json",
-    };
+    });
     const { handlers, targetStore } = makeServices({
       registry: vi.fn(async () => ({ entries: [configOnlyEntry], diagnostics: [] })),
     });
@@ -183,13 +178,14 @@ describe("/devcontainer use", () => {
 
   it("asks via ui.select when multiple candidates match", async () => {
     const entryB: RegistryEntry = {
-      ...entry,
-      workspacePath: "/ws/project-b",
-      configPath: "/ws/project-b/.devcontainer/devcontainer.json",
+      ...configEntry({
+        workspacePath: "/ws/project-b",
+        configPath: "/ws/project-b/.devcontainer/devcontainer.json",
+      }),
     };
     const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [entry, entryB], diagnostics: [] })) });
     const ctx = makeCtx();
-    ctx.ui.select.mockResolvedValueOnce("/ws/project-b [running]");
+    ctx.ui.select.mockResolvedValueOnce("/ws/project-b [config-only]");
     const result = await handlers["use"]!("", ctx);
     expect(ctx.ui.select).toHaveBeenCalled();
     expect(result.text).toContain("Selected `/ws/project-b`");
@@ -197,9 +193,10 @@ describe("/devcontainer use", () => {
 
   it("reports cancellation when ui.select returns undefined", async () => {
     const entryB: RegistryEntry = {
-      ...entry,
-      workspacePath: "/ws/project-b",
-      configPath: "/ws/project-b/.devcontainer/devcontainer.json",
+      ...configEntry({
+        workspacePath: "/ws/project-b",
+        configPath: "/ws/project-b/.devcontainer/devcontainer.json",
+      }),
     };
     const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [entry, entryB], diagnostics: [] })) });
     const ctx = makeCtx();
@@ -219,12 +216,12 @@ describe("/devcontainer use", () => {
 
   it("carries the named configuration when the workspace has no default-lookup form", async () => {
     const namedPath = "/ws/project-a/.devcontainer/python/devcontainer.json";
-    const named: RegistryEntry = {
-      ...entry,
+    const named: RegistryEntry = configEntry({
+      workspacePath: "/ws/project-a",
       configPath: namedPath,
       configKind: ".devcontainer/<name>/devcontainer.json",
-      configCandidates: [{ configPath: namedPath, configKind: ".devcontainer/<name>/devcontainer.json" }],
-    };
+      containers: [candidate("abc123456789")],
+    });
     const { handlers, targetStore } = makeServices({
       registry: vi.fn(async () => ({ entries: [named], diagnostics: [] })),
     });
@@ -237,14 +234,11 @@ describe("/devcontainer use", () => {
   it("selects a configuration named with --config", async () => {
     const defaultPath = "/ws/project-a/.devcontainer/devcontainer.json";
     const pythonPath = "/ws/project-a/.devcontainer/python/devcontainer.json";
-    const multi: RegistryEntry = {
-      ...entry,
-      configPath: defaultPath,
-      configCandidates: [
-        { configPath: defaultPath, configKind: ".devcontainer/devcontainer.json" },
-        { configPath: pythonPath, configKind: ".devcontainer/<name>/devcontainer.json" },
-      ],
-    };
+    const multi: RegistryEntry = configEntry({
+      workspacePath: "/ws/project-a",
+      configCandidates: [configCandidate(defaultPath), configCandidate(pythonPath, ".devcontainer/<name>/devcontainer.json")],
+      containers: [candidate("abc123456789")],
+    });
     const { handlers, targetStore } = makeServices({
       registry: vi.fn(async () => ({ entries: [multi], diagnostics: [] })),
     });
@@ -258,14 +252,11 @@ describe("/devcontainer use", () => {
   it("names the available configurations when --config does not match", async () => {
     const defaultPath = "/ws/project-a/.devcontainer/devcontainer.json";
     const pythonPath = "/ws/project-a/.devcontainer/python/devcontainer.json";
-    const multi: RegistryEntry = {
-      ...entry,
-      configPath: defaultPath,
-      configCandidates: [
-        { configPath: defaultPath, configKind: ".devcontainer/devcontainer.json" },
-        { configPath: pythonPath, configKind: ".devcontainer/<name>/devcontainer.json" },
-      ],
-    };
+    const multi: RegistryEntry = configEntry({
+      workspacePath: "/ws/project-a",
+      configCandidates: [configCandidate(defaultPath), configCandidate(pythonPath, ".devcontainer/<name>/devcontainer.json")],
+      containers: [candidate("abc123456789")],
+    });
     const { handlers, targetStore } = makeServices({
       registry: vi.fn(async () => ({ entries: [multi], diagnostics: [] })),
     });
@@ -546,10 +537,7 @@ describe("reconcileSelection identity validation", () => {
 
   const running = (over: Partial<RegistryEntry> = {}): RegistryEntry =>
     ({
-      ...entry,
-      containerState: "running",
-      containerId: "current-container",
-      containerCandidates: [{ id: "current-container", state: "running" }],
+      ...configEntry({ workspacePath: "/ws/project-a", containers: [candidate("current-container")] }),
       ...over,
     }) as RegistryEntry;
 
@@ -620,8 +608,8 @@ describe("CommandResult.target (L1-06)", () => {
     const ctx = makeCtx({ ui: undefined });
     ctx.ui.select = vi.fn(async () => undefined);
     const multi = [
-      { ...entry, workspacePath: "/ws/a" },
-      { ...entry, workspacePath: "/ws/b" },
+      configEntry({ workspacePath: "/ws/a", containers: [candidate("abc123456789")] }),
+      configEntry({ workspacePath: "/ws/b", containers: [candidate("abc123456789")] }),
     ] as RegistryEntry[];
     const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: multi, diagnostics: [] })) });
 
@@ -645,12 +633,8 @@ describe("CommandResult.target (L1-06)", () => {
       registry: vi.fn(async () => ({
         entries: [
           {
-            ...entry,
+            ...configEntry({ workspacePath: "/ws/project-a", containers: [candidate("aa11"), candidate("aa12")] }),
             ambiguous: true,
-            containerCandidates: [
-              { id: "aa11", state: "running" },
-              { id: "aa12", state: "running" },
-            ],
           },
         ],
         diagnostics: [],
@@ -669,7 +653,7 @@ describe("CommandResult.target (L1-06)", () => {
 
 describe("/devcontainer up refresh (L2-01)", () => {
   it("refreshes the registry after a successful start and reconciles against it", async () => {
-    const started: RegistryEntry = { ...entry, containerState: "running", containerId: "fresh123" };
+    const started: RegistryEntry = configEntry({ workspacePath: "/ws/project-a", containers: [candidate("fresh123")] });
     const refreshed = vi.fn(async () => ({ entries: [started], diagnostics: [] }));
     const { handlers } = makeServices({ refreshRegistry: refreshed });
 
@@ -716,17 +700,12 @@ describe("persisted selection intent (L1-02 / L1-04)", () => {
   });
 
   it("persists the selected configuration with the selection", async () => {
-    const named: RegistryEntry = {
-      ...entry,
+    const named: RegistryEntry = configEntry({
+      workspacePath: "/ws/project-a",
       configPath: "/ws/project-a/.devcontainer/python/devcontainer.json",
       configKind: ".devcontainer/<name>/devcontainer.json",
-      configCandidates: [
-        {
-          configPath: "/ws/project-a/.devcontainer/python/devcontainer.json",
-          configKind: ".devcontainer/<name>/devcontainer.json",
-        },
-      ],
-    };
+      containers: [candidate("abc123456789")],
+    });
     const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [named], diagnostics: [] })) });
     const ctx = makeCtx();
 

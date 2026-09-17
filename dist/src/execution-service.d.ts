@@ -119,6 +119,23 @@ export declare class ExecutionService {
         truncated: boolean;
     }>;
     /**
+     * The container identity a `logs` or lifecycle request may act on.
+     *
+     * `exec` already refuses a request whose workspace differs from the bound target; `logs`, `stop`
+     * and `remove` trusted a caller-supplied identity, never bound it, and recorded that value as the
+     * audit target — so two surfaces of the same service held different invariants about whether the
+     * operated container belonged to the authorized workspace (review finding L3-07). They now verify
+     * the requested identity against the current SELECTION and return it, so every audit record below
+     * writes the identity the service authorized rather than the one the caller supplied.
+     *
+     * The check deliberately does not route the bindable states through `bind()`: `bind()` refuses a
+     * STOPPED target, and reading the logs of an exited container, stopping it, or removing it are
+     * exactly what those operations are for. Only a selection that cannot name a container at all
+     * (`none`, `refreshing`, `selected-ambiguous`, `selected-missing`, `selected-policy-denied`) is
+     * delegated to the store, so the typed refusal is the store's own.
+     */
+    private bindContainer;
+    /**
      * Frozen policy gate before target resolution or spawn.
      *
      * A DENIED attempt is itself an auditable event: policy probes (workspace,

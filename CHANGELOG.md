@@ -8,6 +8,17 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- A container identity is now bound, not accepted: `logs`, `stop` and `remove` verify the container
+  they were asked to act on against the session's selected target and refuse anything else with a
+  typed `policy-denied` **before** Docker runs, recording the refusal without ever writing the
+  caller-supplied id as the audit target. The operator-facing commands are unaffected (they already
+  pass the selected target), and a **stopped** target stays actionable — reading an exited
+  container's logs, stopping it and removing it are what those operations are for. `exec` enforced
+  this all along; the four operations now share one invariant.
+- Workspace containment has one implementation. A sibling whose name merely starts with the
+  workspace's name (`/repo/app` vs `/repo/application`) is no longer treated as inside it, and a
+  symlinked spelling of the workspace is recognized as the same workspace instead of being refused by
+  one check and accepted by another — which is what three separate implementations used to do.
 - **Behaviour change — host execution is now granted by default.** `hostExecution.allow` shipped as
   `false`, so `devcontainer_host_exec` and `/devcontainer host-exec` answered "Host execution is
   disabled by policy" in every project on a machine without a global configuration file. The host

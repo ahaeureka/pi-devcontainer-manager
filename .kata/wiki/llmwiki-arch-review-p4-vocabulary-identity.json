@@ -1,0 +1,29 @@
+{
+  "id": "llmwiki-arch-review-p4-vocabulary-identity",
+  "statement": "Vocabulary and identity shapes (Phase 4 build notes)",
+  "scope": [
+    "concepts/arch-review-p4-vocabulary-identity.md"
+  ],
+  "kind": "llmwiki-summary",
+  "sourceRefs": [
+    ".llmwiki/raw/docs/arch-review-p4-vocabulary-identity.md",
+    ".llmwiki/concepts/arch-review-p4-vocabulary-identity.md"
+  ],
+  "sourceHashes": {
+    ".llmwiki/raw/docs/arch-review-p4-vocabulary-identity.md": "cb6f48d39129495058df2ff65c31a21d7c4aa76dd4236f437923345f02667919",
+    ".llmwiki/concepts/arch-review-p4-vocabulary-identity.md": "0f64e8d9db3377f7c57946fd579399f2aa431532e199ea19f50b6cc048133bb9"
+  },
+  "validationTaskId": "llmwiki-ingest",
+  "evidenceIds": [
+    "llmwiki-cb6f48d39129"
+  ],
+  "status": "verified",
+  "lastVerifiedAt": "2026-09-17T07:24:57.666Z",
+  "createdAt": "2026-09-17T07:24:57.419Z",
+  "updatedAt": "2026-09-17T07:24:57.670Z",
+  "approvalEvent": {
+    "approvedBy": "geebytes",
+    "role": "distiller",
+    "approvedAt": "2026-09-17T07:24:57.666Z"
+  }
+}

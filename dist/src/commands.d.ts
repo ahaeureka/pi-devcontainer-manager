@@ -14,7 +14,6 @@
  */
 import type { ExecutionService } from "./execution-service.js";
 import type { TargetStore, TargetStoreSnapshot, TargetSelection } from "./target-store.js";
-import type { DockerContainer } from "./runtime/docker-adapter.js";
 import type { SelectionIntent, SelectionRecord } from "./selection-state.js";
 import { errorKindOf } from "./errors.js";
 import { isWorkspaceAllowed, isEnvironmentAllowed } from "./policy.js";
@@ -58,15 +57,6 @@ export interface CommandServices {
     readonly refreshRegistry: () => Promise<{
         entries: readonly import("./types.js").RegistryEntry[];
         diagnostics: readonly string[];
-    }>;
-    /** Bounded container logs (wired to the docker lifecycle adapter). */
-    readonly logs: (container: DockerContainer, options?: {
-        tail?: number;
-        signal?: AbortSignal;
-    }) => Promise<{
-        exitCode: number | null;
-        output: string;
-        truncated: boolean;
     }>;
     /** Optional explicit host runner for `/devcontainer host-exec` (policy-gated). */
     readonly hostRunner?: {
