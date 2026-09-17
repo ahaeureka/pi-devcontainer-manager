@@ -3,7 +3,7 @@
   "taskId": "arch-review-p5-public-surfaces",
   "checkId": "matrix:AC-1:test:npm run test:unit",
   "checkSource": "matrix",
-  "name": "AC-1-test-npm run test:unit",
+  "name": "AC-1-test-npm-run-test-unit",
   "kind": "test",
   "command": "npm run test:unit",
   "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",

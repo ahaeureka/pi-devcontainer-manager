@@ -1,38 +1,67 @@
 {
   "taskId": "arch-review-p5-public-surfaces",
-  "result": "FAIL",
+  "result": "PASS",
   "diffHash": "01ee32cae42f82acf2121b92883983f4d2b475c7184fe1623cc070ac0aa8e21b",
   "acceptance": [
     {
       "id": "AC-1",
-      "result": "FAIL",
-      "repairScope": "missing_test_evidence"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4823faf2-e03f-4037-b823-5cc92c953f46",
+        "evidence-209426b0-fc97-4598-aff4-62f19963d053",
+        "evidence-cd018967-1d99-43b6-9e59-303914018d94"
+      ]
     },
     {
       "id": "AC-2",
-      "result": "FAIL",
-      "repairScope": "missing_test_evidence"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4823faf2-e03f-4037-b823-5cc92c953f46",
+        "evidence-209426b0-fc97-4598-aff4-62f19963d053",
+        "evidence-cd018967-1d99-43b6-9e59-303914018d94"
+      ]
     },
     {
       "id": "AC-3",
-      "result": "FAIL",
-      "repairScope": "missing_test_evidence"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4823faf2-e03f-4037-b823-5cc92c953f46",
+        "evidence-209426b0-fc97-4598-aff4-62f19963d053",
+        "evidence-cd018967-1d99-43b6-9e59-303914018d94"
+      ]
     },
     {
       "id": "AC-4",
-      "result": "FAIL",
-      "repairScope": "missing_test_evidence"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4823faf2-e03f-4037-b823-5cc92c953f46",
+        "evidence-209426b0-fc97-4598-aff4-62f19963d053",
+        "evidence-cd018967-1d99-43b6-9e59-303914018d94"
+      ]
     },
     {
       "id": "AC-5",
-      "result": "FAIL",
-      "repairScope": "missing_test_evidence"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4823faf2-e03f-4037-b823-5cc92c953f46",
+        "evidence-209426b0-fc97-4598-aff4-62f19963d053",
+        "evidence-cd018967-1d99-43b6-9e59-303914018d94"
+      ]
     },
     {
       "id": "AC-6",
-      "result": "FAIL",
-      "repairScope": "missing_test_evidence"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4823faf2-e03f-4037-b823-5cc92c953f46",
+        "evidence-209426b0-fc97-4598-aff4-62f19963d053",
+        "evidence-cd018967-1d99-43b6-9e59-303914018d94"
+      ]
     }
   ],
-  "evidenceIds": []
+  "evidenceIds": [
+    "evidence-4823faf2-e03f-4037-b823-5cc92c953f46",
+    "evidence-209426b0-fc97-4598-aff4-62f19963d053",
+    "evidence-cd018967-1d99-43b6-9e59-303914018d94"
+  ],
+  "revisionId": "revision-0b5329a3-63d0-4c64-9400-1581be2a457b"
 }

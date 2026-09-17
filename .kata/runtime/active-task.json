@@ -2,8 +2,7 @@
   "taskId": "arch-review-p5-public-surfaces",
   "role": "reviewer",
   "phase": "hardVerify",
-  "platform": "pi",
   "branch": "feature/arch-review-p5-public-surfaces",
-  "origin": "handoff",
-  "activatedAt": "2026-09-17T07:47:02.584Z"
+  "origin": "workflow",
+  "activatedAt": "2026-09-17T07:47:44.693Z"
 }

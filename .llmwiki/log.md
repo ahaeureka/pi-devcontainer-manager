@@ -118,3 +118,9 @@
 - Imported: raw/docs/kata-task-conventions.md
 - Updated: concepts/kata-task-conventions.md
 - Governed record: llmwiki-kata-task-conventions
+
+## [2026-09-17] ingest | arch-review-p5-public-surfaces.md
+
+- Imported: raw/docs/arch-review-p5-public-surfaces.md
+- Updated: concepts/arch-review-p5-public-surfaces.md
+- Governed record: llmwiki-arch-review-p5-public-surfaces

@@ -1,7 +1,9 @@
 {
   "taskId": "arch-review-p5-public-surfaces",
-  "decision": "deferred",
-  "reason": "Awaiting a knowledge-closure decision.",
-  "candidateIds": [],
-  "updatedAt": "2026-09-17T07:46:53.675Z"
+  "decision": "captured",
+  "reason": "Phase 5 carries three reusable rules: an asynchronous lifecycle needs a generation owner (open before the first await, check after each one, invalidation must not be sticky), a shell-like grammar on a surface that executes its arguments is a security interface (one flag per verbatim argument, and a refusal that teaches the new form), and a boundary that carries no output forces every caller to re-implement collection. Plus the recurring kata-CLI evidence-schema collision and the mechanical validation to run after every seal.",
+  "candidateIds": [
+    "llmwiki-arch-review-p5-public-surfaces"
+  ],
+  "updatedAt": "2026-09-17T07:47:43.733Z"
 }
