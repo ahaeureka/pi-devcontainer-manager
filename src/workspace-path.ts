@@ -101,8 +101,9 @@ export function normalizeSegments(path: string): string {
 
 /** Two spellings of the same path (trailing slashes and a lone root). */
 export function isSamePath(left: string, right: string): boolean {
-  const trim = (value: string): string => (value.length > 1 ? value.replace(/\/+$/, "") : value);
-  return trim(left) === trim(right);
+  // Delegates to the same normalization the predicate uses, so the two helpers cannot disagree about
+  // equivalent spellings (adversarial review).
+  return normalizeSegments(left) === normalizeSegments(right);
 }
 
 /** `realpath` when it resolves, else the path unchanged (the platform fold happens in the key). */

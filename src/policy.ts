@@ -133,12 +133,12 @@ export function redactText(text: string): string {
   );
   // 2. key: value / key=value (quoted or bare token).
   out = out.replace(
-    new RegExp(`(${SECRET_KEY})(\\s*[=:]\\s*)("[^"]*"|'[^']*'|[^\\s"']+)`, "gi"),
+    new RegExp(`(${SECRET_KEY})(\\s*[=:]\\s*)("[^"]*"?|'[^']*'?|[^\\s"']+)`, "gi"),
     "$1$2[REDACTED]",
   );
   // 3. --secret-flag value / --secret-flag=value.
   out = out.replace(
-    new RegExp(`(--?${SECRET_KEY})(\\s*=\\s*|\\s+)("[^"]*"|'[^']*'|[^\\s"']+)`, "gi"),
+    new RegExp(`(--?${SECRET_KEY})(\\s*=\\s*|\\s+)("[^"]*"?|'[^']*'?|[^\\s"']+)`, "gi"),
     "$1$2[REDACTED]",
   );
   // 4. Credentials embedded in URLs: scheme://user:pass@host.
@@ -208,6 +208,12 @@ export function displayProgram(argv: readonly string[]): string {
           if (bare.includes("@")) return bare.split("@").pop() ?? "(no command)";
           if (bare.includes(":")) return bare.split(":")[0] ?? "(no command)";
           return bare;
+        }
+        if (bare.startsWith("//")) {
+          // A PROTOCOL-RELATIVE URL: its authority is the segment after `//`, with userinfo dropped — a
+          // webhook or signed link keeps its secret in the path, so the path must not be rendered.
+          const authority = (bare.split(/[/?#]/).filter((part) => part.length > 0)[0] ?? "");
+          return authority.includes("@") ? (authority.split("@").pop() ?? "(no command)") : authority;
         }
         if (bare.startsWith("/") || bare.startsWith("./") || bare.startsWith("../") || /^[A-Za-z]:[\\/]/.test(bare)) {
           const last = bare.split(/[\\/]/).filter((part) => part.length > 0).pop() ?? "";

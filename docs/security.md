@@ -166,13 +166,14 @@ default `audit.commandCapture: "fingerprint-only"` no command text is recorded a
 matter only under `"redacted-text"` — but the in-session summary renders a program name, so a
 credential-shaped `argv[0]` is the one place they would have shown up there, which is why that rendering is
 enforced (`displayProgram`) rather than assumed: it takes the FIRST whitespace-delimited token of `argv[0]`,
-and renders the NAME of whatever that token looks like — a URL gives its authority's host (the authority ends
-at the first `/`, `?` or `#`, and its userinfo is dropped), anything else gives its last path segment (`\`
-splits too, so a Windows drive letter is a separator), and everything after the first `:` or `@` of that name
-is dropped. A DSN pair with no host (`alice:hunter2`) therefore renders `alice`, a port is not shown, and a
-URL's query or fragment is never rendered — with or without a scheme. What CAN still reach the surfaces is a credential that a caller
-spells as the name itself — `argv[0]="hunter2"`, or a bare host with no `:`/`@` — which is not a shape a
-command line produces in practice. A rule that guessed at unflagged secrets would redact ordinary arguments
+and renders a NAME only when the token can be classified safely: a bare word renders itself, `user:pass@host`
+renders the host, `user:pass` renders the username, a URL (with a scheme, or protocol-relative `//host/…`)
+renders its host with the userinfo, query and fragment dropped, and an absolute, explicitly relative (`./`,
+`../`) or Windows-drive path renders its last segment with everything from the first `:` or `@` dropped.
+**Anything else that carries a separator is ambiguous and renders `(no command)`** — the same text used when
+nothing was named — because the earlier heuristic that guessed between a path segment and a URL path kept
+leaking (a webhook secret, a userinfo pair). What can still reach the surfaces is a credential a caller spells
+as a single bare word (`argv[0]="hunter2"`), which is not a shape a command line produces in practice. A rule that guessed at unflagged secrets would redact ordinary arguments
 too, so extending it is a policy decision rather than a bug fix, and belongs in its own change.
 
 The **in-session visibility deliberately keeps no command text at all**: `/devcontainer status` reports a
