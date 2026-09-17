@@ -107,7 +107,8 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
       const note = (): void => {
         if (deps.ledger === undefined) return;
         if (deps.ledger.noteFirstRun(argv)) {
-          deps.onFirstHostRun?.(argv.map((element) => redactText(element)).join(" "));
+          // JOIN then redact, like the audit trail: per-element redaction misses `--password s3cr3t`.
+          deps.onFirstHostRun?.(redactText(argv.join(" ")));
         }
       };
 

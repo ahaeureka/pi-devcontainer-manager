@@ -19,7 +19,11 @@ import { redactText } from "./policy.js";
  * of this change demonstrated `curl -H "authorization: Bearer sk-live-…"` landing here verbatim).
  */
 function redactArgv(argv) {
-    return argv.map((element) => redactText(element)).join(" ");
+    // JOIN first, then redact — exactly what the audit trail does (`commandIdentity` joins and the
+    // writer applies `redactText`). Redacting each element separately loses the flag-with-value rules,
+    // which need the flag and its value in one string: `--password s3cr3t` as two arguments would be
+    // redacted in the audit record and printed verbatim here (verify-node adversarial pass).
+    return redactText(argv.join(" "));
 }
 export function createHostRunLedger(options = {}) {
     const limit = Math.max(1, options.limit ?? 5);

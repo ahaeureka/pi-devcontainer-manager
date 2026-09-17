@@ -29,7 +29,8 @@ export function createAuditedHostRunner(deps) {
                 if (deps.ledger === undefined)
                     return;
                 if (deps.ledger.noteFirstRun(argv)) {
-                    deps.onFirstHostRun?.(argv.map((element) => redactText(element)).join(" "));
+                    // JOIN then redact, like the audit trail: per-element redaction misses `--password s3cr3t`.
+                    deps.onFirstHostRun?.(redactText(argv.join(" ")));
                 }
             };
             const snapshot = evaluatePolicy(config, { operation: "host-exec", initiator: "host-escape" });

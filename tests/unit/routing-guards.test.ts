@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { detectHostPathOnContainerSurface } from "../../src/routing-guard.js";
 import { createHostRunLedger } from "../../src/host-run-ledger.js";
+import { redactText } from "../../src/policy.js";
 import { createAuditedHostRunner } from "../../src/host-runner.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
 
@@ -135,7 +136,7 @@ describe("the notice and the ledger agree on redaction", () => {
     });
 
     await host.run(["curl", "-H", "Authorization: Bearer sk-live-abcdef123456", "https://e.test"]);
-    await host.run(["hostname"]);
+    await host.run(["mysql", "-u", "root", "--password", "s3cr3t-value"]);
 
     // The notice is the operator-facing rendering: it must not be the one place a credential appears
     // in plaintext while the ledger and the audit trail redact it (adversarial review of the routing
@@ -143,7 +144,10 @@ describe("the notice and the ledger agree on redaction", () => {
     expect(notices).toHaveLength(1);
     expect(notices[0]).not.toContain("sk-live-abcdef123456");
     expect(ledger.recent().join(" ")).not.toContain("sk-live-abcdef123456");
+    expect(ledger.recent().join(" ")).toContain("[REDACTED]");
     expect(records[0]?.commandText).toBeUndefined();
+    // The ledger and the notice share the audit trail's rule: join, then redact.
+    expect(ledger.recent().join(" ")).not.toContain("s3cr3t-value");
     expect(ledger.count()).toBe(2);
   });
 
@@ -175,6 +179,19 @@ describe("the notice and the ledger agree on redaction", () => {
 });
 
 describe("createHostRunLedger — redaction", () => {
+  it("redacts the JOINED command line, so a flag-with-value secret is hidden too", () => {
+    // The audit trail joins the argv and then redacts, so its flag-with-value rules see `--password
+    // s3cr3t` as one string. Redacting each element separately lost that and printed the secret in the
+    // operator notice (verify-node adversarial pass).
+    const ledger = createHostRunLedger();
+    const argv = ["mysql", "-u", "root", "--password", "s3cr3t-value"];
+
+    expect(redactText(argv.join(" "))).not.toContain("s3cr3t-value");
+
+    ledger.record(argv);
+    expect(ledger.recent().join(" ")).not.toContain("s3cr3t-value");
+  });
+
   it("never stores a credential verbatim", () => {
     const ledger = createHostRunLedger();
     ledger.record(["curl", "-H", "authorization: Bearer sk-live-abcdef123456", "https://example.test"]);

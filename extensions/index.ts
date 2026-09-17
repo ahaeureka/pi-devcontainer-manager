@@ -563,8 +563,11 @@ export default function (pi: ExtensionAPI): void {
         // announces the attempt itself — otherwise a withheld configuration would leave the operator
         // with "no host commands this session" while the agent kept trying.
         if (hostRuns.noteFirstRun(argv)) {
+          // A withheld attempt is refused BEFORE the runner, so it leaves no `host-exec` audit record:
+          // the notice must not claim one (verify-node adversarial pass). Redaction is the audit
+          // trail's: join first, then redact.
           ctx.ui.notify(
-            `[devcontainer-manager] first host command attempt this session: ${argv.map((element) => redactText(element)).join(" ")} (audited)`,
+            `[devcontainer-manager] first host command attempt this session: ${redactText(argv.join(" "))} (host execution is withheld by configuration — no audit record)`,
             "warning",
           );
         }
