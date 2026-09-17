@@ -1,0 +1,38 @@
+{
+  "taskId": "arch-review-p5-public-surfaces",
+  "result": "FAIL",
+  "diffHash": "01ee32cae42f82acf2121b92883983f4d2b475c7184fe1623cc070ac0aa8e21b",
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "result": "FAIL",
+      "repairScope": "missing_test_evidence"
+    },
+    {
+      "id": "AC-2",
+      "result": "FAIL",
+      "repairScope": "missing_test_evidence"
+    },
+    {
+      "id": "AC-3",
+      "result": "FAIL",
+      "repairScope": "missing_test_evidence"
+    },
+    {
+      "id": "AC-4",
+      "result": "FAIL",
+      "repairScope": "missing_test_evidence"
+    },
+    {
+      "id": "AC-5",
+      "result": "FAIL",
+      "repairScope": "missing_test_evidence"
+    },
+    {
+      "id": "AC-6",
+      "result": "FAIL",
+      "repairScope": "missing_test_evidence"
+    }
+  ],
+  "evidenceIds": []
+}
