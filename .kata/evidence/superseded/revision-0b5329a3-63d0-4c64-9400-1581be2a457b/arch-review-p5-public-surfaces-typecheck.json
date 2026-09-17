@@ -1,5 +1,5 @@
 {
-  "id": "evidence-97e944c2-ff3c-42a5-85dc-eabd32129f77",
+  "id": "evidence-55942a69-e7aa-4fdb-a44f-743adc861913",
   "taskId": "arch-review-p5-public-surfaces",
   "checkSource": "fallback",
   "name": "typecheck",
@@ -7,10 +7,10 @@
   "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/typescript/lib/tsc.js --noEmit",
   "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
   "exitCode": 0,
-  "startedAt": "2026-09-17T08:03:11.575Z",
-  "finishedAt": "2026-09-17T08:03:18.780Z",
-  "diffHash": "11a32221e1609b8f6fadde14bc7a1e0cd1b36e0d268f42249c0558aa4638e95d",
-  "revisionId": "revision-351f29a987780dca",
+  "startedAt": "2026-09-17T07:46:35.294Z",
+  "finishedAt": "2026-09-17T07:46:42.079Z",
+  "diffHash": "01ee32cae42f82acf2121b92883983f4d2b475c7184fe1623cc070ac0aa8e21b",
+  "revisionId": "revision-0b5329a3-63d0-4c64-9400-1581be2a457b",
   "scope": {
     "paths": [
       "CHANGELOG.md",
@@ -25,6 +25,6 @@
       "src",
       "tests"
     ],
-    "hash": "dcf6b8978022ec2912676421b9c1443e735ee3c391f5c1fc58aef973269ff838"
+    "hash": "11191816c53b142cff89705318764dcffb38e4e0db44a883790f7d3d028a2dbf"
   }
 }

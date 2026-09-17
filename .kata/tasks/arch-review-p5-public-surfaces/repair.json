@@ -18,5 +18,7 @@
     "id": "kata-agent",
     "role": "implementer"
   },
-  "createdAt": "2026-09-17T08:02:29.475Z"
+  "createdAt": "2026-09-17T08:02:29.475Z",
+  "resolvedAt": "2026-09-17T08:03:31.192Z",
+  "resolvedRevisionId": "revision-351f29a987780dca"
 }

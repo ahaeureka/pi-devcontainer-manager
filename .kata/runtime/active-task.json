@@ -1,8 +1,8 @@
 {
   "taskId": "arch-review-p5-public-surfaces",
-  "role": "implementer",
-  "phase": "implement",
+  "role": "reviewer",
+  "phase": "hardVerify",
   "branch": "feature/arch-review-p5-public-surfaces",
   "origin": "workflow",
-  "activatedAt": "2026-09-17T08:02:29.487Z"
+  "activatedAt": "2026-09-17T08:03:31.241Z"
 }
