@@ -20,3 +20,5 @@ node_modules/
 .pi/settings.json
 # Machine-local dev escape hatch (hostExecution.allow while developing this extension)
 .pi/pi-devcontainer-manager.json
+.kata/runtime/
+.kata/worktrees/
