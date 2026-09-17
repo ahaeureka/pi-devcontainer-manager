@@ -32,10 +32,13 @@ operational defaults.
   widen host access. `/devcontainer off` returns an engaged session to that state;
   the host-local shell it then uses is Pi's own built-in behavior, not the audited
   `devcontainer_host_exec` surface.
-- **Default-deny policy.** Workspace roots, forwarded environment names,
-  destructive actions, and host execution are all denied unless explicitly
-  granted. Grants from an untrusted project config can never *expand* a global
-  grant (merge is monotonic — see [configuration.md](configuration.md)).
+- **Deny unless configured, and a layer can only withhold.** Workspace roots,
+  forwarded environment names and destructive actions are denied unless
+  explicitly granted. Host execution is the one surface granted by default
+  (`hostExecution.allow` ships `true`; see "How the host escape hatch is gated"
+  below) and is withheld by setting `false` anywhere. Grants from an untrusted
+  project config can never *expand* a global setting (merge is monotonic — see
+  [configuration.md](configuration.md)).
 - **Fresh validation before every action.** Selection intent is persisted as a
   stable workspace key + candidate discriminator, and each operation re-resolves
   the target and freezes an immutable policy snapshot before any spawn. A
