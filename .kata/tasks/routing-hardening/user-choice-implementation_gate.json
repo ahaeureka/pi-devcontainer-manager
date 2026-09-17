@@ -1,5 +1,8 @@
 {
   "taskId": "routing-hardening",
   "boundary": "implementation_gate",
-  "createdAt": "2026-09-17T09:13:10.950Z"
+  "createdAt": "2026-09-17T09:13:10.950Z",
+  "choice": "continue_current",
+  "approvedAt": "2026-09-17T09:13:25.900Z",
+  "consumedAt": "2026-09-17T09:13:45.495Z"
 }
