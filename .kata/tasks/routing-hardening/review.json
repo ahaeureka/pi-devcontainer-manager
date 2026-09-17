@@ -1,13 +1,13 @@
 {
-  "revisionId": "revision-35236165b4055c92",
+  "revisionId": "revision-586ce6277d60330b",
   "findings": [
     {
-      "id": "finding-tree-moved-after-r9",
+      "id": "finding-visibility-contracted",
       "taskId": "routing-hardening",
       "acceptanceId": "AC-1",
       "severity": "blocking",
-      "message": "PROCESS, not a defect: the review node on revision-35236165 found that the two-pass redaction I had just introduced leaked a credential the joined-only form hid — the element pass let rule 2 consume the element `Authorization: Bearer`, so the scheme word was gone from the joined line and the following token survived; fixed by leaving such an element intact, plus two smaller findings (the notice fired before the audit write, and the new limitation section overstated flag-value coverage). Re-sealing.",
-      "path": "src/policy.ts"
+      "message": "PROCESS + deliberate contraction, not a defect: the last five passes' ten findings (four credential-exposing) were all in the rendered command line, and two of those were introduced by fixes for the previous one, so the visibility now keeps a count and the PROGRAM names and stores no command text at all. REQ-1/AC-1 are amended accordingly and the reason is recorded here and in docs/security.md. Re-sealing.",
+      "path": "src/host-run-ledger.ts"
     }
   ],
   "status": "pending"
