@@ -8,6 +8,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import {
+  selectionFor,
   createCommandHandlers,
   displayCommandResult,
   reconcileSelection,
@@ -240,6 +241,27 @@ describe("/devcontainer use", () => {
     expect(ctx.ui.select).toHaveBeenCalledTimes(2);
     expect(result.target?.candidateId).toBe("b2");
     expect(result.text).toContain("container `b2`");
+  });
+
+  it("binds the state of the PICKED container, not the workspace's primary one", () => {
+    // A running primary plus a stopped sibling: picking the stopped one must record `stopped` — and
+    // picking a running sibling of a stopped primary must record `running`. The state used to come
+    // from containerCandidates[0] while the id came from the picker, so a runnable target answered
+    // `target-stopped` (the fourth adversarial pass).
+    const mixed = configEntry({
+      workspacePath: "/ws/project-a",
+      containers: [candidate("aa11", "running"), candidate("bb22", "exited")],
+      ambiguous: true,
+    });
+
+    expect(selectionFor(mixed, "bb22")).toMatchObject({ status: "selected-stopped", candidate: { id: "bb22", status: "stopped" } });
+
+    const stoppedPrimary = configEntry({
+      workspacePath: "/ws/project-a",
+      containers: [candidate("aa11", "exited"), candidate("bb22", "running")],
+      ambiguous: true,
+    });
+    expect(selectionFor(stoppedPrimary, "bb22")).toMatchObject({ status: "selected-valid", candidate: { id: "bb22", status: "running" } });
   });
 
   it("counts a host attempt that configuration withheld", async () => {

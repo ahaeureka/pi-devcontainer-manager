@@ -91,7 +91,12 @@ export function establishedTarget(selection) {
 }
 /** Build the selection record from a registry entry + chosen candidate id. */
 export function selectionFor(entry, candidateId, configPath) {
-    const state = containerStateOf(entry) ?? "exited";
+    // The state must belong to the SELECTED container, not to the workspace's primary one: picking a
+    // stopped sibling of a running primary used to record `running` (and the reverse recorded
+    // `stopped`, so a runnable target answered `target-stopped`). Found by the fourth adversarial pass.
+    const state = candidateId !== undefined
+        ? entry.containerCandidates.find((candidate) => candidate.id === candidateId)?.state ?? containerStateOf(entry) ?? "exited"
+        : containerStateOf(entry) ?? "exited";
     // A named configuration (or the legacy root form) is invisible to the CLI's own
     // lookup, so it must travel with the operation. Only a DISCOVERED path is ever
     // carried — a caller cannot smuggle an arbitrary `--config` into the argv — and the
