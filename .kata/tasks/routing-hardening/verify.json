@@ -1,0 +1,67 @@
+{
+  "taskId": "routing-hardening",
+  "result": "PASS",
+  "diffHash": "ad1b18c29910c91c47fd2b998f64a079c9c12223f733c49fb2fe62df8307f42c",
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4d153e49-6176-4f38-944e-3d0bd5517d2e",
+        "evidence-3827ed77-c221-4294-9e1e-ff9436f0d6d8",
+        "evidence-a889de5e-c5d4-45fc-adf1-40fe92a4b84b"
+      ]
+    },
+    {
+      "id": "AC-2",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4d153e49-6176-4f38-944e-3d0bd5517d2e",
+        "evidence-3827ed77-c221-4294-9e1e-ff9436f0d6d8",
+        "evidence-a889de5e-c5d4-45fc-adf1-40fe92a4b84b"
+      ]
+    },
+    {
+      "id": "AC-3",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4d153e49-6176-4f38-944e-3d0bd5517d2e",
+        "evidence-3827ed77-c221-4294-9e1e-ff9436f0d6d8",
+        "evidence-a889de5e-c5d4-45fc-adf1-40fe92a4b84b"
+      ]
+    },
+    {
+      "id": "AC-4",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4d153e49-6176-4f38-944e-3d0bd5517d2e",
+        "evidence-3827ed77-c221-4294-9e1e-ff9436f0d6d8",
+        "evidence-a889de5e-c5d4-45fc-adf1-40fe92a4b84b"
+      ]
+    },
+    {
+      "id": "AC-5",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4d153e49-6176-4f38-944e-3d0bd5517d2e",
+        "evidence-3827ed77-c221-4294-9e1e-ff9436f0d6d8",
+        "evidence-a889de5e-c5d4-45fc-adf1-40fe92a4b84b"
+      ]
+    },
+    {
+      "id": "AC-6",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-4d153e49-6176-4f38-944e-3d0bd5517d2e",
+        "evidence-3827ed77-c221-4294-9e1e-ff9436f0d6d8",
+        "evidence-a889de5e-c5d4-45fc-adf1-40fe92a4b84b"
+      ]
+    }
+  ],
+  "evidenceIds": [
+    "evidence-4d153e49-6176-4f38-944e-3d0bd5517d2e",
+    "evidence-3827ed77-c221-4294-9e1e-ff9436f0d6d8",
+    "evidence-a889de5e-c5d4-45fc-adf1-40fe92a4b84b"
+  ],
+  "revisionId": "revision-616b95364eab0640"
+}

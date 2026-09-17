@@ -1,0 +1,9 @@
+{
+  "taskId": "routing-hardening",
+  "decision": "captured",
+  "reason": "Routing hardening now also records what its own review caught: an optional display parameter is how a claim loses its caller (assert every surface that renders a new line), a new refusal must be checked against the remedy it suggests, a failure path introduced by a change must sit inside an audit boundary like every other, and the CLI does not always write the user-choice gate file.",
+  "candidateIds": [
+    "llmwiki-routing-hardening"
+  ],
+  "updatedAt": "2026-09-17T09:29:48.335Z"
+}

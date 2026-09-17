@@ -114,7 +114,8 @@ export function commandIdentity(
  *  - `--secret-flag value` / `--secret-flag=value`
  *  - credentials embedded in URLs (`scheme://user:pass@host`)
  */
-const SECRET_KEY = "(?:api[_-]?key|access[_-]?key|private[_-]?key|token|secret|password|passwd|credential|credentials|authorization|auth)";
+const SECRET_KEY =
+  "(?:api[_-]?key|access[_-]?key|private[_-]?key|token|secret|password|passwd|pwd|pass|sig|credential|credentials|authorization|auth)";
 
 export function redactText(text: string): string {
   let out = text;
@@ -132,15 +133,40 @@ export function redactText(text: string): string {
   );
   // 2. key: value / key=value (quoted or bare token).
   out = out.replace(
-    new RegExp(`(${SECRET_KEY})(\\s*[=:]\\s*)("[^"]*"|'[^']*'|[^\\s"']+)`, "gi"),
+    new RegExp(`(${SECRET_KEY})(\\s*[=:]\\s*)("[^"]*"?|'[^']*'?|[^\\s"']+)`, "gi"),
     "$1$2[REDACTED]",
   );
   // 3. --secret-flag value / --secret-flag=value.
   out = out.replace(
-    new RegExp(`(--?${SECRET_KEY})(\\s*=\\s*|\\s+)("[^"]*"|'[^']*'|[^\\s"']+)`, "gi"),
+    new RegExp(`(--?${SECRET_KEY})(\\s*=\\s*|\\s+)("[^"]*"?|'[^']*'?|[^\\s"']+)`, "gi"),
     "$1$2[REDACTED]",
   );
   // 4. Credentials embedded in URLs: scheme://user:pass@host.
-  out = out.replace(/(\w+:\/\/)[^/\s:@]+:[^/\s@]+@/g, "$1[REDACTED]@");
+  //
+  // The user class excludes `/` and the password class allows `@`, so userinfo is consumed up to the LAST `@`
+  // before a `/` (`postgres://alice:p@ss@host/db` used to keep `ss@host`). A password CONTAINING a slash is
+  // indistinguishable from a path and is documented as out of scope in `docs/security.md` — which is why the
+  // in-session rendering (`displayProgram`) is enforced independently of this rule.
+  out = out.replace(/(\w+:\/\/)[^\s/]*@/g, "$1[REDACTED]@");
   return out;
+}
+
+/**
+ * Render an argv as the PROGRAM it names, for operator-facing text.
+ *
+ * This is the only thing the in-session visibility shows, so it is enforced here rather than assumed:
+ * basename of `argv[0]`, redacted with the audit rules (a program name CAN be credential-shaped —
+ * `argv[0]="Authorization: Bearer sk-live-…"` was reproduced by adversarial review), capped so a
+ * pathological argument cannot flood the operator channel or the status block, and never blank.
+ */
+export function displayProgram(argv: readonly string[]): string {
+  // The rendering has exactly ONE branch, because eleven adversarial passes each found a new credential shape
+  // through a richer rule (a userinfo pair, a URL query, a webhook path, a bracket literal, a colon that was not
+  // a port). A name is rendered only when the token IS a program name — a single word of `[A-Za-z0-9._+-]`
+  // starting with an alphanumeric — and `(no command)` is returned for everything else, so no path segment, host
+  // authority, query, fragment or userinfo can ever be rendered. The count still tells an operator how many host
+  // commands ran; the audit trail remains the authoritative record of what they were.
+  const token = argv[0]?.trim().split(/[ \t\n\r\f\v]+/)[0];
+  if (token === undefined || token.length === 0) return "(no command)";
+  return /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(token) ? token : "(no command)";
 }

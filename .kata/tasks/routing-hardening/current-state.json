@@ -1,9 +1,9 @@
 {
   "taskId": "routing-hardening",
-  "phase": "intake",
+  "phase": "judge",
   "actor": {
-    "id": "system",
-    "role": "system"
+    "id": "kata-judge",
+    "role": "judge"
   },
-  "updatedAt": "2026-09-17T09:06:32.355Z"
+  "updatedAt": "2026-09-17T19:24:18.080Z"
 }

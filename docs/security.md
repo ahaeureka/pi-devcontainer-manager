@@ -86,6 +86,10 @@ Instead:
 - `/devcontainer host-exec` takes **one `--argv` per argument**, verbatim: there is no shell-like
   parsing to reinterpret on a surface whose arguments are executed on the host (the tool twin
   `devcontainer_host_exec` has always taken a structured `argv` array).
+- A structured CONTAINER request (`devcontainer_exec`) **refuses** an argv element that names the HOST
+  workspace path when the workspace's configuration mounts it somewhere else, naming the container path
+  to use instead. Routed-shell text is deliberately not inspected: a heuristic over shell text cannot
+  be made safe (see the Phase-5 review).
 - `devcontainer_host_exec` **refuses** an argv that targets a container-only
   path, when the selected workspace's configuration declares a
   `workspaceFolder`/`workspaceMount` to compare against (a reliable check: literal
@@ -145,6 +149,55 @@ extension keeps them separate:
 | `logs` / `/devcontainer stop` / `/devcontainer remove` | a target must be selected (`selected-valid` or `selected-stopped` — a stopped container is exactly what these are for) | The requested container id must be the BOUND target's candidate; anything else is refused before Docker runs, and the audit `targetId` comes from the binding |
 | `devcontainer_host_exec` / `/devcontainer host-exec` | `hostExecution.allow` (granted by default; a configuration can withhold it with `false`) | Audited with `operation: "host-exec"`, `initiator: "host-escape"` |
 | `/devcontainer setup` | **none** — not gated by `hostExecution.allow` | Interactive confirmation naming the exact command; fixed argv (`npm install -g @devcontainers/cli`), audited as `operation: "setup"`, 300 s timeout |
+
+### What the redaction covers, and what it does not
+
+`redactText` (used by the audit records) hides: an auth scheme value (`Bearer`/`Basic`/`Token <value>`,
+quoted or bare), a secret-named key/value pair (`password=…`, `token: …`), a secret-named flag
+(`--password …`, `--api-key=…`), and credentials embedded in a URL (`scheme://user:pass@host`).
+
+It does **not** hide a bare `-u user:pass` pair (`curl -u alice:hunter2 https://…`), an unflagged secret
+that appears as a plain positional argument, or the part of a flag value that follows a space (a command
+line is redacted as one space-joined string, so `--password "a b"` hides up to the space). Two URL shapes are
+inherently ambiguous to a rule and also survive: a **slash inside the password**
+(`https://alice:/hunter2@host` — a rule cannot tell it from a path) and a **URL-shaped argument that is not
+the whole argument** (`ssh alice:hunter2@host`, with no scheme to key on). Under the audit
+default `audit.commandCapture: "fingerprint-only"` no command text is recorded at all, so those three gaps
+matter only under `"redacted-text"` — but the in-session summary renders a program name, so a
+credential-shaped `argv[0]` is the one place they would have shown up there, which is why that rendering is
+enforced (`displayProgram`) rather than assumed: it takes the FIRST whitespace-delimited token of `argv[0]`,
+and renders a name ONLY when the token IS a program name: a single word of `[A-Za-z0-9._+-]` starting with an
+alphanumeric. Everything else — any token carrying a path separator, a scheme, an `@`, a `:`, a query or a
+fragment — renders `(no command)`, the same text used when nothing was named. The rule has exactly one branch on
+purpose: eleven adversarial passes each found a credential reaching the summary through a richer rule (a userinfo
+pair, a URL query, a webhook path, a bracket literal, a colon that was not a port), so the rendering no longer
+parses structure at all. What CAN still reach the surfaces is a credential a caller spells as a bare program word
+(`argv[0]="hunter2"`), which no command line produces in practice; the audit trail remains the authoritative
+record of what actually ran, and the summary's count still shows how many host commands there were.
+A rule that guessed at unflagged secrets would redact ordinary arguments
+too, so extending it is a policy decision rather than a bug fix, and belongs in its own change.
+
+The **in-session visibility deliberately keeps no command text at all**: `/devcontainer status` reports a
+count and the program names, and the one-shot notice names the program. Five adversarial passes found
+credentials reachable through a rendered command line (two of them through fixes for the previous one), so
+the surface that produced them was removed rather than patched again.
+
+### How the host escape hatch is gated (a deliberate asymmetry)
+
+`stop`/`remove` require a policy grant **and** a fresh per-action confirmation token. An arbitrary host
+command requires the policy grant and leaves an audit record, but **no per-action confirmation** — and
+since the host-execution default change that grant ships enabled. This is a decision, not an oversight:
+the surface is driven by the agent, so an interactive confirmation would either stall an autonomous run
+or degrade into a confirmation the operator clicks through. The compensating controls are the audit
+trail (every attempt that reaches the runner, including refusals and failures — an attempt a
+configuration withholds is refused before it and appears in the in-session summary and in the first-attempt
+notice, not in an audit record), the
+in-session visibility added for host runs
+(`/devcontainer status` reports the session's host command attempts and the programs they named — every
+attempt counts, including one a configuration withheld, and the first of a session is announced on the
+operator channel), the container-path guard, and `hostExecution.allow: false` in either
+configuration file, which withdraws the surface entirely.
+
 
 ### `/devcontainer setup`
 

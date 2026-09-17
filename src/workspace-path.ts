@@ -53,11 +53,57 @@ export function isWithinWorkspace(root: string, candidate: string, platform: Nod
   if (!isAbsolute(root) || !isAbsolute(candidate)) return false;
   const base = canonicalWorkspaceKey(resolveRealPathFor(root), platform);
   const target = canonicalWorkspaceKey(resolveRealPathFor(candidate), platform);
-  if (target === base) return true;
-  // The filesystem root contains everything; `${base}/` would build `//` and deny every workspace
-  // under an `allowedWorkspaceRoots: ["/"]` configuration (the review caught exactly that).
-  const prefix = base.endsWith("/") ? base : `${base}/`;
-  return target.startsWith(prefix);
+  return isAtOrUnder(target, base);
+}
+
+/**
+ * The SEGMENT test: is `candidate` the same path as `base`, or beneath it?
+ *
+ * One implementation for every place that asks this question, because six separate adversarial findings
+ * were the same defect — a fix applied to one surface and not its mirror. A bare `startsWith(base + "/")`
+ * is wrong for a base of `/` (it builds `//` and matches nothing), and raw comparison is wrong for two
+ * spellings that differ only in a trailing slash, so both cases live here once.
+ */
+export function isAtOrUnder(candidate: string, base: string): boolean {
+  // Equivalent spellings are the same path: resolve `.` and `..` segments and collapse repeated separators
+  // first, so `//host/proj/x` and `/host/././proj/x` match `/host/proj`, while `/host/proj/..` does not
+  // (adversarial review: the previous single-pass collapse missed both directions).
+  base = normalizeSegments(base);
+  candidate = normalizeSegments(candidate);
+  const trimmedBase = base.length > 1 ? base.replace(/\/+$/, "") : base;
+  const trimmedCandidate = candidate.length > 1 ? candidate.replace(/\/+$/, "") : candidate;
+  if (trimmedCandidate === trimmedBase) return true;
+  if (trimmedBase === "/") return trimmedCandidate.startsWith("/");
+  return trimmedCandidate.startsWith(`${trimmedBase}/`);
+}
+
+/**
+ * Resolve `.` and `..` segments and collapse repeated separators, purely textually (no filesystem access).
+ *
+ * The guards compare LITERAL argv elements, so this must be a string operation; it is also the shared
+ * normalization every consumer uses, so a spelling cannot be "the same path" for one caller and not another.
+ */
+export function normalizeSegments(path: string): string {
+  const absolute = path.startsWith("/");
+  const out: string[] = [];
+  for (const segment of path.split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === "..") {
+      if (out.length > 0 && out[out.length - 1] !== "..") out.pop();
+      else if (!absolute) out.push("..");
+      continue;
+    }
+    out.push(segment);
+  }
+  const joined = `${absolute ? "/" : ""}${out.join("/")}`;
+  return joined.length > 0 ? joined : absolute ? "/" : ".";
+}
+
+/** Two spellings of the same path (trailing slashes and a lone root). */
+export function isSamePath(left: string, right: string): boolean {
+  // Delegates to the same normalization the predicate uses, so the two helpers cannot disagree about
+  // equivalent spellings (adversarial review).
+  return normalizeSegments(left) === normalizeSegments(right);
 }
 
 /** `realpath` when it resolves, else the path unchanged (the platform fold happens in the key). */

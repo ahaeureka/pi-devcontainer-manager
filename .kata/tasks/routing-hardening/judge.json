@@ -1,0 +1,67 @@
+{
+  "taskId": "routing-hardening",
+  "result": "PASS",
+  "diffHash": "40f1972e463245e31d63ba5d04e3e062d78df5e2248ae53d51e176cd8398a659",
+  "revisionId": "revision-d99c30cc41d22b43",
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-890991fb-095f-496e-a194-3cdbe5751622",
+        "evidence-09c3c651-3ad2-4b4f-83de-2d441d0143b5",
+        "evidence-123caf0b-167a-4dcf-8e30-4b1c60ac00f2"
+      ]
+    },
+    {
+      "id": "AC-2",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-890991fb-095f-496e-a194-3cdbe5751622",
+        "evidence-09c3c651-3ad2-4b4f-83de-2d441d0143b5",
+        "evidence-123caf0b-167a-4dcf-8e30-4b1c60ac00f2"
+      ]
+    },
+    {
+      "id": "AC-3",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-890991fb-095f-496e-a194-3cdbe5751622",
+        "evidence-09c3c651-3ad2-4b4f-83de-2d441d0143b5",
+        "evidence-123caf0b-167a-4dcf-8e30-4b1c60ac00f2"
+      ]
+    },
+    {
+      "id": "AC-4",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-890991fb-095f-496e-a194-3cdbe5751622",
+        "evidence-09c3c651-3ad2-4b4f-83de-2d441d0143b5",
+        "evidence-123caf0b-167a-4dcf-8e30-4b1c60ac00f2"
+      ]
+    },
+    {
+      "id": "AC-5",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-890991fb-095f-496e-a194-3cdbe5751622",
+        "evidence-09c3c651-3ad2-4b4f-83de-2d441d0143b5",
+        "evidence-123caf0b-167a-4dcf-8e30-4b1c60ac00f2"
+      ]
+    },
+    {
+      "id": "AC-6",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-890991fb-095f-496e-a194-3cdbe5751622",
+        "evidence-09c3c651-3ad2-4b4f-83de-2d441d0143b5",
+        "evidence-123caf0b-167a-4dcf-8e30-4b1c60ac00f2"
+      ]
+    }
+  ],
+  "evidenceIds": [
+    "evidence-890991fb-095f-496e-a194-3cdbe5751622",
+    "evidence-09c3c651-3ad2-4b4f-83de-2d441d0143b5",
+    "evidence-123caf0b-167a-4dcf-8e30-4b1c60ac00f2"
+  ]
+}

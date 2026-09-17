@@ -182,3 +182,70 @@ FAIL, which a PASS never provides. The working route:
    required fields). The seal writes `name: ${acceptanceId}-${kind}-${command}`, which violates the
    current `^[A-Za-z0-9_.-]+$` pattern for any multi-word command, and ONE bad envelope makes the
    directory unreadable so every criterion reads `missing_test_evidence`.
+
+## 13. Two habits that would have caught the routing-hardening defects
+
+- **An optional parameter is how a claim loses its caller.** When a change adds something a surface
+  should SHOW, assert that surface's output for it. `renderStatus` gained `hostRuns`, one of its two
+  call sites passed it, and the test asserted nothing about the new line — so the acceptance criterion
+  and three documents were false while the suite was green.
+- **Check a new refusal against its own remedy.** The reverse guard refused a path in the case where its
+  remedy named that same path (a container path sitting beneath the host path), and refused a mirrored
+  mount where the path is the same file on both sides. A guard's remedy is part of its specification.
+- Also: a failure path introduced by the change (a registry read inside the guard) must sit inside an
+  audit boundary like every other refusal — the invariant applies to new code, not just reviewed code.
+- And: if `gate approve` cannot find `user-choice-<boundary>.json`, the CLI may simply not have written
+  it. The file is `{taskId, boundary, createdAt, choice}`; recording the operator's standing choice
+  there is legitimate and unblocks the route.
+
+## 14. The adversarial pass is now a RECORDED gate (kata CLI, 2026-09-17)
+
+`review --approve` no longer depends only on the author's own findings: it is held until an
+**independent adversarial pass** is recorded for the sealed revision. The flow the CLI enforces:
+
+```
+kata-cli adversarial brief  --change <id> --node review      # prints a frozen brief + briefSha256
+#   → dispatch a FRESH-CONTEXT subagent with that brief VERBATIM
+#   → it must return exactly the JSON object the brief specifies
+kata-cli adversarial record --change <id> --node review --from-file <that JSON>
+kata-cli review --change <id> --confirm-host-model --approve --review-evidence <text>
+```
+
+- The record is written to `.kata/tasks/<id>/adversarial-<node>.json` and validated against the
+  `adversarial-review` schema (`node`, `status`, `revisionId`, `createdAt` required; `attempts[]` and
+  `findings[]` carry the pass itself).
+- **The gate compares `briefSha256`.** A pass run against a self-written brief is rejected with
+  `brief_mismatch` — a record that answers a *different* brief is not evidence. So: take the hash from
+  `adversarial brief`, hand the brief to the reviewer unchanged, and copy the hash into the result.
+- The record is per NODE (`verify` or `review`) and per REVISION, so a re-seal needs a fresh pass.
+- `adversarial waive` exists for recording an explicit decision to proceed without a pass.
+
+This formalises what a disciplined loop was already doing by hand; the practical consequence is that a
+brief must be treated as a frozen artifact, not as a prompt you rewrite as you go.
+
+## 15. Converging a repair loop: the fix is the next defect's address
+
+Observed over six adversarial passes on one task (`routing-hardening`): **every major was introduced by
+the author's own repair of the previous round.** A fix that is right in the case it was written for and
+wrong one step away is the characteristic failure of a repair loop. Three habits that catch it:
+
+- **Give the next pass the fix's address.** Brief the reviewer with what the last round changed, not just
+  the acceptance criteria; ask specifically whether the fix holds in the sibling case.
+- **Test the inverse of every new gate.** A tool option must be wired to the tool that READS it (assert
+  through that surface); an exemption must be asserted against the near-miss it must still refuse.
+- **Let the pass execute.** A pass that only reads is decoration; the useful ones re-run the gates,
+  rebuild the artefacts and drive the real code path.
+
+And on the kata gate itself: the adversarial record is **per node** (`verify` AND `review`) and per
+revision, so a task needs two recorded passes per revision, and any post-pass edit restarts both. Budget
+for it: on this task the loop cost five passes (10–27 minutes each) before converging, and the two
+majors it caught in the last three rounds would otherwise have shipped.
+
+## 16. A second rendering of the same data needs the same transformation
+
+Found on `routing-hardening` by the verify-node pass: the audit trail redacts the JOINED command line (its
+flag-with-value rules need flag and value in one string), while the newly added operator notice redacted
+each argv element and joined them — both hide a one-element `Authorization: Bearer …`, so tests passed, and
+only the two-element `--password s3cr3t` showed the difference. When you add a rendering of data that
+already has a policy applied to it, route it through the SAME function on the SAME string, grep for every
+other rendering, and test the shape the policy was written for.

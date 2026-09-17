@@ -16,7 +16,9 @@ import { evaluatePolicy } from "./policy.js";
 import { commandIdentity } from "./policy.js";
 import { RuntimeError } from "./errors.js";
 import { findContainerPath, type PathMapping } from "./path-mapper.js";
+import { isSamePath } from "./workspace-path.js";
 import type { ProcessRunner } from "./runtime/process-runner.js";
+import { displayProgram } from "./policy.js";
 
 export interface AuditedHostRunResult {
   readonly exitCode: number | null;
@@ -46,6 +48,24 @@ export interface AuditedHostRunnerDeps {
   readonly targetStoreWorkspaceKey: () => string | undefined;
   /** Injectable clock for deterministic audit timestamps. */
   readonly clock?: () => string;
+  /**
+   * Session-scoped visibility for host runs (command-routing assessment section 4.1).
+   *
+   * The audit trail stays authoritative; this makes drift visible while it happens: every attempt is
+   * counted, and the FIRST one of the session is reported through the operator UI.
+   */
+  readonly ledger?: {
+    /** Counts the attempt and reports whether it is the session's first. */
+    noteFirstRun(argv: readonly string[]): boolean;
+  };
+  /**
+   * Called once per session with the PROGRAM the first host attempt named.
+   *
+   * Not a command line: the visibility deliberately carries no command text at all, so there is no
+   * redaction left to get wrong — the rendering is `displayProgram(argv)` (basename, redacted, capped,
+   * never blank), and this is the only string the notice and the ledger ever show.
+   */
+  readonly onFirstHostRun?: (program: string) => void;
 }
 
 /** The shape `CommandServices.hostRunner` expects. */
@@ -84,6 +104,15 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
         });
       }
 
+      const note = (): void => {
+        if (deps.ledger === undefined) return;
+        if (deps.ledger.noteFirstRun(argv)) {
+          // The program, not the command line: see the ledger's note (no rendered argv anywhere in the
+          // visibility). `displayProgram` is the enforced rendering, not an assumption about argv[0].
+          deps.onFirstHostRun?.(displayProgram(argv));
+        }
+      };
+
       const snapshot = evaluatePolicy(config, { operation: "host-exec", initiator: "host-escape" });
       if (!snapshot.authorized) {
         // A refusal is an attempt: it is recorded before it is reported, so an operator asking "why
@@ -95,6 +124,7 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
             outputTruncated: false,
           }),
         );
+        note();
         throw new RuntimeError({
           kind: "policy-denied",
           message: "Host execution is disabled by policy.",
@@ -109,8 +139,30 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
       // now granted by default, it is the only thing standing between a container path and the host.
       const selection = deps.targetStoreWorkspaceKey();
       if (selection !== undefined) {
-        const mapping = await deps.guardMappingFor(selection);
-        const violation = mapping !== undefined ? findContainerPath(argv, mapping.containerPath) : undefined;
+        // Resolving the mapping goes through the registry (a `docker ps`), which can FAIL — an
+        // unreachable daemon is the escape hatch's own primary use case. A failure here must land on a
+        // channel someone reads rather than escaping unaudited, exactly like the container-surface
+        // guard (adversarial review of the routing hardening).
+        let mapping: PathMapping | undefined;
+        try {
+          mapping = await deps.guardMappingFor(selection);
+        } catch (error) {
+          deps.audit.write(
+            record(argv, {
+              policyAuthorized: true,
+              outputTruncated: false,
+              errorSummary: error instanceof Error ? error.message : String(error),
+            }),
+          );
+          note();
+          throw error;
+        }
+        // A mapping that keeps the path is not a mis-route: the same path exists on both sides (the mirror
+        // mount idiom), exactly like the reverse guard's exemption (adversarial review).
+        const violation =
+          mapping !== undefined && !isSamePath(mapping.containerPath, mapping.hostPath)
+            ? findContainerPath(argv, mapping.containerPath)
+            : undefined;
         if (violation !== undefined) {
           deps.audit.write(
             record(argv, {
@@ -119,6 +171,7 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
               outputTruncated: false,
             }),
           );
+          note();
           throw new RuntimeError({
             kind: "policy-denied",
             message: `Host command references container-only path ${violation}.`,
@@ -159,6 +212,7 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
             errorSummary: error instanceof Error ? error.message : String(error),
           }),
         );
+        note();
         throw error;
       }
 
@@ -170,6 +224,7 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
           outputTruncated: result.truncated,
         }),
       );
+      note();
 
       return {
         exitCode: result.exitCode,

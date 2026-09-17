@@ -144,13 +144,14 @@ bash "pytest -q"
 |---|---|
 | `/devcontainer` | 交互式动词选择器（无 UI 时输出用法提示） |
 | `/devcontainer list` | 发现并渲染注册表；同时修复失效的选择 |
-| `/devcontainer status` | 同一个状态块（目标、注册表、路由、上限） |
-| `/devcontainer use [path\|container-id]` | 选择目标并持久化到会话；用 container id 解决歧义工作区 |
+| `/devcontainer status` | 同一个状态块（目标、注册表、路由、上限），并额外显示 `host runs:`——本会话宿主命令的**尝试次数**与**程序名** |
 | `/devcontainer up [path]` | `devcontainer up --workspace-folder`；成功后重新解析选择 |
 | `/devcontainer build [path]` | `devcontainer build` |
 | `/devcontainer stop` | Docker stop——策略授权 + 一次性确认 |
 | `/devcontainer remove` | Docker `rm -f`——策略授权 + 一次性确认 |
 | `/devcontainer logs [--tail N]` | 有界 `docker logs`（默认 100 行）；受策略校验并被审计 |
+| `/devcontainer use [workspace\|container-id]` | 选择目标并持久化到会话；同一工作区有多个运行中容器时会**弹出容器选择器**（显示 id/状态/镜像），也可直接用显式容器 id |
+| 反向守卫 | 当配置把工作区挂到别处时，`devcontainer_exec` 会**拒绝** argv 中的**宿主**工作区路径，并在拒绝信息里给出应使用的容器路径 |
 | `/devcontainer host-exec --argv <value> [...]` | 被审计的宿主机逃生口（**默认开启**；可用 `hostExecution.allow: false` 收紧）。每个 `--argv` 恰好一个参数、无 shell 与引号处理；值的终点是下一个 `--argv`，`--argv=<value>` 可传空参数 |
 | `/devcontainer setup` | 全局安装/升级 Dev Containers CLI（需确认、被审计） |
 | `/devcontainer off` | 清除目标并把本会话交还宿主机（休眠）；**该 opt-out 会被持久化**，因此 `/reload` 不会恢复目标，直到你重新选择 |

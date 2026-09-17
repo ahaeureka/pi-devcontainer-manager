@@ -1,0 +1,30 @@
+{
+  "id": "evidence-f773c883-a2cd-44d9-ac7f-2bb7b9866c79",
+  "taskId": "routing-hardening",
+  "checkSource": "fallback",
+  "name": "typecheck",
+  "kind": "typecheck",
+  "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/typescript/lib/tsc.js --noEmit",
+  "environment": "cwd=/data/work/ahaeureka/pi-devcontainer-manager node=v24.19.0 platform=linux",
+  "exitCode": 0,
+  "startedAt": "2026-09-17T12:55:53.844Z",
+  "finishedAt": "2026-09-17T12:55:59.859Z",
+  "diffHash": "89906803450332d11606bf15689d91d4124f561c958ed8d61963957325d1f608",
+  "revisionId": "revision-ba5cb248ba524d61",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "5ac0c0a89b5ad7c076dbc2aa1f14c6a12a173262c35d4fcce2a62bb8f915b8f1"
+  }
+}

@@ -313,7 +313,7 @@ describe("buildWorkspaceRegistry", () => {
     const docker = [dockerCandidate({ id: "aa11", workspaceKey: "/work/a", state: "running" })];
     const result = registry(fs, docker);
     expect(result.entries).toEqual([
-      configEntry({ workspacePath: "/work/a", containers: [candidate("aa11")] }),
+      configEntry({ workspacePath: "/work/a", containers: [candidate("aa11", "running", "ghcr.io/devcontainers/universal:latest")] }),
     ]);
     // A healthy scan reports nothing — the diagnostics channel is for degraded scans only. (The
     // removed `configOnly`/`orphanDockerCandidates` fields are pinned by the registry-shape test
@@ -341,7 +341,9 @@ describe("buildWorkspaceRegistry", () => {
     expect(result.entries).toHaveLength(2);
     const orphan = result.entries.find((e) => e.workspacePath === "/work/foreign");
     // No invented configuration path and no placeholder kind: the entry says it is container-only.
-    expect(orphan).toEqual(containerOnlyEntry({ workspacePath: "/work/foreign", containers: [candidate("dd22", "exited")] }));
+    expect(orphan).toEqual(
+      containerOnlyEntry({ workspacePath: "/work/foreign", containers: [candidate("dd22", "exited", "ghcr.io/devcontainers/universal:latest")] }),
+    );
   });
 
   it("unifies symlinked roots with Docker label real paths", () => {
@@ -351,7 +353,7 @@ describe("buildWorkspaceRegistry", () => {
     const docker = [dockerCandidate({ workspaceKey: "/work/real/a", state: "running" })];
     const result = registry(fs, docker, { sessionCwd: "/link" });
     expect(result.entries).toEqual([
-      configEntry({ workspacePath: "/work/real/a", containers: [candidate("c1")] }),
+      configEntry({ workspacePath: "/work/real/a", containers: [candidate("c1", "running", "ghcr.io/devcontainers/universal:latest")] }),
     ]);
   });
 
@@ -366,9 +368,25 @@ describe("buildWorkspaceRegistry", () => {
     expect(result.entries).toHaveLength(1);
     expect(result.entries[0]?.ambiguous).toBe(true);
     expect(result.entries[0]?.containerCandidates).toEqual([
-      { id: "aa11", state: "running" },
-      { id: "aa12", state: "running" },
+      { id: "aa11", state: "running", image: "ghcr.io/devcontainers/universal:latest" },
+      { id: "aa12", state: "running", image: "ghcr.io/devcontainers/universal:latest" },
     ]);
+  });
+
+  it("orders candidates running-first, so a stopped container cannot become the target", () => {
+    const fs = fsTree();
+    addFile(fs, "/work/a/.devcontainer/devcontainer.json");
+    // Docker's own listing is NOT running-first: the newest container is often the stopped one.
+    const docker = [
+      dockerCandidate({ id: "stopped1", workspaceKey: "/work/a", state: "exited" }),
+      dockerCandidate({ id: "running1", workspaceKey: "/work/a", state: "running" }),
+    ];
+    const result = registry(fs, docker);
+
+    // The primary candidate is the running one, so a workspace with exactly one running container does not
+    // silently target a stopped sibling (adversarial review).
+    expect(result.entries[0]?.containerCandidates[0]?.id).toBe("running1");
+    expect(result.entries[0]?.ambiguous).toBe(false);
   });
 
   it("does not flag ambiguity when only one container is running", () => {

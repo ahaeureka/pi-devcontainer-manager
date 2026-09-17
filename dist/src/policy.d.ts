@@ -23,4 +23,13 @@ export declare function commandIdentity(parts: readonly string[], capture: Comma
     commandText?: string;
 };
 export declare function redactText(text: string): string;
+/**
+ * Render an argv as the PROGRAM it names, for operator-facing text.
+ *
+ * This is the only thing the in-session visibility shows, so it is enforced here rather than assumed:
+ * basename of `argv[0]`, redacted with the audit rules (a program name CAN be credential-shaped —
+ * `argv[0]="Authorization: Bearer sk-live-…"` was reproduced by adversarial review), capped so a
+ * pathological argument cannot flood the operator channel or the status block, and never blank.
+ */
+export declare function displayProgram(argv: readonly string[]): string;
 //# sourceMappingURL=policy.d.ts.map

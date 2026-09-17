@@ -30,5 +30,23 @@ export declare function resolveRealPath(path: string): string;
  * "inside" it.
  */
 export declare function isWithinWorkspace(root: string, candidate: string, platform?: NodeJS.Platform): boolean;
+/**
+ * The SEGMENT test: is `candidate` the same path as `base`, or beneath it?
+ *
+ * One implementation for every place that asks this question, because six separate adversarial findings
+ * were the same defect — a fix applied to one surface and not its mirror. A bare `startsWith(base + "/")`
+ * is wrong for a base of `/` (it builds `//` and matches nothing), and raw comparison is wrong for two
+ * spellings that differ only in a trailing slash, so both cases live here once.
+ */
+export declare function isAtOrUnder(candidate: string, base: string): boolean;
+/**
+ * Resolve `.` and `..` segments and collapse repeated separators, purely textually (no filesystem access).
+ *
+ * The guards compare LITERAL argv elements, so this must be a string operation; it is also the shared
+ * normalization every consumer uses, so a spelling cannot be "the same path" for one caller and not another.
+ */
+export declare function normalizeSegments(path: string): string;
+/** Two spellings of the same path (trailing slashes and a lone root). */
+export declare function isSamePath(left: string, right: string): boolean;
 export declare function uniqueWorkspaceKeys(paths: readonly string[]): string[];
 //# sourceMappingURL=workspace-path.d.ts.map

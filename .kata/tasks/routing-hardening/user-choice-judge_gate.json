@@ -1,0 +1,8 @@
+{
+  "taskId": "routing-hardening",
+  "boundary": "judge_gate",
+  "createdAt": "2026-09-18T17:10:00.000Z",
+  "choice": "continue_current",
+  "approvedAt": "2026-09-17T19:24:17.371Z",
+  "consumedAt": "2026-09-17T19:24:18.083Z"
+}

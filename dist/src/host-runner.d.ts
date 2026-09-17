@@ -43,6 +43,24 @@ export interface AuditedHostRunnerDeps {
     readonly targetStoreWorkspaceKey: () => string | undefined;
     /** Injectable clock for deterministic audit timestamps. */
     readonly clock?: () => string;
+    /**
+     * Session-scoped visibility for host runs (command-routing assessment section 4.1).
+     *
+     * The audit trail stays authoritative; this makes drift visible while it happens: every attempt is
+     * counted, and the FIRST one of the session is reported through the operator UI.
+     */
+    readonly ledger?: {
+        /** Counts the attempt and reports whether it is the session's first. */
+        noteFirstRun(argv: readonly string[]): boolean;
+    };
+    /**
+     * Called once per session with the PROGRAM the first host attempt named.
+     *
+     * Not a command line: the visibility deliberately carries no command text at all, so there is no
+     * redaction left to get wrong — the rendering is `displayProgram(argv)` (basename, redacted, capped,
+     * never blank), and this is the only string the notice and the ledger ever show.
+     */
+    readonly onFirstHostRun?: (program: string) => void;
 }
 /** The shape `CommandServices.hostRunner` expects. */
 export interface AuditedHostRunner {

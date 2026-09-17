@@ -20,6 +20,7 @@
  * sees one consistent in-container view.
  */
 import { isAbsolute } from "node:path";
+import { isAtOrUnder, normalizeSegments } from "./workspace-path.js";
 import { parseJsonc } from "./jsonc.js";
 /** Parse a devcontainer `workspaceMount` string ("source=...,target=...,type=bind"). */
 export function parseWorkspaceMount(mount) {
@@ -81,14 +82,20 @@ export function buildPathMapping(configDir, workspaceFolder, workspaceMount) {
 export function hostToContainer(path, mapping) {
     if (mapping === undefined)
         return undefined;
-    const host = normalize(mapping.hostPath);
-    const candidate = normalize(path);
-    if (candidate === host)
+    const host = normalizeSegments(normalize(mapping.hostPath));
+    const candidate = normalizeSegments(normalize(path));
+    if (!isAtOrUnder(candidate, host))
+        return undefined;
+    const hostTrimmed2 = host === "/" ? "/" : host.replace(/\/+$/, "");
+    const candidateTrimmed = candidate === "/" ? "/" : candidate.replace(/\/+$/, "");
+    if (candidateTrimmed === hostTrimmed2)
         return mapping.containerPath;
-    if (candidate.startsWith(`${host}/`)) {
-        return `${mapping.containerPath}${candidate.slice(host.length)}`;
-    }
-    return undefined;
+    // The join boundary is EXPLICIT: with a host of `/` the tail has no leading slash, so concatenating the
+    // container path with the raw slice produced `/workspacedata/work/proj` (adversarial review, three nodes).
+    const hostTrimmed = host === "/" ? "/" : host.replace(/\/+$/, "");
+    const base = hostTrimmed === "/" ? "/" : `${hostTrimmed}/`;
+    const containerRoot = mapping.containerPath.replace(/\/+$/, "") || "/";
+    return `${containerRoot === "/" ? "" : containerRoot}/${candidate.slice(base.length)}`;
 }
 /**
  * Return the first argv element that refers to a CONTAINER-only path (the
@@ -107,7 +114,9 @@ export function findContainerPath(argv, containerPath) {
         if (typeof token !== "string" || !token.startsWith("/"))
             continue;
         const candidate = normalize(token);
-        if (candidate === base || candidate.startsWith(`${base}/`))
+        // The shared segment test: a base of `/` matches everything absolute (the local `${base}/` prefix built
+        // `//` and made this guard silently inert for a container workspace path of `/`).
+        if (isAtOrUnder(candidate, base))
             return token;
     }
     return undefined;
@@ -144,11 +153,13 @@ export function readConfigFacts(configDir, text) {
         ? config.mounts.filter((entry) => typeof entry === "string")
         : [];
     const containerOnly = containerOnlyMounts(mounts, workspaceMount, mapping);
+    const samePath = samePathMounts(mounts, configDir);
     return {
         kind: "ok",
         facts: {
             ...(mapping !== undefined ? { mapping } : {}),
             ...(containerOnly !== undefined ? { containerOnlyMounts: containerOnly } : {}),
+            ...(samePath !== undefined ? { samePathMounts: samePath } : {}),
         },
     };
 }
@@ -168,11 +179,33 @@ export function containerOnlyMounts(mounts, workspaceMount, mapping) {
         const target = parseWorkspaceMount(entry).target;
         if (target === undefined || !isAbsolute(target))
             continue;
-        if (workspaceTarget !== undefined && (target === workspaceTarget || target.startsWith(`${normalize(workspaceTarget)}/`))) {
+        if (workspaceTarget !== undefined && isAtOrUnder(normalize(target), normalize(workspaceTarget))) {
             continue;
         }
         seen.add(target);
     }
     return seen.size === 0 ? undefined : [...seen];
+}
+/**
+ * The `mounts` entries that put the SAME path on both sides (`source` === `target`).
+ *
+ * A devcontainer mount is a `source=<host>,target=<container>[,type=...]` triple; when the two paths
+ * are identical the file is genuinely the same on both sides, which is the only case the reverse
+ * routing guard may excuse. Keying on the target alone would excuse a mount whose source is somewhere
+ * else entirely (adversarial review of the routing hardening).
+ */
+export function samePathMounts(mounts, workspaceFolder) {
+    const paths = [];
+    for (const mount of mounts) {
+        const parts = mount.split(",");
+        const expand = (value) => value?.replaceAll("${localWorkspaceFolder}", workspaceFolder ?? "${localWorkspaceFolder}");
+        const source = expand(parts.find((part) => part.trim().startsWith("source="))?.trim().slice("source=".length));
+        const target = expand(parts.find((part) => part.trim().startsWith("target="))?.trim().slice("target=".length));
+        // Both sides are expanded first: `source=${localWorkspaceFolder},target=<the host path>` is a mirror
+        // mount too (adversarial review of the routing hardening), and comparing raw strings missed it.
+        if (source !== undefined && target !== undefined && source.length > 0 && source === target)
+            paths.push(target);
+    }
+    return paths.length > 0 ? paths : undefined;
 }
 //# sourceMappingURL=path-mapper.js.map

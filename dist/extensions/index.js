@@ -56,9 +56,16 @@ import { evaluatePolicy, commandIdentity } from "../src/policy.js";
 import { createSetupCli } from "../src/setup-cli.js";
 import { createAuditedHostRunner } from "../src/host-runner.js";
 import { createLifecycleGuard } from "../src/lifecycle.js";
+import { createHostRunLedger } from "../src/host-run-ledger.js";
+import { displayProgram } from "../src/policy.js";
 import { RuntimeError } from "../src/errors.js";
 import { renderExecutionContext } from "../src/execution-context.js";
-function composeRuntime(config, audit, sessionWorkspace, activation) {
+function composeRuntime(config, audit, sessionWorkspace, activation, 
+/**
+ * Session-scoped host-run visibility and the one-shot notice callback: the ledger lives in the
+ * extension closure (it is per session), so it is passed in rather than created here.
+ */
+hostVisibility) {
     const runner = new NodeProcessRunner();
     const capabilities = new NodeCapabilityService(runner, {
         dockerPath: config.dockerPath,
@@ -181,6 +188,27 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
             return undefined;
         return hostToContainer(entry.workspacePath, mapping) ?? undefined;
     };
+    /** Read the selected workspace's host<->container mapping (shared by both routing guards). */
+    const readMapping = async (workspaceKey) => {
+        const { entries } = await registry();
+        const key = canonicalWorkspaceKey(workspaceKey);
+        const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
+        const configPath = entry !== undefined ? configPathOf(entry) : undefined;
+        if (entry === undefined || configPath === undefined)
+            return undefined;
+        const facts = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, configPath), reportUnparsableConfig);
+        if (facts.mapping === undefined)
+            return undefined;
+        // Paths the configuration makes visible in the container at their own path are NOT mis-routes:
+        // the same file exists on both sides (the reverse guard must not refuse them).
+        return {
+            hostPath: facts.mapping.hostPath,
+            containerPath: facts.mapping.containerPath,
+            // Only mounts whose source and target are the SAME path are the same file on both sides; the
+            // reverse guard must not excuse a target-only shadow of the host path.
+            ...(facts.samePathMounts !== undefined ? { containerVisiblePaths: facts.samePathMounts } : {}),
+        };
+    };
     const execution = new ExecutionService({
         config,
         targetStore,
@@ -189,6 +217,7 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
         audit,
         autoSelect,
         resolveContainerWorkspace,
+        mappingFor: readMapping,
     });
     const bashOperations = createRoutedBashOperations({
         execution,
@@ -212,6 +241,8 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
         sessionWorkspace,
         env,
         targetStoreWorkspaceKey: () => targetStore.snapshot().workspaceKey,
+        ledger: hostVisibility.ledger,
+        onFirstHostRun: hostVisibility.onFirstHostRun,
         guardMappingFor: async (workspaceKey) => {
             const { entries } = await registry();
             const key = canonicalWorkspaceKey(workspaceKey);
@@ -230,6 +261,8 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
     });
     const commandServices = {
         config,
+        hostRuns: hostVisibility.ledger,
+        onWithheldHostAttempt: hostVisibility.onWithheldHostAttempt,
         targetStore,
         execution,
         registry,
@@ -253,6 +286,10 @@ function composeRuntime(config, audit, sessionWorkspace, activation) {
         }),
         hostExec: createDevcontainerHostExecTool({
             execution,
+            // A withheld attempt is reported to the ledger + one-shot notice, so the AGENT's surface is as
+            // visible as the operator's (the previous wiring put this on `devcontainer_exec`, which ignores
+            // it — adversarial review of the routing hardening).
+            onWithheldHostAttempt: hostVisibility.onWithheldHostAttempt,
             sessionWorkspace,
             hostRunner,
             hostExecutionAllowed: config.hostExecution.allow,
@@ -381,18 +418,51 @@ export default function (pi) {
     // first await and re-checks after each one, so a superseded start cannot overwrite `runtime`,
     // register surfaces from a stale activation decision, or notify for a session that is gone.
     const lifecycle = createLifecycleGuard();
+    // Session-scoped host-run visibility: the ledger is the summary, the audit trail is the record.
+    const hostRuns = createHostRunLedger({ limit: 5 });
     pi.on("session_start", async (_event, ctx) => {
         const generation = lifecycle.begin();
         const superseded = () => !lifecycle.isCurrent(generation);
         const paths = defaultConfigPaths(ctx.cwd);
         const loaded = loadConfigWithDiagnostics(paths, { projectTrusted: ctx.isProjectTrusted() });
         const config = composeRuntimeConfig(ctx.cwd, loaded.config);
+        // The summary and the one-shot notice describe THIS session, not the process: a second session in
+        // the same Pi process must not inherit the first one's count.
+        hostRuns.reset();
         const restoredIntent = restoreSelection(ctx);
         const activation = { decision: { active: false, reason: "no-evidence" } };
         // Honor audit.enabled and audit.directory: the configured directory is used
         // when set, and `enabled: false` accepts records but persists nothing.
         const audit = new JsonlAuditWriter(config.audit.directory ?? defaultAuditDirectory(), config.audit.retentionDays, config.audit.enabled);
-        const rt = composeRuntime(config, audit, ctx.cwd, activation);
+        const rt = composeRuntime(config, audit, ctx.cwd, activation, {
+            ledger: hostRuns,
+            onWithheldHostAttempt: (program) => {
+                // The runner is not reached when configuration withholds the surface, so this path counts and
+                // announces the attempt itself — otherwise a withheld configuration would leave the operator
+                // with "no host commands this session" while the agent kept trying.
+                // The callers hand over a RAW first token (the ledger renders it): passing an already-rendered program
+                // turned "(no command)" into "(no" (adversarial review).
+                if (hostRuns.noteFirstRun([program])) {
+                    // A withheld attempt is refused BEFORE the runner, so it leaves no `host-exec` audit record:
+                    // the notice must not claim one (verify-node adversarial pass). Redaction is the audit
+                    // trail's: join first, then redact.
+                    // The notice renders the program through the SAME enforced renderer as the ledger: interpolating the
+                    // raw token put command text (and a credential) on the operator channel (adversarial review).
+                    ctx.ui.notify(`[devcontainer-manager] first host command attempt this session: ${displayProgram([program])} (host execution is withheld by configuration — no audit record)`, "warning");
+                }
+            },
+            onFirstHostRun: (program) => {
+                // One notice per session, on the operator channel: a model reaching for the escape hatch
+                // should not require reading the audit log to notice. The runner hands over an already
+                // REDACTED rendering, so this notice cannot be the one place a credential appears in plaintext.
+                // "Attempt", because a refused command never ran but is exactly what the operator must see.
+                // `audit.enabled: false` accepts records but persists nothing, so the notice must not claim one —
+                // and the notice names the PROGRAM, not the command line (no argv is rendered anywhere in the
+                // visibility, so there is no redaction rule to get wrong).
+                const recorded = config.audit.enabled ? "audited" : "audit disabled by configuration — no record persisted";
+                ctx.ui.notify(`[devcontainer-manager] first host command attempt this session: ${program} (${recorded})`, "warning");
+            },
+        });
         // The runtime assignment is a surface mutation like any other, so it goes through the guard (a
         // start that is already superseded — e.g. by a command-path activation change — applies nothing).
         if (!lifecycle.ifCurrent(generation, () => void (runtime = rt)))

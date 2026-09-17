@@ -13,6 +13,7 @@
  * adapts Pi's `ExtensionCommandContext` to them.
  */
 import type { ExecutionService, LifecycleServiceResult, UpBuildOutcome } from "./execution-service.js";
+import { displayProgram } from "./policy.js";
 import type { TargetStore, TargetStoreSnapshot, TargetSelection } from "./target-store.js";
 import type { DockerContainer } from "./runtime/docker-adapter.js";
 import type { SelectionIntent, SelectionRecord } from "./selection-state.js";
@@ -65,6 +66,10 @@ export interface CommandServices {
   };
   /** Per-action confirmation token generator (defaults to crypto). */
   readonly generateToken?: () => string;
+  /** Session-scoped host-run summary (`/devcontainer status`; the audit trail stays authoritative). */
+  readonly hostRuns?: { summary(): string };
+  /** Report a host attempt that configuration refused before the runner (so it is still visible). */
+  readonly onWithheldHostAttempt?: (program: string) => void;
   /**
    * Install (or upgrade) the Dev Containers CLI globally via npm. Dedicated
    * setup capability: fixed npm argv, always user-confirmed in the handler,
@@ -128,6 +133,7 @@ export function renderStatus(
   snapshot: TargetStoreSnapshot,
   entries: readonly import("./types.js").RegistryEntry[],
   config: EffectiveConfig,
+  hostRuns?: { summary(): string },
 ): string {
   const lines: string[] = [];
   lines.push(`**DevContainer target:** ${snapshot.status}`);
@@ -143,6 +149,7 @@ export function renderStatus(
   }
   lines.push("");
   lines.push(`route: \`${config.routeMode}\` · maxTimeout: ${config.maxTimeoutSeconds}s · maxOutput: ${(config.maxOutputBytes / 1024).toFixed(0)}KiB`);
+  if (hostRuns !== undefined) lines.push(`host runs: ${hostRuns.summary()}`);
   return lines.join("\n");
 }
 
@@ -203,7 +210,12 @@ export function selectionFor(
   candidateId: string | undefined,
   configPath?: string,
 ): TargetSelection {
-  const state = containerStateOf(entry) ?? "exited";
+  // The state must belong to the SELECTED container, not to the workspace's primary one: picking a
+  // stopped sibling of a running primary used to record `running` (and the reverse recorded
+  // `stopped`, so a runnable target answered `target-stopped`). Found by the fourth adversarial pass.
+  const state = candidateId !== undefined
+    ? entry.containerCandidates.find((candidate) => candidate.id === candidateId)?.state ?? containerStateOf(entry) ?? "exited"
+    : containerStateOf(entry) ?? "exited";
   // A named configuration (or the legacy root form) is invisible to the CLI's own
   // lookup, so it must travel with the operation. Only a DISCOVERED path is ever
   // carried — a caller cannot smuggle an arbitrary `--config` into the argv — and the
@@ -399,13 +411,13 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     }
     const { entries } = await services.registry();
     const snapshot = services.targetStore.snapshot();
-    return { text: renderStatus(snapshot, entries, services.config) };
+    return { text: renderStatus(snapshot, entries, services.config, services.hostRuns) };
   };
 
   handlers["status"] = async (_args, _ctx) => {
     const { entries } = await services.registry();
     const snapshot = services.targetStore.snapshot();
-    return { text: renderStatus(snapshot, entries, services.config) };
+    return { text: renderStatus(snapshot, entries, services.config, services.hostRuns) };
   };
 
   /**
@@ -435,7 +447,37 @@ export function createCommandHandlers(services: CommandServices): Record<string,
       established = await applySelection(services, selectionFor(entry, candidateId, resolved.configPath), ctx);
       return undefined;
     };
-    const withTarget = (text: string): CommandResult =>
+    /**
+   * Offer the container choice for an ambiguous workspace, or return the refusal.
+   *
+   * Extracted because ambiguity is reachable from TWO places — a bare `/devcontainer use` whose only
+   * match is ambiguous, and a workspace picked from the picker (adversarial review of the routing
+   * hardening: the second path bound an ambiguous selection and reported success with no target).
+   */
+  const chooseAmbiguousContainer = async (
+    entry: RegistryEntry,
+    ctx: CommandContextLike,
+  ): Promise<{ ok: true; id: string } | { ok: false; text: string }> => {
+    const ids = entry.containerCandidates.map((c) => c.id);
+    const refusal =
+      `[ambiguous-candidate] Multiple running containers for \`${entry.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`;
+    const labels = entry.containerCandidates.map(
+      (c) => `${c.id.slice(0, 12)} — ${c.state}${c.image !== undefined ? ` — ${c.image}` : ""}`,
+    );
+    if (labels.length === 0 || !ctx.hasUI) return { ok: false, text: refusal };
+    const picked = await ctx.ui.select(
+      `Select the container for ${entry.workspacePath}`,
+      labels,
+      ctx.signal !== undefined ? { signal: ctx.signal } : undefined,
+    );
+    if (picked === undefined) return { ok: false, text: refusal };
+    const index = labels.indexOf(picked);
+    const chosen = index === -1 ? undefined : entry.containerCandidates[index];
+    if (chosen === undefined) return { ok: false, text: refusal };
+    return { ok: true, id: chosen.id };
+  };
+
+  const withTarget = (text: string): CommandResult =>
       established !== undefined ? { text, target: established } : { text };
     // An explicit CONTAINER id selects that candidate of an ambiguous workspace
     // (the only way to resolve 2+ running containers for one workspace).
@@ -459,10 +501,14 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     if (candidates.length === 1) {
       const only = candidates[0]!;
       if (only.ambiguous === true) {
-        const ids = only.containerCandidates.map((c) => c.id);
-        return {
-          text: `[ambiguous-candidate] Multiple running containers for \`${only.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`,
-        };
+        // Offer the choice instead of only describing it. Docker result order still never decides:
+        // the operator picks, and a cancelled picker keeps the refusal (command-routing assessment
+        // §4.3).
+        const choice = await chooseAmbiguousContainer(only, ctx);
+        if (choice.ok === false) return { text: choice.text };
+        const failure = await select(only, choice.id);
+        if (failure !== undefined) return { text: failure };
+        return withTarget(`Selected \`${only.workspacePath}\` → container \`${choice.id}\`.`);
       }
       const failure = await select(only, primaryCandidate(only)?.id);
       if (failure !== undefined) return { text: failure };
@@ -476,7 +522,16 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     const idx = labels.indexOf(choice);
     if (idx === -1) return { text: "[unexpected] Unknown selection." };
     const picked = candidates[idx]!;
-    const pickedFailure = await select(picked, picked.ambiguous ? undefined : primaryCandidate(picked)?.id);
+    // A workspace picked from the picker can itself be ambiguous: without this, the command bound an
+    // ambiguous selection and answered with a success-shaped message and no target.
+    if (picked.ambiguous) {
+      const choice = await chooseAmbiguousContainer(picked, ctx);
+      if (choice.ok === false) return { text: choice.text };
+      const ambiguousFailure = await select(picked, choice.id);
+      if (ambiguousFailure !== undefined) return { text: ambiguousFailure };
+      return withTarget(`Selected \`${picked.workspacePath}\` → container \`${choice.id}\`.`);
+    }
+    const pickedFailure = await select(picked, primaryCandidate(picked)?.id);
     if (pickedFailure !== undefined) return { text: pickedFailure };
     return withTarget(
       `Selected \`${picked.workspacePath}\` (${containerStateOf(picked) ?? "config-only"}).\nRun /devcontainer up if it is not running.`,
@@ -637,6 +692,10 @@ export function createCommandHandlers(services: CommandServices): Record<string,
 
   handlers["host-exec"] = async (args, ctx) => {
     if (!services.config.hostExecution.allow) {
+      // A withheld attempt is exactly what the operator needs to see: count it before answering.
+      const attempted = parseHostExecArgv(args);
+      // The RAW first token: the ledger renders it.
+      services.onWithheldHostAttempt?.(attempted.ok ? attempted.argv[0] ?? "" : args.trim().split(/\s+/)[0] ?? "");
       return {
         text:
           "[policy-denied] Host execution is disabled by policy.\n" +
@@ -774,7 +833,7 @@ export function parseHostExecArgv(input: string): HostExecArgv {
       return {
         ok: false,
         text:
-          `[policy-denied] Free-text arguments are not accepted here: \`${rest.split(/\s+/)[0]}\` would be ` +
+          `[policy-denied] Free-text arguments are not accepted here: \`${displayProgram([rest.split(/\s+/)[0] ?? ""])}\` would be ` +
           `reinterpreted before it runs on the host.\n${HOST_EXEC_USAGE}`,
       };
     }

@@ -8,6 +8,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import {
+  selectionFor,
   createCommandHandlers,
   displayCommandResult,
   reconcileSelection,
@@ -129,11 +130,13 @@ describe("/devcontainer list + status", () => {
     expect(result.text).toContain("/ws/project-a");
   });
 
-  it("status reuses the same rendering", async () => {
-    const { handlers } = makeServices();
+  it("status reuses the same rendering and reports the session's host runs", async () => {
+    const { handlers } = makeServices({ hostRuns: { summary: () => "2 host command attempts this session — most recent: docker ps" } });
     const ctx = makeCtx();
     const result = await handlers["status"]!("", ctx);
     expect(result.text).toContain("**DevContainer target:**");
+    // The claim the adversarial review caught as untested: the summary must reach `/devcontainer status`.
+    expect(result.text).toContain("host runs: 2 host command attempts this session");
   });
 });
 
@@ -174,6 +177,119 @@ describe("/devcontainer use", () => {
     const result = await handlers["use"]!("missing", ctx);
     expect(result.text).toContain("[no-candidate]");
     expect(targetStore.select).not.toHaveBeenCalled();
+  });
+
+  it("offers a container picker when the matched workspace is ambiguous", async () => {
+    const ambiguous = configEntry({
+      workspacePath: "/ws/project-a",
+      containers: [candidate("aa11"), candidate("aa12")],
+    });
+    const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [ambiguous], diagnostics: [] })) });
+    const ctx = makeCtx();
+    // The label carries id, state and image (AC-4) — the operator sees what they are choosing between.
+    ctx.ui.select.mockResolvedValueOnce("aa12 — running — devcontainer:latest");
+
+    const result = await handlers["use"]!("project-a", ctx);
+
+    // The picker replaces the refusal, not the decision: the operator chooses, Docker order never does.
+    expect(ctx.ui.select).toHaveBeenCalled();
+    expect(ctx.ui.select.mock.calls[0]?.[1]).toContain("aa12 — running — devcontainer:latest");
+    expect(result.text).toContain("container `aa12`");
+    expect(result.target?.candidateId).toBe("aa12");
+  });
+
+  it("refuses instead of prompting when there is no UI", async () => {
+    const ambiguous = configEntry({ workspacePath: "/ws/project-a", containers: [candidate("aa11"), candidate("aa12")] });
+    const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [ambiguous], diagnostics: [] })) });
+    const ctx = makeCtx({ hasUI: false });
+
+    const result = await handlers["use"]!("project-a", ctx);
+
+    expect(ctx.ui.select).not.toHaveBeenCalled();
+    expect(result.text).toContain("[ambiguous-candidate]");
+  });
+
+  it("keeps the refusal when the container picker is cancelled", async () => {
+    const ambiguous = configEntry({
+      workspacePath: "/ws/project-a",
+      containers: [candidate("aa11"), candidate("aa12")],
+    });
+    const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [ambiguous], diagnostics: [] })) });
+    const ctx = makeCtx();
+    ctx.ui.select.mockResolvedValueOnce(undefined);
+
+    const result = await handlers["use"]!("project-a", ctx);
+
+    expect(result.text).toContain("[ambiguous-candidate]");
+    expect(result.text).toContain("<container-id>");
+    expect(result.target).toBeUndefined();
+  });
+
+  it("offers the container picker for an ambiguous workspace chosen from the workspace picker", async () => {
+    const ambiguous = configEntry({ workspacePath: "/ws/project-b", containers: [candidate("b1"), candidate("b2")] });
+    const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [entry, ambiguous], diagnostics: [] })) });
+    const ctx = makeCtx();
+    ctx.ui.select
+      .mockResolvedValueOnce("/ws/project-b [running]")
+      .mockResolvedValueOnce("b2 — running — devcontainer:latest");
+
+    const result = await handlers["use"]!("", ctx);
+
+    // Ambiguity is reachable from BOTH entry points: without this, the command bound an ambiguous
+    // selection and answered with a success-shaped message and no target (the first adversarial pass's
+    // major finding).
+    expect(ctx.ui.select).toHaveBeenCalledTimes(2);
+    expect(result.target?.candidateId).toBe("b2");
+    expect(result.text).toContain("container `b2`");
+  });
+
+  it("binds the state of the PICKED container, not the workspace's primary one", () => {
+    // A running primary plus a stopped sibling: picking the stopped one must record `stopped` — and
+    // picking a running sibling of a stopped primary must record `running`. The state used to come
+    // from containerCandidates[0] while the id came from the picker, so a runnable target answered
+    // `target-stopped` (the fourth adversarial pass).
+    const mixed = configEntry({
+      workspacePath: "/ws/project-a",
+      containers: [candidate("aa11", "running"), candidate("bb22", "exited")],
+      ambiguous: true,
+    });
+
+    expect(selectionFor(mixed, "bb22")).toMatchObject({ status: "selected-stopped", candidate: { id: "bb22", status: "stopped" } });
+
+    const stoppedPrimary = configEntry({
+      workspacePath: "/ws/project-a",
+      containers: [candidate("aa11", "exited"), candidate("bb22", "running")],
+      ambiguous: true,
+    });
+    expect(selectionFor(stoppedPrimary, "bb22")).toMatchObject({ status: "selected-valid", candidate: { id: "bb22", status: "running" } });
+  });
+
+  it("echoes only the FIRST token of a refused free-text command", async () => {
+    // Host execution must be GRANTED for the grammar check to be reached at all.
+    const { handlers } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }) });
+
+    const result = await handlers["host-exec"]!("mysql -p s3cretpw db", makeCtx());
+
+    // The refusal used to echo the whole remaining input, so an unflagged secret appeared in the text the
+    // operator reads (adversarial review).
+    expect(result.text).toContain("[policy-denied]");
+    expect(result.text).toContain("`mysql`");
+    expect(result.text).not.toContain("s3cretpw");
+  });
+
+  it("counts a host attempt that configuration withheld, by program name", async () => {
+    const attempts: string[] = [];
+    const { handlers } = makeServices({
+      config: makeConfig({ hostExecution: { allow: false } }),
+      onWithheldHostAttempt: (program) => void attempts.push(program),
+    });
+
+    const result = await handlers["host-exec"]!("--argv mysql --argv --password --argv s3cr3t", makeCtx());
+
+    // A withheld configuration refuses before the runner, so the surface that refuses must report it —
+    // and it reports the PROGRAM: the visibility stores no command text at all.
+    expect(result.text).toContain("[policy-denied]");
+    expect(attempts).toEqual(["mysql"]);
   });
 
   it("asks via ui.select when multiple candidates match", async () => {

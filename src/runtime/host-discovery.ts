@@ -355,11 +355,21 @@ export function buildWorkspaceRegistry(input: DiscoveryInput): RegistryResult {
       entries.push(hostEntry);
       continue;
     }
-    // Expose EVERY candidate, ordered by Docker's own listing (which puts the running container
-    // first), and fail closed when more than one is running so result order never decides the target.
+    // Expose EVERY candidate, ordered RUNNING-FIRST by the sort below, and fail closed when more than one is
+    // running so Docker's listing order never decides the target. (Docker does NOT reliably put the running
+    // container first — assuming it did made a stopped container a workspace's primary candidate.)
     const candidates = dockerList
       .filter((c) => c.id !== "")
-      .map((c) => ({ id: c.id, state: mapContainerState(c.state) ?? ("unknown" as const) }));
+      .map((c) => ({
+        id: c.id,
+        state: mapContainerState(c.state) ?? ("unknown" as const),
+        // Carried so the operator-facing container picker can name the image (AC-4).
+        ...(c.image !== undefined && c.image.length > 0 ? { image: c.image } : {}),
+      }))
+      // The candidate ORDER is priority: the primary candidate is `containerCandidates[0]`, and `ambiguous`
+      // only trips for more than one RUNNING container, so a stopped container listed first by Docker would
+      // otherwise become the target of a workspace that has a running one (adversarial review).
+      .sort((left, right) => Number(right.state === "running") - Number(left.state === "running"));
     const runningCount = candidates.filter((c) => c.state === "running").length;
     // `byKey` only ever holds host-config entries, so the variant is known here; `both` says the
     // containers were discovered alongside a configuration rather than instead of one.
@@ -374,7 +384,14 @@ export function buildWorkspaceRegistry(input: DiscoveryInput): RegistryResult {
     // path to invent and no placeholder kind to explain away (review finding L4-04).
     const candidates = list
       .filter((c) => c.id !== "")
-      .map((c) => ({ id: c.id, state: mapContainerState(c.state) ?? ("unknown" as const) }));
+      .map((c) => ({
+        id: c.id,
+        state: mapContainerState(c.state) ?? ("unknown" as const),
+        // Carried so the operator-facing container picker can name the image (AC-4).
+        ...(c.image !== undefined && c.image.length > 0 ? { image: c.image } : {}),
+      }))
+      // Running first, for the same reason as above.
+      .sort((left, right) => Number(right.state === "running") - Number(left.state === "running"));
     if (candidates.length === 0) continue;
     entries.push({
       kind: "container-only",

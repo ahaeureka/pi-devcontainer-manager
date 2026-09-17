@@ -1,0 +1,20 @@
+{
+  "id": "revision-d48c4ad5369ab489",
+  "taskId": "routing-hardening",
+  "ownedPaths": [
+    "CHANGELOG.md",
+    "README.md",
+    "README.zh-CN.md",
+    "dist",
+    "docs",
+    "extensions",
+    "openspec",
+    "package.json",
+    "scripts",
+    "src",
+    "tests",
+    "vitest.config.ts"
+  ],
+  "manifestHash": "b3d2071014b574871087f584243aac830810a2813bbf2153e4e80cd5da3625d3",
+  "createdAt": "2026-09-17T14:00:15.399Z"
+}

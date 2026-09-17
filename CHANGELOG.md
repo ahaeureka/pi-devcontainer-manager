@@ -8,6 +8,28 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Behaviour change — the container surfaces refuse a host path.** `devcontainer_exec` now fails
+  closed (`policy-denied`, naming the container path to use) when an argv element IS the host workspace
+  path or lies beneath it, and the workspace's configuration mounts it somewhere else. Before this, such
+  a command ran in the container against whatever that path means there — a different file, or nothing
+  at all. Routed-shell text (`bash`, `!`/`!!`) is deliberately NOT inspected: the detection is reliable
+  on literal argv and would be a guess over shell text. No mapping, or a mapping that keeps the host
+  path, means no refusal.
+- **`/devcontainer use` offers a container picker when a workspace has several running containers**,
+  instead of only refusing with the candidate ids. Docker result order still never decides the target —
+  you pick, and cancelling keeps the refusal. The explicit `/devcontainer use <container-id>` path is
+  unchanged.
+- The in-session host-run summary renders a PROGRAM NAME only when the token is a single program word
+  (`[A-Za-z0-9._+-]`, leading alphanumeric) and renders `(no command)` for anything else — no path segment, host,
+  query, fragment or userinfo is rendered. Eleven adversarial passes each found a credential reaching the summary
+  through a richer rule, so the rendering no longer parses structure at all; the count still shows how many host
+  commands ran, and the audit trail remains authoritative.
+- Host runs are now visible in-session: `/devcontainer status` reports how many host command attempts the
+  session has made and WHICH PROGRAMS they named (e.g. `docker`, `systemctl`), and the first attempt of a
+  session is announced on the operator channel with, in the same notice, whether a record was written at
+  all. The visibility deliberately stores **no command text** — a count and a program name give an operator
+  the drift signal without creating a place a credential could be rendered, and the audit trail remains the
+  authoritative record with its own capture policy (`audit.commandCapture`).
 - **Behaviour change — `/devcontainer host-exec` takes structured argv.** The command used to accept
   shell-like free text and split it with a narrow quote-aware regex, which silently reinterpreted
   escaped quotes, concatenated segments and empty arguments on the one surface that then executes the

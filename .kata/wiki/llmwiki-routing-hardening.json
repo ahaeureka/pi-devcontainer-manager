@@ -1,0 +1,29 @@
+{
+  "id": "llmwiki-routing-hardening",
+  "statement": "Routing hardening (build notes)",
+  "scope": [
+    "concepts/routing-hardening.md"
+  ],
+  "kind": "llmwiki-summary",
+  "sourceRefs": [
+    ".llmwiki/raw/docs/routing-hardening.md",
+    ".llmwiki/concepts/routing-hardening.md"
+  ],
+  "sourceHashes": {
+    ".llmwiki/raw/docs/routing-hardening.md": "055b406a14121acbe6138ad3464f8c9db692c1292e22e204b4d70a02e85105f5",
+    ".llmwiki/concepts/routing-hardening.md": "84dc71ff22a5a36d98fa71124c26313bcf126c3e1abeddebf48614777be5792a"
+  },
+  "validationTaskId": "llmwiki-ingest",
+  "evidenceIds": [
+    "llmwiki-055b406a1412"
+  ],
+  "status": "verified",
+  "lastVerifiedAt": "2026-09-17T09:29:48.081Z",
+  "createdAt": "2026-09-17T09:29:47.830Z",
+  "updatedAt": "2026-09-17T09:29:48.085Z",
+  "approvalEvent": {
+    "approvedBy": "geebytes",
+    "role": "distiller",
+    "approvedAt": "2026-09-17T09:29:48.081Z"
+  }
+}

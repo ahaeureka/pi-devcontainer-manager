@@ -25,6 +25,7 @@ import { workspaceHasConfig } from "./runtime/host-discovery.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
 import { RuntimeError } from "./errors.js";
 import { isWithinWorkspace } from "./workspace-path.js";
+import { detectHostPathOnContainerSurface } from "./routing-guard.js";
 export class ExecutionService {
     options;
     clock;
@@ -59,6 +60,41 @@ export class ExecutionService {
         catch (error) {
             this.audit(snapshot, undefined, { operation: request.operation, initiator: request.initiator, workspace: request.workspace }, { outputTruncated: false, errorSummary: this.asAuditError(error).message });
             throw error;
+        }
+        // REVERSE routing guard: this is the STRUCTURED container surface, so every element of its argv is
+        // known verbatim. A request that names the HOST workspace path is about to be handed to the
+        // container, where that path either does not exist or exists for a different reason — refuse it
+        // and name the container path to use instead. Routed-shell text is deliberately NOT inspected: the
+        // Phase-5 review established that a heuristic over shell text cannot be made safe.
+        if (request.operation === "container-exec" && this.options.mappingFor !== undefined) {
+            // The mapping comes from a registry read (which can fail: a Docker probe), and a failure here
+            // must land on a channel someone reads rather than escaping unaudited.
+            let mapping;
+            try {
+                mapping = await this.options.mappingFor(ctx.workspaceKey);
+            }
+            catch (error) {
+                this.audit(snapshot, ctx, { operation: request.operation, initiator: request.initiator, workspace: request.workspace }, { outputTruncated: false, errorSummary: this.asAuditError(error).message });
+                throw error;
+            }
+            const offending = detectHostPathOnContainerSurface([request.cmd, ...request.args], mapping);
+            if (offending !== undefined && mapping !== undefined) {
+                const error = new RuntimeError({
+                    kind: "policy-denied",
+                    message: `Container command references the HOST path ${offending}; inside the container this workspace is ${mapping.containerPath}.`,
+                    remedy: "Use the container path for container work, or devcontainer_host_exec for the host.",
+                });
+                // Audited like the symmetric forward guard (which records `container-path-on-host`): the
+                // operation is a policy denial, not an authorized run that happened to fail.
+                this.audit(snapshot, ctx, {
+                    operation: request.operation,
+                    initiator: request.initiator,
+                    workspace: request.workspace,
+                    cmd: request.cmd,
+                    args: request.args,
+                }, { policyAuthorized: false, policyDenialReason: "host-path-on-container", outputTruncated: false, errorSummary: error.message });
+                throw error;
+            }
         }
         // Target/workspace integrity: the Dev Containers CLI would receive
         // `--workspace-folder <request.workspace>` while the container id comes from
@@ -366,8 +402,10 @@ export class ExecutionService {
             initiator: request.initiator,
             ...this.workspaceIdentity(ctx, request),
             ...(targetId !== undefined ? { targetId } : {}),
-            policyAuthorized: snapshot.authorized,
-            ...(snapshot.denialReason !== undefined ? { policyDenialReason: snapshot.denialReason } : {}),
+            policyAuthorized: extra.policyAuthorized ?? snapshot.authorized,
+            ...((extra.policyDenialReason ?? snapshot.denialReason) !== undefined
+                ? { policyDenialReason: extra.policyDenialReason ?? snapshot.denialReason }
+                : {}),
             ...(extra.durationMs !== undefined ? { durationMs: extra.durationMs } : {}),
             ...(extra.exitCode !== undefined ? { exitCode: extra.exitCode } : {}),
             outputTruncated: extra.outputTruncated ?? false,

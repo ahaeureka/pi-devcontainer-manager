@@ -156,6 +156,27 @@ async function selectRunning(store: TargetStore, workspaceKey: string, container
   });
 }
 
+/**
+ * Run a container command once the container is actually READY.
+ *
+ * `up` can return before the container's first exec is serviceable (a real Docker start is asynchronous),
+ * which made this suite fail intermittently on a cold daemon and pass on the next run. A bounded retry is
+ * the honest fix: the assertion is about ROUTING, not about startup timing.
+ */
+async function execWhenReady(
+  service: Composed["service"],
+  workspace: string,
+  attempts = 8,
+): Promise<{ exitCode: number | null | undefined; stdout: string }> {
+  let last: { exitCode: number | null | undefined; stdout: string } = { exitCode: undefined, stdout: "" };
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    last = await service.exec({ operation: "container-exec", initiator: "tool", workspace, cmd: "pwd", args: [] });
+    if (last.exitCode === 0) return last;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  return last;
+}
+
 const suite = dockerOk && cliOk ? describe : describe.skip;
 
 suite("devcontainer-manager integration (real Docker + CLI)", () => {
@@ -217,28 +238,17 @@ suite("devcontainer-manager integration (real Docker + CLI)", () => {
     cleanedIds.push(upA.candidateId!);
     await selectRunning(composed.store, FIXTURE_A, upA.candidateId!);
 
-    const execA = await composed.service.exec({
-      operation: "container-exec",
-      initiator: "tool",
-      workspace: FIXTURE_A,
-      cmd: "pwd",
-      args: [],
-    });
+    const execA = await execWhenReady(composed.service, FIXTURE_A);
     expect(execA.exitCode).toBe(0);
     // The container-side workspace folder matches the host fixture folder name.
     expect(execA.stdout.trim()).toMatch(/project-a/);
 
     const upB = await composed.service.up({ operation: "up", initiator: "slash-command", workspace: FIXTURE_B });
     expect(upB.candidateId).toBeTypeOf("string");
+    cleanedIds.push(upB.candidateId!);
     await selectRunning(composed.store, FIXTURE_B, upB.candidateId!);
 
-    const execB = await composed.service.exec({
-      operation: "container-exec",
-      initiator: "tool",
-      workspace: FIXTURE_B,
-      cmd: "pwd",
-      args: [],
-    });
+    const execB = await execWhenReady(composed.service, FIXTURE_B);
     expect(execB.exitCode).toBe(0);
     expect(execB.stdout.trim()).toMatch(/project-b/);
 

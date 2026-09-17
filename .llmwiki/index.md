@@ -27,6 +27,8 @@
 
 - [[concepts/arch-review-p5-public-surfaces.md]] — Public surfaces and the process boundary (Phase 5 build notes)
 
+- [[concepts/routing-hardening.md]] — Routing hardening (build notes)
+
 ## Comparisons
 
 ## Queries

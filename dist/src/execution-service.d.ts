@@ -4,6 +4,7 @@ import type { TargetStore } from "./target-store.js";
 import type { DevcontainerAdapter } from "./runtime/devcontainer-adapter.js";
 import type { DockerLifecycleAdapter, LifecycleConfirmation, LifecycleResult } from "./runtime/docker-lifecycle.js";
 import type { DockerContainer } from "./runtime/docker-adapter.js";
+import { type HostToContainerMapping } from "./routing-guard.js";
 export interface ExecRequest {
     readonly operation: "container-exec" | "routed-bash" | "user-bash";
     readonly initiator: Initiator;
@@ -66,6 +67,14 @@ export interface ExecutionServiceOptions {
     readonly config: EffectiveConfig;
     readonly targetStore: TargetStore;
     readonly devcontainer: DevcontainerAdapter;
+    /**
+     * The selected workspace's host<->container mapping, when the configuration declares one.
+     *
+     * Injected because resolving it means reading a configuration off disk through the registry; used by
+     * the REVERSE routing guard so a `devcontainer_exec` that names the HOST workspace path fails closed
+     * instead of being reinterpreted inside the container.
+     */
+    readonly mappingFor?: (workspaceKey: string) => Promise<HostToContainerMapping | undefined>;
     readonly dockerLifecycle: DockerLifecycleAdapter;
     readonly audit: AuditWriter;
     /** ISO-8601 string clock for audit timestamps. */

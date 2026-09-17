@@ -10,20 +10,20 @@
     ".llmwiki/concepts/kata-task-conventions.md"
   ],
   "sourceHashes": {
-    ".llmwiki/raw/docs/kata-task-conventions.md": "c9e43eddcbc7c0818dc21f1d79ec4390dcf9a9aa4babd71f722ff27f823d2cb7",
+    ".llmwiki/raw/docs/kata-task-conventions.md": "ba0adc80662354592cfbaa994b55367e44c77a5f66427310b815575ca8b6baf9",
     ".llmwiki/concepts/kata-task-conventions.md": "7da0d0992d7f9747225d612ba70234e340dcbaf1a1a9a289a543777d9caaf9ba"
   },
   "validationTaskId": "llmwiki-ingest",
   "evidenceIds": [
-    "llmwiki-c9e43eddcbc7"
+    "llmwiki-ba0adc806623"
   ],
   "status": "verified",
-  "lastVerifiedAt": "2026-09-17T08:07:40.013Z",
-  "createdAt": "2026-09-17T08:07:39.780Z",
-  "updatedAt": "2026-09-17T08:07:40.017Z",
+  "lastVerifiedAt": "2026-09-17T09:34:26.741Z",
+  "createdAt": "2026-09-17T09:34:26.616Z",
+  "updatedAt": "2026-09-17T09:34:26.745Z",
   "approvalEvent": {
     "approvedBy": "geebytes",
     "role": "distiller",
-    "approvedAt": "2026-09-17T08:07:40.013Z"
+    "approvedAt": "2026-09-17T09:34:26.741Z"
   }
 }

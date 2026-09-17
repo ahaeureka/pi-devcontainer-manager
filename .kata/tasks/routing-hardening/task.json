@@ -5,7 +5,7 @@
   "acceptance": [
     {
       "id": "AC-1",
-      "statement": "Host runs are visible to the operator in-session: the host escape hatch reports the first host run of a session through the operator UI, and `/devcontainer status` shows how many host commands this session has run (and the most recent ones), so a model drifting toward the host is noticed without reading the audit log. The audit trail stays the authoritative record; this is a summary, not a second one."
+      "statement": "Host runs are visible to the operator in-session: the host escape hatch reports the first host run of a session through the operator UI, and `/devcontainer status` shows how many host command attempts this session has made and which PROGRAMS they named (no command text is stored), so a model drifting toward the host is noticed without reading the audit log. The audit trail stays the authoritative record; this is a summary, not a second one."
     },
     {
       "id": "AC-2",
@@ -38,25 +38,19 @@
     "reviewMode": "security",
     "comet": {
       "projectInit": "not_requested",
-      "openStatus": "required"
+      "openStatus": "acknowledged"
     },
     "gitFlow": {
       "strategy": "manual",
       "branch": "feature/routing-hardening",
       "baseBranch": "main",
-      "status": "pending_confirmation",
-      "command": [
-        "switch",
-        "-c",
-        "feature/routing-hardening",
-        "main"
-      ]
+      "status": "active"
     }
   },
   "requirements": [
     {
       "id": "REQ-1",
-      "statement": "Host runs are visible to the operator in-session: the host escape hatch reports the first host run of a session through the operator UI, and `/devcontainer status` shows how many host commands this session has run (and the most recent ones), so a model drifting toward the host is noticed without reading the audit log. The audit trail stays the authoritative record; this is a summary, not a second one.",
+      "statement": "Host runs are visible to the operator in-session: the host escape hatch reports the first host attempt of a session (naming the program) through the operator UI, and `/devcontainer status` shows how many host command attempts this session has made and which programs they named. The summary stores NO command text at all — the audit trail stays the authoritative record — because the redaction of a rendered command line proved to be the source of every defect five adversarial passes found in this feature.",
       "source": ".rpiv/artifacts/architecture-reviews/2026-09-17_command-routing-assessment.md §4.1 (option b) and §4.4",
       "confirmedAt": "2026-09-17T09:06:32.354Z"
     },
@@ -90,5 +84,178 @@
       "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraints 1-10",
       "confirmedAt": "2026-09-17T09:06:32.355Z"
     }
+  ],
+  "acceptanceMatrix": {
+    "version": 1,
+    "rows": [
+      {
+        "acceptanceId": "AC-1",
+        "designRefs": [
+          "assessment §4.1"
+        ],
+        "implementationPaths": [
+          "src/host-run-ledger.ts",
+          "src/host-runner.ts",
+          "src/commands.ts",
+          "extensions/index.ts"
+        ],
+        "testPaths": [
+          "tests/unit/routing-guards.test.ts",
+          "tests/unit/host-runner.test.ts",
+          "tests/unit/commands.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-2",
+        "designRefs": [
+          "assessment §4.2"
+        ],
+        "implementationPaths": [
+          "src/routing-guard.ts",
+          "src/execution-service.ts",
+          "extensions/index.ts"
+        ],
+        "testPaths": [
+          "tests/unit/routing-guards.test.ts",
+          "tests/unit/service-routing-guard.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-3",
+        "designRefs": [
+          "assessment §4.2"
+        ],
+        "implementationPaths": [
+          "src/routing-guard.ts",
+          "src/execution-service.ts"
+        ],
+        "testPaths": [
+          "tests/unit/routing-guards.test.ts",
+          "tests/unit/service-routing-guard.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-4",
+        "designRefs": [
+          "assessment §4.3"
+        ],
+        "implementationPaths": [
+          "src/commands.ts"
+        ],
+        "testPaths": [
+          "tests/unit/commands.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-5",
+        "designRefs": [
+          "assessment §4.1"
+        ],
+        "implementationPaths": [
+          "docs/security.md",
+          "CHANGELOG.md"
+        ],
+        "testPaths": [
+          "tests/unit"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-6",
+        "designRefs": [
+          "assessment §5"
+        ],
+        "implementationPaths": [
+          "dist",
+          "README.md"
+        ],
+        "testPaths": [
+          "tests/unit"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          },
+          {
+            "kind": "test",
+            "command": "node scripts/smoke-pi-package.mjs --no-model"
+          }
+        ],
+        "verificationLevel": "integration"
+      }
+    ]
+  },
+  "ownedPaths": [
+    "CHANGELOG.md",
+    "README.md",
+    "README.zh-CN.md",
+    "dist",
+    "docs",
+    "extensions",
+    "openspec",
+    "package.json",
+    "scripts",
+    "src",
+    "tests",
+    "vitest.config.ts"
   ]
 }

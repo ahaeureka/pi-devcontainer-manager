@@ -42,6 +42,13 @@ export interface ConfigFacts {
     readonly mapping?: PathMapping;
     /** Absolute container paths mounted into the container that the host cannot see. */
     readonly containerOnlyMounts?: readonly string[];
+    /**
+     * Mounts whose source and target are the SAME path: the path is the same file on both sides, so a
+     * host path used inside the container for one of these is not a mis-route. This is the exemption the
+     * reverse routing guard needs — `containerOnlyMounts` keys on the TARGET only and would wrongly
+     * excuse a mount whose target shadows the host path while its source is elsewhere.
+     */
+    readonly samePathMounts?: readonly string[];
 }
 /** Outcome of reading a configuration's TEXT. */
 export type ConfigRead = {
@@ -73,4 +80,13 @@ export declare function readConfigFacts(configDir: string, text: string): Config
  * preserved with duplicates removed.
  */
 export declare function containerOnlyMounts(mounts: readonly string[], workspaceMount: string | undefined, mapping: PathMapping | undefined): readonly string[] | undefined;
+/**
+ * The `mounts` entries that put the SAME path on both sides (`source` === `target`).
+ *
+ * A devcontainer mount is a `source=<host>,target=<container>[,type=...]` triple; when the two paths
+ * are identical the file is genuinely the same on both sides, which is the only case the reverse
+ * routing guard may excuse. Keying on the target alone would excuse a mount whose source is somewhere
+ * else entirely (adversarial review of the routing hardening).
+ */
+export declare function samePathMounts(mounts: readonly string[], workspaceFolder?: string): readonly string[] | undefined;
 //# sourceMappingURL=path-mapper.d.ts.map
