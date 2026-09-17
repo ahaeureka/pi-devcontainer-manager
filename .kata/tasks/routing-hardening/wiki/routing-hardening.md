@@ -169,3 +169,44 @@ Rules from that:
 The companion finding was a claim mismatch: a withheld attempt is refused BEFORE the runner, so it leaves
 no `host-exec` audit record — and the notice I wrote said `(audited)`. **A notice is a claim about what
 happened; make it true per refusal path, not in the common case.**
+
+## 10. Nineteen passes: the durable lessons from this task
+
+This task was reviewed nineteen times by fresh-context adversarial reviewers (per-revision passes plus both kata
+nodes), which produced 60 findings across 14 sealed revisions. Almost everything it bought reduces to four rules.
+
+**1. A fix applied to one surface and not its mirror was the dominant failure mode — six times.**
+The container-surface guard's audited mapping read was not mirrored on the host side. The withheld-attempt hook
+was wired to the tool that ignores it instead of the tool that reads it. A program name was treated as
+safe-by-assumption instead of rendered by enforcement. The URL rule's password class was taught about slashes
+but not about an empty username. The root-path boundary fix reached the reverse guard but not
+`findContainerPath`. And the same segment math existed in three places.
+The remedy is structural, not another patch: **when a rule is needed in more than one place, make it one
+function and delete the copies** (`isAtOrUnder`/`isSamePath` in `src/workspace-path.ts` is now the only segment
+test, and `path-mapper`, `routing-guard` and the host runner all call it). Before fixing an instance, ask how
+many parallel surfaces implement the same idea.
+
+**2. A security control's observability should be counts and categories, never rendered input.**
+The in-session host-run summary started as "the last commands, redacted" and produced five credentials across
+five revisions — including two leaks introduced by fixes for the previous leak. Redaction of a rendered command
+line is a long tail with no natural end. The surface now shows a count and the PROGRAM names, and it names the
+program through one **enforced** renderer (`displayProgram`: first whitespace token, audit redaction, URL
+authority host only, control characters stripped, capped, never blank) rather than assuming a program name is
+safe — because it can be credential-shaped. **What you choose to display is a security decision.**
+
+**3. Make the rendering safe independently of the filter.**
+`redactText` is inherently ambiguous for URLs (a slash inside a password vs a path; an `@` in a password; a
+URL-shaped argument that is not the whole argument). Chasing the rule is endless; taking the FIRST token and
+rendering a URL as its authority HOST means no credential can reach either operator surface even for the shapes
+the rule misses. The two remaining audit-side gaps are documented in `docs/security.md` instead of overclaimed.
+
+**4. A silently-no-op edit is a real defect.**
+One repair here did not apply at all — a `str.replace` that did not match — and the finding it was meant to
+close came straight back in the next pass. Every edit in this task's later repairs asserts its anchor first, and
+the lesson generalises: **assert the replacement, then assert the behaviour.**
+
+Smaller but reusable: parallel test FILES that drive the same external resource must not run concurrently
+(`fileParallelism: false` — the real-Docker suites were removing each other's containers and the flakiness looked
+like startup timing); a guard's refusal must be checked against the remedy it suggests (the guard once refused
+the very path its own message told the operator to use); and a kata adversarial record is per NODE and per
+revision, so any post-pass edit invalidates both records and starts the count again.
