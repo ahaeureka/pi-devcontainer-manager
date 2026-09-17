@@ -12,3 +12,5 @@
 {"taskId":"arch-review-p4-vocabulary-identity","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T07:20:37.955Z"}
 {"taskId":"arch-review-p4-vocabulary-identity","from":"hardVerify","to":"review","actor":{"id":"kata-reviewer","role":"reviewer"},"at":"2026-09-17T07:22:31.207Z"}
 {"taskId":"arch-review-p4-vocabulary-identity","from":"review","to":"judge","actor":{"id":"kata-judge","role":"judge"},"at":"2026-09-17T07:23:04.916Z"}
+{"taskId":"arch-review-p4-vocabulary-identity","from":"judge","to":"distill","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T07:24:36.290Z"}
+{"taskId":"arch-review-p4-vocabulary-identity","from":"distill","to":"archive","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T07:24:36.295Z"}

@@ -1,7 +1,7 @@
 ---
 source_path: .kata/tasks/arch-review-p4-vocabulary-identity/wiki/arch-review-p4-vocabulary-identity.md
-ingested: 2026-09-16T13:22:43.581Z
-sha256: e90bf4f1b0c7664a85e576f471e9aec4cf5d0c1d3aa239d24198c503868537d2
+ingested: 2026-09-17T07:24:57.415Z
+sha256: 728d3ae5556149b655add7a2c06576528acd16a5f5f13ae0e7136e75559b6da2
 ---
 # Vocabulary and identity shapes (Phase 4 build notes)
 
@@ -78,3 +78,53 @@ containment *tighter* in one place (the sibling prefix) and *more correct* in an
 spelling of the bound workspace is now the same workspace rather than "outside"), and the tests state
 both — including the deliberate distinction between the LEXICAL key used for registry identity and CLI
 argv and the REALPATH question used for containment.
+
+## 5. What the review cycle added: an over-refusal is a regression
+
+The independent pass blocked this phase twice-kind-of: once for a defect the change *introduced*
+(AC-6 falsified) and once for a toolchain change it uncovered. Both are worth keeping.
+
+**Adding a gate is adding a failure mode.** `logs`/`stop`/`remove` gained an identity check, and the
+check routed through `TargetStore.bind()` — which refuses a STOPPED target. The three operations whose
+entire purpose is an exited container therefore started failing, after working on `main`. The rule:
+for every new refusal, ask **what legitimate case does this also refuse?** — and write the test for
+that case first (logging and removing a stopped target), not only for the case the gate was designed
+for (a mismatched id). The reviewer's mechanical hint is the general form: when a phase adds a gate,
+check the *inverse* of its stated contract, because the contract is usually written about the threat,
+not about the workflows it must keep working.
+
+**A double must be able to express the real state machine.** Every test of the new check ran against a
+fake store whose `bind()` always succeeded and whose `snapshot()` reported no candidate — so the fake
+could not represent *any* of the states the check depends on, and the over-refusal was invisible. When
+a test double is simpler than the thing it replaces, the difference is where the bugs live. The repair
+added four tests against the real `TargetStore`; that, not the fake, is what pins the behaviour.
+
+## 6. The toolchain can move under you mid-task (kata CLI schemas)
+
+Mid-phase, `verify` and `judge` both reported `missing_test_evidence` for every criterion while
+`verify` had passed minutes earlier — and `kata-cli status` showed six "unresolved repair obligations"
+that the first failing judge run had *itself* written, which then blocked every later gate. The cause
+was none of that: the kata CLI bundle had been rebuilt (its mtime moved), and the new bundle's JSON
+schemas rejected the artifacts the *previous* bundle had produced:
+
+| Change | Symptom |
+|---|---|
+| `requirements[].id` must match `^REQ-[0-9]+$` (was `AC-N`) | `build --seal` fails with a task-schema error |
+| evidence `kind` enum lost `integration`/`entrypoint` (the task matrix still allows them) | the envelope the seal writes is invalid |
+| evidence `name` now requires `^[A-Za-z0-9_.-]+$` while the seal writes `${acceptanceId}-${kind}-${command}` | **one** invalid envelope makes `readRecordedEvidence` throw for the whole directory, so every gate sees ZERO evidence |
+| review finding severity is `blocking|major|minor|nit` (was `…|note`) | `archive` refuses: "does not match its schema" |
+
+How to diagnose and repair:
+
+1. **Check the bundle's mtime first** (`ls -la <kata>/dist/cli.js`); a gate that suddenly contradicts
+   an earlier gate is usually a schema move, not a code change.
+2. **Validate the task's artifacts against the CURRENT schema** by hand (the schemas are embedded in
+   the bundle as `kata-asset:/app/kata/schemas/*.json`): list `.kata/evidence/<task>-*.json`, check
+   each envelope's required fields, its `kind` enum membership and its `name` pattern.
+3. **Repair mechanically, keeping facts identical:** relabel `name` (spaces/slashes → `-`), re-declare
+   a matrix row's evidence as `kind: "test"` when it was `integration`, rename requirement ids, rename
+   `note` severities to `nit`. Then re-seal so the envelopes are regenerated under the new schemas.
+4. **Beware the obligation loop:** a failing judge persists blocking obligations per criterion, which
+   then make `verify` fail with `unresolved_repair_obligation`; only a successful `build --seal`
+   resolves them (it resolves obligations whose AC ids and matrix evidence now pass). Do not read that
+   second failure as a second defect.

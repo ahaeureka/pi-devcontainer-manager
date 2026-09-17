@@ -106,3 +106,15 @@
 - Imported: raw/docs/arch-review-p4-vocabulary-identity.md
 - Updated: concepts/arch-review-p4-vocabulary-identity.md
 - Governed record: llmwiki-arch-review-p4-vocabulary-identity
+
+## [2026-09-17] ingest | arch-review-p4-vocabulary-identity.md
+
+- Imported: raw/docs/arch-review-p4-vocabulary-identity.md
+- Updated: concepts/arch-review-p4-vocabulary-identity.md
+- Governed record: llmwiki-arch-review-p4-vocabulary-identity
+
+## [2026-09-17] ingest | kata-task-conventions.md
+
+- Imported: raw/docs/kata-task-conventions.md
+- Updated: concepts/kata-task-conventions.md
+- Governed record: llmwiki-kata-task-conventions
