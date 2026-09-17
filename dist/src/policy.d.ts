@@ -22,21 +22,5 @@ export declare function commandIdentity(parts: readonly string[], capture: Comma
     commandFingerprint?: string;
     commandText?: string;
 };
-/**
- * Redact a command LINE that arrived as argv, without losing either idiom.
- *
- * Neither single pass is complete, which two adversarial passes established in sequence:
- *
- * - Redacting the JOINED line is what the audit trail does, and it is the only form that sees
- *   `--password s3cr3t` (rule 3 needs the flag and its value in one string).
- * - Redacting each ELEMENT first is the only form that sees an element that is entirely a scheme
- *   value (`"Bearer sk-live-…"`), because on the joined line the scheme word of the NEXT element can
- *   pair with a preceding value token and orphan that element's own value
- *   (`["curl","-H","Bearer","Bearer sk-live-T"]` → `curl -H Bearer sk-live-T` if only joined).
- *
- * So do both, in that order: element-wise first (which cannot introduce a leak, only remove tokens),
- * then the joined result. The second pass can only redact more, never less.
- */
-export declare function redactCommandLine(argv: readonly string[]): string;
 export declare function redactText(text: string): string;
 //# sourceMappingURL=policy.d.ts.map

@@ -314,9 +314,9 @@ describe("host-exec denial remedy (AC-4)", () => {
 
 describe("devcontainer_host_exec — a withheld attempt is reported", () => {
   it("reports the attempt when configuration withholds host execution", async () => {
-    const attempts: string[][] = [];
+    const attempts: string[] = [];
     const tool = createDevcontainerHostExecTool(
-      makeOptions({ hostExecutionAllowed: false, onWithheldHostAttempt: (argv) => void attempts.push([...argv]) }),
+      makeOptions({ hostExecutionAllowed: false, onWithheldHostAttempt: (program) => void attempts.push(program) }),
     );
 
     await expect(
@@ -329,6 +329,7 @@ describe("devcontainer_host_exec — a withheld attempt is reported", () => {
 
     // The agent's surface matters most here: without this, a withheld configuration left the operator
     // with "no host commands this session" while the agent kept trying (adversarial review).
-    expect(attempts).toEqual([["systemctl", "restart", "docker"]]);
+    // The program name only: the visibility renders and stores no command text.
+    expect(attempts).toEqual(["systemctl"]);
   });
 });

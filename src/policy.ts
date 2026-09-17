@@ -116,41 +116,6 @@ export function commandIdentity(
  */
 const SECRET_KEY = "(?:api[_-]?key|access[_-]?key|private[_-]?key|token|secret|password|passwd|credential|credentials|authorization|auth)";
 
-/**
- * Redact a command LINE that arrived as argv, without losing either idiom.
- *
- * Neither single pass is complete, which two adversarial passes established in sequence:
- *
- * - Redacting the JOINED line is what the audit trail does, and it is the only form that sees
- *   `--password s3cr3t` (rule 3 needs the flag and its value in one string).
- * - Redacting each ELEMENT first is the only form that sees an element that is entirely a scheme
- *   value (`"Bearer sk-live-…"`), because on the joined line the scheme word of the NEXT element can
- *   pair with a preceding value token and orphan that element's own value
- *   (`["curl","-H","Bearer","Bearer sk-live-T"]` → `curl -H Bearer sk-live-T` if only joined).
- *
- * So do both, in that order: element-wise first (which cannot introduce a leak, only remove tokens),
- * then the joined result. The second pass can only redact more, never less.
- */
-export function redactCommandLine(argv: readonly string[]): string {
-  const perElement = argv.map((element) => redactElement(element)).join(" ");
-  return redactText(perElement);
-}
-
-/**
- * The element pass of {@link redactCommandLine}.
- *
- * It applies the same rules, EXCEPT that it refuses to let rule 2 consume a scheme word that belongs to
- * the next argument: for `["curl","-H","Authorization: Bearer","eyJ…"]` rule 2 would rewrite the first
- * element to `Authorization: [REDACTED]`, and the scheme word would then be gone from the joined line,
- * so rule 1 could never hide the token that follows — a leak the joined-only form did not have
- * (adversarial review). Leaving such an element intact hands the pair to the joined pass, which hides
- * it correctly.
- */
-function redactElement(element: string): string {
-  if (/^.*[=:]\s*(?:Bearer|Basic|Token)\s*$/i.test(element)) return element;
-  return redactText(element);
-}
-
 export function redactText(text: string): string {
   let out = text;
   // 1. Auth schemes: "Bearer <token>" / "Basic <b64>" / "Token <t>".

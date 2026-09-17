@@ -68,7 +68,7 @@ export interface CommandServices {
   /** Session-scoped host-run summary (`/devcontainer status`; the audit trail stays authoritative). */
   readonly hostRuns?: { summary(): string };
   /** Report a host attempt that configuration refused before the runner (so it is still visible). */
-  readonly onWithheldHostAttempt?: (argv: readonly string[]) => void;
+  readonly onWithheldHostAttempt?: (program: string) => void;
   /**
    * Install (or upgrade) the Dev Containers CLI globally via npm. Dedicated
    * setup capability: fixed npm argv, always user-confirmed in the handler,
@@ -693,7 +693,8 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     if (!services.config.hostExecution.allow) {
       // A withheld attempt is exactly what the operator needs to see: count it before answering.
       const attempted = parseHostExecArgv(args);
-      services.onWithheldHostAttempt?.(attempted.ok ? attempted.argv : [args.trim()]);
+      const program = attempted.ok ? attempted.argv[0] : args.trim().split(/\s+/)[0];
+      services.onWithheldHostAttempt?.((program ?? "(no command)").split("/").pop() ?? "(no command)");
       return {
         text:
           "[policy-denied] Host execution is disabled by policy.\n" +

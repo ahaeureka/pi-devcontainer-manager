@@ -19,14 +19,12 @@ to [Semantic Versioning](https://semver.org/).
   instead of only refusing with the candidate ids. Docker result order still never decides the target —
   you pick, and cancelling keeps the refusal. The explicit `/devcontainer use <container-id>` path is
   unchanged.
-- Host runs are now visible in-session: `/devcontainer status` reports how many host command attempts
-  the session has made and the most recent ones — rendered through the same redaction the audit trail
-  applies (`redactCommandLine`: element-wise then joined, so both `--password s3cr3t` and a standalone
-  `Bearer <token>` element are hidden) — and the first one of a session is announced on the operator
-  channel, with the notice stating whether a record was written at all (a withheld attempt, or
-  `audit.enabled: false`, leaves none and says so). The redaction covers the credential shapes the audit
-  trail covers; see `docs/security.md` for the shapes it does not (a bare `-u user:pass` pair). The audit trail remains the authoritative record; the escape hatch still needs only the
-  policy grant (see `docs/security.md` for why that asymmetry with `stop`/`remove` is deliberate).
+- Host runs are now visible in-session: `/devcontainer status` reports how many host command attempts the
+  session has made and WHICH PROGRAMS they named (e.g. `docker`, `systemctl`), and the first attempt of a
+  session is announced on the operator channel with, in the same notice, whether a record was written at
+  all. The visibility deliberately stores **no command text** — a count and a program name give an operator
+  the drift signal without creating a place a credential could be rendered, and the audit trail remains the
+  authoritative record with its own capture policy (`audit.commandCapture`).
 - **Behaviour change — `/devcontainer host-exec` takes structured argv.** The command used to accept
   shell-like free text and split it with a narrow quote-aware regex, which silently reinterpreted
   escaped quotes, concatenated segments and empty arguments on the one surface that then executes the

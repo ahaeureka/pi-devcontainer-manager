@@ -1,5 +1,3 @@
-import { redactCommandLine, redactText } from "./policy.js";
-
 /**
  * A bounded, session-scoped ledger of host runs.
  *
@@ -8,31 +6,20 @@ import { redactCommandLine, redactText } from "./policy.js";
  * authoritative record; this is the summary that makes drift visible while it happens
  * (command-routing assessment §4.1, option b).
  *
- * It is deliberately a ledger and NOT a second record: no timestamps, no output, no identity — just
- * count and recency, bounded so a long session cannot grow it without limit.
+ * It is deliberately a ledger and NOT a second record: no timestamps, no output, no identity, and no
+ * command text — just a count and the PROGRAM names, bounded so a long session cannot grow it without
+ * limit. (It used to remember redacted command lines; the redaction turned out to be the source of
+ * every defect five adversarial passes found in this feature, and naming the program gives an operator
+ * the drift signal without a place a credential could ever be rendered.)
  */
-/**
- * Redact one command line for the summary.
- *
- * The summary is rendered to the operator, and it must not become a plaintext copy of what the audit
- * trail deliberately captures by fingerprint only. `src/audit.ts` owns the redaction rules for
- * records; this applies the same rule set to the argv before it is remembered (the adversarial review
- * of this change demonstrated `curl -H "authorization: Bearer sk-live-…"` landing here verbatim).
- */
-function redactArgv(argv: readonly string[]): string {
-  // One shared, two-pass rule (`redactCommandLine`): element-wise first, then joined — the only way to
-  // cover both `--password s3cr3t` AND an element that is entirely a scheme value. See its doc comment.
-  return redactCommandLine(argv);
-}
-
 export interface HostRunLedger {
-  /** Count one host ATTEMPT (a refusal counts: nothing ran) and remember its redacted argv. */
+  /** Count one host ATTEMPT (a refusal counts: nothing ran) and remember the PROGRAM it named. */
   record(argv: readonly string[]): void;
   /** True the FIRST time this session runs a host command; false afterwards (for a one-shot notice). */
   noteFirstRun(argv: readonly string[]): boolean;
   /** How many host commands this session has run. */
   count(): number;
-  /** The most recent commands, oldest first, bounded by the configured limit. */
+  /** The most recent PROGRAM names, oldest first, bounded by the configured limit. */
   recent(): readonly string[];
   /** One operator-facing line for `/devcontainer status`. */
   summary(): string;
@@ -48,6 +35,14 @@ export interface HostRunLedger {
   reset(): void;
 }
 
+/** The program an argv names (`""` for an empty argv — nothing ran). */
+function programOf(argv: readonly string[]): string {
+  const first = argv[0];
+  if (first === undefined) return "";
+  const base = first.split("/").pop() ?? first;
+  return base.slice(0, 64);
+}
+
 export function createHostRunLedger(options: { limit?: number; capture?: "none" | "fingerprint-only" | "redacted-text" } = {}): HostRunLedger {
   const limit = Math.max(1, options.limit ?? 5);
   let count = 0;
@@ -61,7 +56,12 @@ export function createHostRunLedger(options: { limit?: number; capture?: "none" 
   const remember = (argv: readonly string[]): void => {
     count += 1;
     if (keepText) {
-      recent.push(redactArgv(argv));
+      // The summary names the PROGRAM, never the command line. Ten adversarial passes over this
+      // change found five credentials reachable through a rendered argv (and two of them through
+      // fixes for the previous one), so the visibility keeps the signal an operator needs — how many
+      // host commands, and which tools — and stores no command text at all. A program name cannot be
+      // a credential, and the authoritative record is the audit trail, which keeps its own policy.
+      recent.push(programOf(argv));
       while (recent.length > limit) recent.shift();
     }
   };

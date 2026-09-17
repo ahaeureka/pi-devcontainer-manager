@@ -152,21 +152,21 @@ extension keeps them separate:
 
 ### What the redaction covers, and what it does not
 
-`redactText` (shared by the audit records and the in-session host-run summary) hides: an auth scheme value
-(`Bearer`/`Basic`/`Token <value>`, quoted or bare), a secret-named key/value pair (`password=…`, `token: …`),
-a secret-named flag (`--password …`, `--api-key=…`), and credentials embedded in a URL
-(`scheme://user:pass@host`). Command lines that arrive as argv are redacted element-wise **and** joined, so
-neither `mysql --password s3cr3t` nor a standalone `Bearer <token>` element survives either form.
+`redactText` (used by the audit records) hides: an auth scheme value (`Bearer`/`Basic`/`Token <value>`,
+quoted or bare), a secret-named key/value pair (`password=…`, `token: …`), a secret-named flag
+(`--password …`, `--api-key=…`), and credentials embedded in a URL (`scheme://user:pass@host`).
 
 It does **not** hide a bare `-u user:pass` pair (`curl -u alice:hunter2 https://…`), an unflagged secret
-that appears as a plain positional argument, or the part of a flag value that follows a space: the argv is
-rendered as one space-joined line, so `--password "a b"` hides up to the space (`--password [REDACTED] b`).
-A value that ends the line, or contains no whitespace, is fully hidden. Two consequences worth knowing:
+that appears as a plain positional argument, or the part of a flag value that follows a space (a command
+line is redacted as one space-joined string, so `--password "a b"` hides up to the space). Under the
+default `audit.commandCapture: "fingerprint-only"` no command text is recorded at all, so these gaps only
+matter under `"redacted-text"`. A rule that guessed at unflagged secrets would redact ordinary arguments
+too, so extending it is a policy decision rather than a bug fix, and belongs in its own change.
 
-- With the default `audit.commandCapture: "fingerprint-only"`, no command text is recorded anywhere, so this
-  is not a persistence concern; it matters under `"redacted-text"` and for the in-session summary.
-- A redaction rule that guessed at unflagged secrets would redact ordinary arguments too, so extending it is
-  a policy decision rather than a bug fix, and belongs in its own change.
+The **in-session visibility deliberately keeps no command text at all**: `/devcontainer status` reports a
+count and the program names, and the one-shot notice names the program. Five adversarial passes found
+credentials reachable through a rendered command line (two of them through fixes for the previous one), so
+the surface that produced them was removed rather than patched again.
 
 ### How the host escape hatch is gated (a deliberate asymmetry)
 

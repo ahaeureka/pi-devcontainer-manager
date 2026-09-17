@@ -17,7 +17,6 @@ import { commandIdentity } from "./policy.js";
 import { RuntimeError } from "./errors.js";
 import { findContainerPath, type PathMapping } from "./path-mapper.js";
 import type { ProcessRunner } from "./runtime/process-runner.js";
-import { redactCommandLine } from "./policy.js";
 
 export interface AuditedHostRunResult {
   readonly exitCode: number | null;
@@ -68,6 +67,13 @@ export interface AuditedHostRunnerDeps {
   readonly onFirstHostRun?: (rendered: string) => void;
 }
 
+/** The program an argv names, for operator-facing text (never the command line itself). */
+export function programName(argv: readonly string[]): string {
+  const first = argv[0];
+  if (first === undefined) return "(no command)";
+  return first.split("/").pop() ?? first;
+}
+
 /** The shape `CommandServices.hostRunner` expects. */
 export interface AuditedHostRunner {
   run(
@@ -107,7 +113,9 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
       const note = (): void => {
         if (deps.ledger === undefined) return;
         if (deps.ledger.noteFirstRun(argv)) {
-          deps.onFirstHostRun?.(redactCommandLine(argv));
+          // The program, not the command line: see the ledger's note (no rendered argv anywhere in the
+          // visibility, so there is no redaction to get wrong).
+          deps.onFirstHostRun?.(programName(argv));
         }
       };
 

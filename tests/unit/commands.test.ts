@@ -264,19 +264,19 @@ describe("/devcontainer use", () => {
     expect(selectionFor(stoppedPrimary, "bb22")).toMatchObject({ status: "selected-valid", candidate: { id: "bb22", status: "running" } });
   });
 
-  it("counts a host attempt that configuration withheld", async () => {
-    const attempts: string[][] = [];
+  it("counts a host attempt that configuration withheld, by program name", async () => {
+    const attempts: string[] = [];
     const { handlers } = makeServices({
       config: makeConfig({ hostExecution: { allow: false } }),
-      onWithheldHostAttempt: (argv) => void attempts.push([...argv]),
+      onWithheldHostAttempt: (program) => void attempts.push(program),
     });
 
-    const result = await handlers["host-exec"]!("--argv hostname", makeCtx());
+    const result = await handlers["host-exec"]!("--argv mysql --argv --password --argv s3cr3t", makeCtx());
 
     // A withheld configuration refuses before the runner, so the surface that refuses must report it —
-    // otherwise the operator sees "no host commands this session" while the agent keeps trying.
+    // and it reports the PROGRAM: the visibility stores no command text at all.
     expect(result.text).toContain("[policy-denied]");
-    expect(attempts).toEqual([["hostname"]]);
+    expect(attempts).toEqual(["mysql"]);
   });
 
   it("asks via ui.select when multiple candidates match", async () => {

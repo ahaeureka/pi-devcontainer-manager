@@ -85,7 +85,7 @@ export interface ToolOptions {
      * operator with "no host commands this session" while the agent kept trying (adversarial review of
      * the routing hardening).
      */
-    readonly onWithheldHostAttempt?: (argv: readonly string[]) => void;
+    readonly onWithheldHostAttempt?: (program: string) => void;
 }
 /** Build the `devcontainer_exec` tool definition. */
 export declare function createDevcontainerExecTool(options: ToolOptions): ToolDefinitionLike<DevcontainerExecParams>;

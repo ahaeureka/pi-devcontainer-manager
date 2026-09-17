@@ -538,7 +538,8 @@ export function createCommandHandlers(services) {
         if (!services.config.hostExecution.allow) {
             // A withheld attempt is exactly what the operator needs to see: count it before answering.
             const attempted = parseHostExecArgv(args);
-            services.onWithheldHostAttempt?.(attempted.ok ? attempted.argv : [args.trim()]);
+            const program = attempted.ok ? attempted.argv[0] : args.trim().split(/\s+/)[0];
+            services.onWithheldHostAttempt?.((program ?? "(no command)").split("/").pop() ?? "(no command)");
             return {
                 text: "[policy-denied] Host execution is disabled by policy.\n" +
                     "This installation withholds it by configuration: remove `hostExecution.allow: false` from the project file " +

@@ -96,7 +96,7 @@ export interface ToolOptions {
    * operator with "no host commands this session" while the agent kept trying (adversarial review of
    * the routing hardening).
    */
-  readonly onWithheldHostAttempt?: (argv: readonly string[]) => void;
+  readonly onWithheldHostAttempt?: (program: string) => void;
 }
 
 /** Build the `devcontainer_exec` tool definition. */
@@ -223,7 +223,8 @@ export function createDevcontainerHostExecTool(options: ToolOptions): ToolDefini
     executionMode: "sequential",
     execute: async (_toolCallId, params, signal, _onUpdate, _ctx) => {
       if (!options.hostExecutionAllowed) {
-        options.onWithheldHostAttempt?.(params.argv);
+        // The PROGRAM, not the command line (see the ledger's note: the visibility renders no argv).
+        options.onWithheldHostAttempt?.(params.argv[0]?.split("/").pop() ?? "(no command)");
         throw new RuntimeError({
           kind: "policy-denied",
           message: "Host execution is disabled by policy.",

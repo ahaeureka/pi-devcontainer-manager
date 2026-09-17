@@ -63,6 +63,8 @@ export interface AuditedHostRunnerDeps {
      */
     readonly onFirstHostRun?: (rendered: string) => void;
 }
+/** The program an argv names, for operator-facing text (never the command line itself). */
+export declare function programName(argv: readonly string[]): string;
 /** The shape `CommandServices.hostRunner` expects. */
 export interface AuditedHostRunner {
     run(argv: readonly string[], options?: {

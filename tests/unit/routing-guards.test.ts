@@ -114,11 +114,10 @@ describe("detectHostPathOnContainerSurface", () => {
   });
 });
 
-describe("the notice and the ledger agree on redaction", () => {
-  it("a host runner with a ledger announces a REDACTED first attempt, once", async () => {
+describe("the visibility renders NO command text at all", () => {
+  it("names the program in the one-shot notice and stores nothing else", async () => {
     const notices: string[] = [];
     const ledger = createHostRunLedger({ limit: 5 });
-    const records: AuditRecord[] = [];
     const host = createAuditedHostRunner({
       runner: {
         async exec() {
@@ -126,37 +125,31 @@ describe("the notice and the ledger agree on redaction", () => {
         },
       },
       config: makeConfig(),
-      audit: { write: (record) => void records.push(record) },
+      audit: { write: () => undefined },
       sessionWorkspace: "/ws",
       env: { PATH: "/usr/bin" },
       targetStoreWorkspaceKey: () => undefined,
       guardMappingFor: async () => undefined,
       ledger,
-      onFirstHostRun: (rendered) => void notices.push(rendered),
+      onFirstHostRun: (program) => void notices.push(program),
     });
 
-    // The counterexample must be the FIRST run: the notice fires once, so a second run never renders it
-    // (the review-node pass caught exactly that in the previous version of this test).
+    // Every shape that made five earlier versions leak: a two-element flag value, a standalone scheme
+    // element, and a header split across elements. The contraction makes them all moot: no argv text is
+    // rendered or stored anywhere, so there is no redaction rule that can be wrong.
     await host.run(["mysql", "-u", "root", "--password", "s3cr3t-value"]);
-    await host.run(["curl", "-H", "Authorization: Bearer sk-live-abcdef123456", "https://e.test"]);
+    await host.run(["curl", "-H", "Authorization: Bearer", "eyJhbGciOiJIUzI1NiJ9.SECRET"]);
+    await host.run(["curl", "-H", "Bearer", "Bearer sk-live-TKN"]);
 
-    // The notice is the operator-facing rendering: it must not be the one place a credential appears
-    // in plaintext while the ledger and the audit trail redact it (adversarial review of the routing
-    // hardening).
-    expect(notices).toHaveLength(1);
-    // The notice renders the FIRST run — the two-element flag-with-value secret.
-    expect(notices[0]).not.toContain("s3cr3t-value");
-    expect(notices[0]).toContain("[REDACTED]");
-    expect(ledger.recent().join(" ")).not.toContain("s3cr3t-value");
-    expect(ledger.recent().join(" ")).not.toContain("sk-live-abcdef123456");
-    expect(records[0]?.commandText).toBeUndefined();
-    // The ledger and the notice share the audit trail's rule: join, then redact.
-    expect(ledger.recent().join(" ")).not.toContain("s3cr3t-value");
-    expect(ledger.count()).toBe(2);
+    expect(notices).toEqual(["mysql"]);
+    expect(ledger.recent()).toEqual(["mysql", "curl", "curl"]);
+    expect(ledger.count()).toBe(3);
+    expect(JSON.stringify(ledger.recent())).not.toContain("s3cr3t");
+    expect(JSON.stringify(ledger.recent())).not.toContain("SECRET");
   });
 
   it("counts a refused attempt too, and still announces only the first", async () => {
-    const notices: unknown[] = [];
+    const notices: string[] = [];
     const ledger = createHostRunLedger({ limit: 5 });
     const records: AuditRecord[] = [];
     const host = createAuditedHostRunner({
@@ -168,98 +161,36 @@ describe("the notice and the ledger agree on redaction", () => {
       targetStoreWorkspaceKey: () => undefined,
       guardMappingFor: async () => undefined,
       ledger,
-      onFirstHostRun: (rendered) => void notices.push(rendered),
+      onFirstHostRun: (program) => void notices.push(program),
     });
 
-    await expect(host.run(["hostname"])).rejects.toMatchObject({ kind: "policy-denied" });
-    await expect(host.run(["hostname"])).rejects.toMatchObject({ kind: "policy-denied" });
+    await expect(host.run(["systemctl", "restart", "docker"])).rejects.toMatchObject({ kind: "policy-denied" });
+    await expect(host.run(["systemctl", "restart", "docker"])).rejects.toMatchObject({ kind: "policy-denied" });
 
-    // A refused attempt is what the operator needs to see; it is counted, announced once, and recorded
-    // as a denial.
     expect(ledger.count()).toBe(2);
-    expect(notices).toHaveLength(1);
+    expect(notices).toEqual(["systemctl"]);
+    expect(ledger.recent()).toEqual(["systemctl", "systemctl"]);
     expect(records.every((record) => record.policyAuthorized === false)).toBe(true);
   });
-});
 
-describe("redactCommandLine — both idioms", () => {
-  it("hides a scheme value that is an element on its own AND a flag-with-value pair", () => {
-    // Joined-only redaction pairs the value token with the NEXT element's scheme word and orphans that
-    // element's own value (the verify-node pass): ["curl","-H","Bearer","Bearer sk-live-T"] joined is
-    // `curl -H Bearer Bearer sk-live-T`, and rule 1 then eats only the first pair.
-    expect(redactCommandLine(["curl", "-H", "Bearer", "Bearer sk-live-TKN"])).not.toContain("sk-live-TKN");
-    // The element pass must not consume a scheme word that belongs to the NEXT element: rule 2 would
-    // rewrite "Authorization: Bearer" and orphan the token that follows (adversarial review).
-    expect(redactCommandLine(["curl", "-H", "Authorization: Bearer", "eyJhbGciOiJIUzI1NiJ9.SECRET"])).not.toContain(
-      "eyJhbGciOiJIUzI1NiJ9.SECRET",
-    );
-    // Element-only redaction misses the flag-with-value idiom.
-    expect(redactCommandLine(["mysql", "-u", "root", "--password", "s3cr3t-value"])).not.toContain("s3cr3t-value");
-    // Neither pass may hide something it should not.
-    expect(redactCommandLine(["echo", "hello", "world"])).toBe("echo hello world");
-  });
-});
-
-describe("createHostRunLedger — redaction", () => {
-  it("redacts the JOINED command line, so a flag-with-value secret is hidden too", () => {
-    // The audit trail joins the argv and then redacts, so its flag-with-value rules see `--password
-    // s3cr3t` as one string. Redacting each element separately lost that and printed the secret in the
-    // operator notice (verify-node adversarial pass).
-    const ledger = createHostRunLedger();
-    const argv = ["mysql", "-u", "root", "--password", "s3cr3t-value"];
-
-    expect(redactText(argv.join(" "))).not.toContain("s3cr3t-value");
-
-    ledger.record(argv);
-    expect(ledger.recent().join(" ")).not.toContain("s3cr3t-value");
-  });
-
-  it("never stores a credential verbatim", () => {
-    const ledger = createHostRunLedger();
-    ledger.record(["curl", "-H", "authorization: Bearer sk-live-abcdef123456", "https://example.test"]);
-
-    // The summary is rendered to the operator; it must not become a plaintext copy of what the audit
-    // trail captures by fingerprint only.
-    expect(ledger.recent().join(" ")).not.toContain("sk-live-abcdef123456");
-    expect(ledger.recent().join(" ")).toContain("[REDACTED]");
-  });
-});
-
-describe("createHostRunLedger — capture policy", () => {
-  it("keeps no command text when the session's capture policy is `none`", () => {
+  it("stores nothing when the capture policy is `none`", () => {
     const ledger = createHostRunLedger({ limit: 5 });
     ledger.setCapture("none");
-    ledger.record(["systemctl", "restart", "my-private-service"]);
+    ledger.record(["docker", "ps"]);
 
-    // The audit record for the same call carries neither fingerprint nor text, so the summary must not
-    // become the one place the operator can read what the policy declined to record.
     expect(ledger.recent()).toEqual([]);
     expect(ledger.summary()).toContain("not recorded");
     expect(ledger.count()).toBe(1);
   });
 });
 
-describe("the notice claims only what is true", () => {
-  it("says the audit is disabled when enabled:false, and does not claim a record", async () => {
-    const notices: string[] = [];
-    const host = createAuditedHostRunner({
-      runner: { async exec() { return { exitCode: 0, signal: null, durationMs: 1, truncated: false, stdout: "", stderr: "" }; } },
-      config: makeConfig({ audit: { enabled: false, retentionDays: 90, commandCapture: "fingerprint-only" } }),
-      audit: { write: () => undefined },
-      sessionWorkspace: "/ws",
-      env: { PATH: "/usr/bin" },
-      targetStoreWorkspaceKey: () => undefined,
-      guardMappingFor: async () => undefined,
-      ledger: createHostRunLedger(),
-      onFirstHostRun: (rendered) => void notices.push(rendered),
-    });
+describe("createHostRunLedger — no command text", () => {
+  it("never stores a credential, because it never stores a command line", () => {
+    const ledger = createHostRunLedger();
+    ledger.record(["curl", "-H", "authorization: Bearer sk-live-abcdef123456", "https://example.test"]);
 
-    await host.run(["systemctl", "restart", "docker"]);
-
-    // The runner hands over the rendering; the CALLER decides the claim, so this asserts the fact the
-    // caller needs: the rendered command, with the secret hidden.
-    expect(notices).toHaveLength(1);
-    expect(notices[0]).toContain("systemctl restart docker");
+    expect(ledger.recent()).toEqual(["curl"]);
+    expect(JSON.stringify(ledger)).not.toContain("sk-live-abcdef123456");
   });
 });
 
@@ -274,7 +205,7 @@ describe("createHostRunLedger", () => {
 
     expect(ledger.count()).toBe(3);
     // Bounded: only the newest `limit` commands are kept, oldest first for reading.
-    expect(ledger.recent()).toEqual(["systemctl status docker", "hostname"]);
+    expect(ledger.recent()).toEqual(["systemctl", "hostname"]);
   });
 
   it("is per SESSION: reset() clears the count, the recent list and the one-shot flag", () => {
@@ -303,6 +234,6 @@ describe("createHostRunLedger", () => {
     ledger.record(["docker", "ps"]);
 
     expect(ledger.summary()).toContain("1 host command attempt");
-    expect(ledger.summary()).toContain("docker ps");
+    expect(ledger.summary()).toContain("docker");
   });
 });

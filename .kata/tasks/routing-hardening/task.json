@@ -5,7 +5,7 @@
   "acceptance": [
     {
       "id": "AC-1",
-      "statement": "Host runs are visible to the operator in-session: the host escape hatch reports the first host run of a session through the operator UI, and `/devcontainer status` shows how many host commands this session has run (and the most recent ones), so a model drifting toward the host is noticed without reading the audit log. The audit trail stays the authoritative record; this is a summary, not a second one."
+      "statement": "Host runs are visible to the operator in-session: the host escape hatch reports the first host run of a session through the operator UI, and `/devcontainer status` shows how many host command attempts this session has made and which PROGRAMS they named (no command text is stored), so a model drifting toward the host is noticed without reading the audit log. The audit trail stays the authoritative record; this is a summary, not a second one."
     },
     {
       "id": "AC-2",
@@ -50,7 +50,7 @@
   "requirements": [
     {
       "id": "REQ-1",
-      "statement": "Host runs are visible to the operator in-session: the host escape hatch reports the first host run of a session through the operator UI, and `/devcontainer status` shows how many host commands this session has run (and the most recent ones), so a model drifting toward the host is noticed without reading the audit log. The audit trail stays the authoritative record; this is a summary, not a second one.",
+      "statement": "Host runs are visible to the operator in-session: the host escape hatch reports the first host attempt of a session (naming the program) through the operator UI, and `/devcontainer status` shows how many host command attempts this session has made and which programs they named. The summary stores NO command text at all — the audit trail stays the authoritative record — because the redaction of a rendered command line proved to be the source of every defect five adversarial passes found in this feature.",
       "source": ".rpiv/artifacts/architecture-reviews/2026-09-17_command-routing-assessment.md §4.1 (option b) and §4.4",
       "confirmedAt": "2026-09-17T09:06:32.354Z"
     },

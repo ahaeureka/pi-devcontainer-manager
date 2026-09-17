@@ -1,27 +1,10 @@
-import { redactCommandLine, redactText } from "./policy.js";
-/**
- * A bounded, session-scoped ledger of host runs.
- *
- * The assessment found that nothing told the operator "this session has run six host commands" — the
- * only signal was the audit file, which nobody reads mid-session. The audit trail stays the
- * authoritative record; this is the summary that makes drift visible while it happens
- * (command-routing assessment §4.1, option b).
- *
- * It is deliberately a ledger and NOT a second record: no timestamps, no output, no identity — just
- * count and recency, bounded so a long session cannot grow it without limit.
- */
-/**
- * Redact one command line for the summary.
- *
- * The summary is rendered to the operator, and it must not become a plaintext copy of what the audit
- * trail deliberately captures by fingerprint only. `src/audit.ts` owns the redaction rules for
- * records; this applies the same rule set to the argv before it is remembered (the adversarial review
- * of this change demonstrated `curl -H "authorization: Bearer sk-live-…"` landing here verbatim).
- */
-function redactArgv(argv) {
-    // One shared, two-pass rule (`redactCommandLine`): element-wise first, then joined — the only way to
-    // cover both `--password s3cr3t` AND an element that is entirely a scheme value. See its doc comment.
-    return redactCommandLine(argv);
+/** The program an argv names (`""` for an empty argv — nothing ran). */
+function programOf(argv) {
+    const first = argv[0];
+    if (first === undefined)
+        return "";
+    const base = first.split("/").pop() ?? first;
+    return base.slice(0, 64);
 }
 export function createHostRunLedger(options = {}) {
     const limit = Math.max(1, options.limit ?? 5);
@@ -35,7 +18,12 @@ export function createHostRunLedger(options = {}) {
     const remember = (argv) => {
         count += 1;
         if (keepText) {
-            recent.push(redactArgv(argv));
+            // The summary names the PROGRAM, never the command line. Ten adversarial passes over this
+            // change found five credentials reachable through a rendered argv (and two of them through
+            // fixes for the previous one), so the visibility keeps the signal an operator needs — how many
+            // host commands, and which tools — and stores no command text at all. A program name cannot be
+            // a credential, and the authoritative record is the audit trail, which keeps its own policy.
+            recent.push(programOf(argv));
             while (recent.length > limit)
                 recent.shift();
         }
