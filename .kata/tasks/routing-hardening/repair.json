@@ -1,15 +1,15 @@
 {
   "fromPhase": "review",
   "reason": "review_findings",
-  "baselineRevisionId": "revision-77f7f98ec983bc0b",
-  "baselineManifestHash": "e680b118ad45c40e0603064c949eae7f1a38af812cbd89c6dd6a3b3d380bcbbd",
+  "baselineRevisionId": "revision-18abd4d1236368b8",
+  "baselineManifestHash": "32309378afa48393ad60eb6092ddcb51ae13dfb2fa8f879ed3f0acb0952f7d0a",
   "findings": [
     {
-      "id": "finding-tree-moved-after-adversarial-pass",
+      "id": "finding-tree-moved-after-second-pass",
       "acceptanceId": "AC-4",
       "severity": "blocking",
-      "message": "PROCESS, not a defect: the recorded kata adversarial pass on revision-77f7f98e returned one major, four minors and one nit (all fixed in a0b7c14), so the tree no longer matches the sealed revision. The major was the picker being unreachable when the ambiguous workspace was not the only match (it bound an ambiguous selection and answered with a success-shaped message and no target); the minors were the operator notice rendering RAW argv (a bearer token reached the UI while the ledger and audit redacted it), the reverse guard's refusal being audited as an authorized run, the same-path exemption keying on the mount target only, and none of the new wiring being tested.",
-      "path": "src/commands.ts"
+      "message": "PROCESS, not a defect: the recorded adversarial pass on revision-18abd4d1 returned six minors and two nits (no major), all fixed in c4a2916 — the guard's refusal lacked command identity, a withheld host attempt was invisible, the container-space exemption swallowed the host path when the container path was an ancestor, `${localWorkspaceFolder}` was not expanded in same-path mounts, the ledger ignored a `none` capture policy, the picker did not name the image, and two claims had no test. Re-sealing so the record matches the tree.",
+      "path": "src/routing-guard.ts"
     }
   ],
   "taskId": "routing-hardening",
@@ -18,7 +18,7 @@
     "id": "kata-agent",
     "role": "implementer"
   },
-  "createdAt": "2026-09-17T09:59:10.351Z",
-  "resolvedAt": "2026-09-17T09:59:30.306Z",
-  "resolvedRevisionId": "revision-18abd4d1236368b8"
+  "createdAt": "2026-09-17T10:18:37.455Z",
+  "resolvedAt": "2026-09-17T10:18:56.902Z",
+  "resolvedRevisionId": "revision-4b7ba535f1a33572"
 }
