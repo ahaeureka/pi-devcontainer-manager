@@ -6,3 +6,4 @@
 {"taskId":"arch-review-p5-public-surfaces","from":"review","to":"implement","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T08:02:29.475Z"}
 {"taskId":"arch-review-p5-public-surfaces","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T08:03:31.194Z"}
 {"taskId":"arch-review-p5-public-surfaces","from":"hardVerify","to":"review","actor":{"id":"kata-reviewer","role":"reviewer"},"at":"2026-09-17T08:04:15.016Z"}
+{"taskId":"arch-review-p5-public-surfaces","from":"review","to":"judge","actor":{"id":"kata-judge","role":"judge"},"at":"2026-09-17T08:04:30.649Z"}

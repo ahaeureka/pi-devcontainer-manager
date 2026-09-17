@@ -1,0 +1,33 @@
+{
+  "protocolVersion": 1,
+  "taskId": "arch-review-p5-public-surfaces",
+  "handoffId": "handoff-912c7903-17f",
+  "platform": "pi",
+  "role": "judge",
+  "packetSha256": "9d952688255ab374659ea322f4fb976f1fc08eac8ae89692c1195636698aa26a",
+  "acknowledgedAt": "2026-09-17T08:04:30.309Z",
+  "repository": {
+    "head": "ae1065273cf0e0d91be6788e9f33424b361e220a",
+    "branch": "feature/arch-review-p5-public-surfaces",
+    "diffHash": "dcf6b8978022ec2912676421b9c1443e735ee3c391f5c1fc58aef973269ff838",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-351f29a987780dca",
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "README.zh-CN.md",
+        "dist",
+        "docs",
+        "extensions",
+        "openspec",
+        "package.json",
+        "scripts",
+        "src",
+        "tests"
+      ],
+      "hash": "dcf6b8978022ec2912676421b9c1443e735ee3c391f5c1fc58aef973269ff838"
+    },
+    "worktreeRoot": "."
+  }
+}
