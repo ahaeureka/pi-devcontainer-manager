@@ -1,7 +1,7 @@
 ---
 source_path: .kata/tasks/arch-review-p1-foundation/wiki/kata-task-conventions.md
-ingested: 2026-09-17T09:29:47.955Z
-sha256: 99c2e60147d70df92cad41fb5ce9d2b2a5067ea2d42bbc36e1581f0ba6fdc447
+ingested: 2026-09-17T09:34:26.611Z
+sha256: 0ffbb41de19e075cdbe94ed78ebeb6f02396abd3c2961f9eccbcd71234aa4127
 ---
 # Kata task conventions in this repository
 
@@ -202,3 +202,28 @@ FAIL, which a PASS never provides. The working route:
 - And: if `gate approve` cannot find `user-choice-<boundary>.json`, the CLI may simply not have written
   it. The file is `{taskId, boundary, createdAt, choice}`; recording the operator's standing choice
   there is legitimate and unblocks the route.
+
+## 14. The adversarial pass is now a RECORDED gate (kata CLI, 2026-09-17)
+
+`review --approve` no longer depends only on the author's own findings: it is held until an
+**independent adversarial pass** is recorded for the sealed revision. The flow the CLI enforces:
+
+```
+kata-cli adversarial brief  --change <id> --node review      # prints a frozen brief + briefSha256
+#   → dispatch a FRESH-CONTEXT subagent with that brief VERBATIM
+#   → it must return exactly the JSON object the brief specifies
+kata-cli adversarial record --change <id> --node review --from-file <that JSON>
+kata-cli review --change <id> --confirm-host-model --approve --review-evidence <text>
+```
+
+- The record is written to `.kata/tasks/<id>/adversarial-<node>.json` and validated against the
+  `adversarial-review` schema (`node`, `status`, `revisionId`, `createdAt` required; `attempts[]` and
+  `findings[]` carry the pass itself).
+- **The gate compares `briefSha256`.** A pass run against a self-written brief is rejected with
+  `brief_mismatch` — a record that answers a *different* brief is not evidence. So: take the hash from
+  `adversarial brief`, hand the brief to the reviewer unchanged, and copy the hash into the result.
+- The record is per NODE (`verify` or `review`) and per REVISION, so a re-seal needs a fresh pass.
+- `adversarial waive` exists for recording an explicit decision to proceed without a pass.
+
+This formalises what a disciplined loop was already doing by hand; the practical consequence is that a
+brief must be treated as a frozen artifact, not as a prompt you rewrite as you go.

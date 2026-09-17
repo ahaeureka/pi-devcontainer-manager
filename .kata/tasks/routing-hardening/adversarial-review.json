@@ -1,0 +1,106 @@
+{
+  "node": "review",
+  "status": "recorded",
+  "revisionId": "revision-77f7f98ec983bc0b",
+  "createdAt": "2026-09-17T09:55:00.000Z",
+  "executedInFreshContext": true,
+  "contextNote": "A subagent with no memory of this session was briefed (read-only: tests, greps, read-only git, small node snippets) to falsify: the ledger's completeness across all four host-runner exit paths and its one-shot semantics; the reverse guard's false positives and false negatives; the picker against its own rule that Docker result order must never decide the target; the architecture review's ten contract invariants; and the test quality, including which acceptance criteria would stay green if the implementation were wrong.",
+  "verdict": "defects_found",
+  "executedBy": "pi subagent — general-purpose agent, clean context, read-only",
+  "attempts": [
+    {
+      "hypothesis": "Every host attempt is counted and the first of a session is announced.",
+      "method": "Traced all four exit paths in the host runner and inspected the ledger's lifetime.",
+      "outcome": "confirmed",
+      "evidence": "The counting holds, but the notice fires on refused attempts and the ledger lives for the extension instance, so a reload resets it; the summary was ALSO never rendered by `/devcontainer status` because the optional parameter reached only one of its two call sites."
+    },
+    {
+      "hypothesis": "The reverse guard cannot wrongly refuse legitimate container work.",
+      "method": "Constructed mirror mounts, container paths beneath the host path, prefix-sharing paths and flag values.",
+      "outcome": "confirmed",
+      "evidence": "Two false refusals: a `mounts: source == target` mirror of the host path, and the container's own path whenever it sits beneath the host path (the guard refused the very path its remedy names)."
+    },
+    {
+      "hypothesis": "A failure inside the new guard still lands on a channel someone reads.",
+      "method": "Drove the real ExecutionService/TargetStore with a `mappingFor` that rejects.",
+      "outcome": "confirmed",
+      "evidence": "`container-exec rejected: daemon-unavailable` with no audit write — the mapping read sat outside the audit boundary."
+    },
+    {
+      "hypothesis": "The picker preserves 'Docker order never decides'.",
+      "method": "Read the ambiguous branch and checked the no-UI path, duplicate labels and empty candidate lists.",
+      "outcome": "confirmed",
+      "evidence": "The rule holds; the missing `hasUI` guard (present on every other prompt in the file) and the id+state-only labels (the candidate type has no image) were the gaps."
+    },
+    {
+      "hypothesis": "The ledger cannot leak a credential.",
+      "method": "Recorded `curl -H 'authorization: Bearer sk-live-…'` and read the summary.",
+      "outcome": "confirmed",
+      "evidence": "The argv was stored verbatim and rendered to the operator, i.e. a plaintext copy of what the audit trail captures by fingerprint only."
+    },
+    {
+      "hypothesis": "The review's ten contract invariants did not move.",
+      "method": "Compared the CLI argv, the gates, discovery timing, the audit shape and the setup path.",
+      "outcome": "refuted",
+      "evidence": "Host path to the CLI, argv shapes, `stop`/`remove` gates, withholding, setup, audit shape and 0600 all unchanged; discovery stayed lazy/read-only/bounded (only doubled on the guarded path)."
+    }
+  ],
+  "findings": [
+    {
+      "id": "finding-status-missing-host-runs",
+      "taskId": "routing-hardening",
+      "acceptanceId": "AC-1",
+      "severity": "major",
+      "message": "`/devcontainer status` did not receive the host-run summary (the optional parameter reached `/devcontainer list` only), so AC-1, the CHANGELOG, `docs/security.md` and a README row were false while the suite stayed green."
+    },
+    {
+      "id": "finding-guard-read-unaudited",
+      "taskId": "routing-hardening",
+      "acceptanceId": "AC-6",
+      "severity": "major",
+      "message": "The reverse guard's mapping read (a registry read, hence `docker ps`) sat outside any audit boundary, so a Docker failure escaped with no record — breaking 'every failure path lands on a channel someone reads'."
+    },
+    {
+      "id": "finding-mirror-mount-refused",
+      "taskId": "routing-hardening",
+      "acceptanceId": "AC-2",
+      "severity": "major",
+      "message": "A configuration that mirrors the host path into the container at its own path (`mounts: source == target`) was refused, and the container path was refused whenever it sat beneath the host path."
+    },
+    {
+      "id": "finding-picker-no-hasui",
+      "taskId": "routing-hardening",
+      "acceptanceId": "AC-4",
+      "severity": "minor",
+      "message": "The container picker was the only prompt in its file without a `hasUI` guard, so a print/json run could have hung or thrown."
+    },
+    {
+      "id": "finding-ledger-verbatim-argv",
+      "taskId": "routing-hardening",
+      "acceptanceId": "AC-1",
+      "severity": "minor",
+      "message": "The ledger stored argv verbatim, so a credential would have been rendered in `/devcontainer status`."
+    },
+    {
+      "id": "finding-guard-holes",
+      "taskId": "routing-hardening",
+      "acceptanceId": "AC-3",
+      "severity": "nit",
+      "message": "The guard does not see routed-shell text, `~`-relative or symlinked spellings, or a host path belonging to another workspace — all false negatives (status quo)."
+    },
+    {
+      "id": "finding-first-run-wording",
+      "taskId": "routing-hardening",
+      "acceptanceId": "AC-1",
+      "severity": "nit",
+      "message": "The notice said 'first host command' for a command that may never have run; a refused attempt consumes the one-shot."
+    },
+    {
+      "id": "finding-docs-breakage",
+      "taskId": "routing-hardening",
+      "acceptanceId": "AC-5",
+      "severity": "nit",
+      "message": "The new security section was inserted inside the gates table (orphaning rows), the English README listed `/devcontainer use` twice, and the Chinese README lacked the row."
+    }
+  ]
+}
