@@ -20,7 +20,7 @@
  * sees one consistent in-container view.
  */
 import { isAbsolute } from "node:path";
-import { isAtOrUnder } from "./workspace-path.js";
+import { isAtOrUnder, normalizeSegments } from "./workspace-path.js";
 import { parseJsonc } from "./jsonc.js";
 
 export interface PathMapping {
@@ -96,8 +96,8 @@ export function buildPathMapping(
 /** Map a host path to its container equivalent under a mapping, if it falls under hostPath. */
 export function hostToContainer(path: string, mapping: PathMapping | undefined): string | undefined {
   if (mapping === undefined) return undefined;
-  const host = normalize(mapping.hostPath);
-  const candidate = normalize(path);
+  const host = normalizeSegments(normalize(mapping.hostPath));
+  const candidate = normalizeSegments(normalize(path));
   if (!isAtOrUnder(candidate, host)) return undefined;
   const hostTrimmed2 = host === "/" ? "/" : host.replace(/\/+$/, "");
   const candidateTrimmed = candidate === "/" ? "/" : candidate.replace(/\/+$/, "");

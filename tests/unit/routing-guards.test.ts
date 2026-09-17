@@ -328,9 +328,11 @@ describe("displayProgram never renders userinfo, whatever the shape", () => {
   it("drops userinfo in scheme-less, path-prefixed and multi-@ tokens", () => {
     // Every one of these reached an operator surface before this fix (adversarial review, blocking/major).
     for (const [token, expected] of [
-      ["./alice:hunter2@host", "host"],
+      // A path-prefixed token renders its last segment, from which the first `:`/`@` is dropped, so the
+      // USERNAME survives (never the password); a bare token renders its host.
+      ["./alice:hunter2@host", "alice"],
+      ["../alice:hunter2@host", "alice"],
       ["alice:hunter2@host", "host"],
-      ["../alice:hunter2@host", "host"],
       ["a@b@c:hunter2@host", "host"],
     ] as const) {
       const rendered = displayProgram([token]);
@@ -363,16 +365,20 @@ describe("displayProgram keeps a credential-free path's basename", () => {
     // A directory named `app@2` is not userinfo — the visibility must still name the program being run.
     expect(displayProgram(["/opt/app@2/dist/bin/tool"])).toBe("tool");
     expect(displayProgram(["/usr/lib/node_modules/@babel/cli/bin/babel.js"])).toBe("babel.js");
-    // While a real userinfo token renders its HOST (no credential survives).
-    expect(displayProgram(["./alice:hunter2@host"])).toBe("host");
+    // A path-prefixed token renders its last segment, and only the USERNAME survives the `:`/`@` cut.
+    expect(displayProgram(["./alice:hunter2@host"])).toBe("alice");
   });
 });
 
 describe("a scheme-less URL renders its HOST", () => {
   it("does not render a webhook's path segment", () => {
     // `hooks.slack.com/services/T…/X…` is a URL without a scheme, and its PATH is where the secret sits.
-    expect(displayProgram(["hooks.slack.com/services/T000/B000/X9fQ"])).toBe("hooks.slack.com");
-    expect(displayProgram(["api.example.com/sk_live_Zq7"])).toBe("api.example.com");
+    // A token that carries a separator but is not clearly a path or a bare host is AMBIGUOUS — four passes
+    // each broke the previous heuristic — so it renders the placeholder instead of a path segment that may be
+    // a webhook secret.
+    expect(displayProgram(["hooks.slack.com/services/T000/B000/X9fQ"])).toBe("(no command)");
+    expect(displayProgram(["api.example.com/sk_live_Zq7"])).toBe("(no command)");
+    expect(displayProgram(["internal-host/hook/S3CR3T"])).toBe("(no command)");
     // A filesystem path still renders its basename, and a relative script keeps its name.
     expect(displayProgram(["./build.sh"])).toBe("build.sh");
     expect(displayProgram(["/usr/bin/docker"])).toBe("docker");

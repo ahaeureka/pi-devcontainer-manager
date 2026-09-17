@@ -20,7 +20,7 @@
  * sees one consistent in-container view.
  */
 import { isAbsolute } from "node:path";
-import { isAtOrUnder } from "./workspace-path.js";
+import { isAtOrUnder, normalizeSegments } from "./workspace-path.js";
 import { parseJsonc } from "./jsonc.js";
 /** Parse a devcontainer `workspaceMount` string ("source=...,target=...,type=bind"). */
 export function parseWorkspaceMount(mount) {
@@ -82,8 +82,8 @@ export function buildPathMapping(configDir, workspaceFolder, workspaceMount) {
 export function hostToContainer(path, mapping) {
     if (mapping === undefined)
         return undefined;
-    const host = normalize(mapping.hostPath);
-    const candidate = normalize(path);
+    const host = normalizeSegments(normalize(mapping.hostPath));
+    const candidate = normalizeSegments(normalize(path));
     if (!isAtOrUnder(candidate, host))
         return undefined;
     const hostTrimmed2 = host === "/" ? "/" : host.replace(/\/+$/, "");

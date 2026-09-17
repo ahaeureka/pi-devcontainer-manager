@@ -195,15 +195,27 @@ export function displayProgram(argv: readonly string[]): string {
         const bare = afterScheme.split(/[?#]/)[0] ?? "";
         // `[user[:pass]@]host` with no scheme renders the HOST, mirroring the URL branch: the credential can
         // sit in the user position (a token-in-URL), and the host is the name an operator needs.
-        const afterAt = bare.includes("@") && !bare.split("@").pop()?.includes("/") ? (bare.split("@").pop() ?? bare) : bare;
-        // A SCHEME-LESS URL is still a URL: `hooks.slack.com/services/T…/X…` renders its HOST, because the
-        // path of a webhook or a signed link is exactly where the credential sits (adversarial review). The
-        // discriminator is the first segment carrying a `.` while the token is not a filesystem path.
-        const firstSegment = afterAt.split("/")[0] ?? "";
-        if (!afterAt.startsWith("/") && !afterAt.startsWith(".") && firstSegment.includes(".")) return firstSegment;
-        // Otherwise a path: the LAST segment is the name, and an `@` in a DIRECTORY is not userinfo
-        // (`/opt/app@2/dist/bin/tool` is `tool`, `/usr/lib/node_modules/@babel/cli/bin/babel.js` is `babel.js`).
-        return (afterAt.split(/[\\/]/).pop() ?? afterAt);
+        // CONSERVATIVE, not clever: four adversarial passes each broke the previous heuristic, so a token
+        // that is not clearly a filesystem path or a host is not rendered at all.
+        //   * a token with no separator at all is a bare name (`docker`);
+        //   * an absolute or explicitly relative path renders its last segment (`/usr/bin/docker`,
+        //     `./build.sh`), splitting on `\` as well;
+        //   * anything else that carries a separator is ambiguous — `internal-host/hook/SECRET`,
+        //     `S3CR3Tpw@host.example/x`, `python3.11/bin/pip` — and renders the placeholder.
+        if (!/[\\/]/.test(bare)) {
+          // A bare token: `user:pass@host` renders the HOST, `user:pass` renders the USERNAME (a username is
+          // not a credential), and a plain word is the name.
+          if (bare.includes("@")) return bare.split("@").pop() ?? "(no command)";
+          if (bare.includes(":")) return bare.split(":")[0] ?? "(no command)";
+          return bare;
+        }
+        if (bare.startsWith("/") || bare.startsWith("./") || bare.startsWith("../") || /^[A-Za-z]:[\\/]/.test(bare)) {
+          const last = bare.split(/[\\/]/).filter((part) => part.length > 0).pop() ?? "";
+          // A path segment can still carry userinfo (`/tmp/alice:hunter2`); the caller-side rules below drop
+          // everything from the first `:`/`@`, so only the path prefix has to be trusted here.
+          return last;
+        }
+        return "(no command)";
       })()
     : // A URL: the AUTHORITY (up to its first `/`), with userinfo — the part before the authority's last
       // `@` — dropped. An `@` later in the path is not userinfo and must not become the name.
