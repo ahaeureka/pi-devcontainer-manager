@@ -113,8 +113,23 @@ const SECRET_KEY = "(?:api[_-]?key|access[_-]?key|private[_-]?key|token|secret|p
  * then the joined result. The second pass can only redact more, never less.
  */
 export function redactCommandLine(argv) {
-    const perElement = argv.map((element) => redactText(element)).join(" ");
+    const perElement = argv.map((element) => redactElement(element)).join(" ");
     return redactText(perElement);
+}
+/**
+ * The element pass of {@link redactCommandLine}.
+ *
+ * It applies the same rules, EXCEPT that it refuses to let rule 2 consume a scheme word that belongs to
+ * the next argument: for `["curl","-H","Authorization: Bearer","eyJ…"]` rule 2 would rewrite the first
+ * element to `Authorization: [REDACTED]`, and the scheme word would then be gone from the joined line,
+ * so rule 1 could never hide the token that follows — a leak the joined-only form did not have
+ * (adversarial review). Leaving such an element intact hands the pair to the joined pass, which hides
+ * it correctly.
+ */
+function redactElement(element) {
+    if (/^.*[=:]\s*(?:Bearer|Basic|Token)\s*$/i.test(element))
+        return element;
+    return redactText(element);
 }
 export function redactText(text) {
     let out = text;

@@ -113,7 +113,6 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
 
       const snapshot = evaluatePolicy(config, { operation: "host-exec", initiator: "host-escape" });
       if (!snapshot.authorized) {
-        note();
         // A refusal is an attempt: it is recorded before it is reported, so an operator asking "why
         // did nothing happen" finds the answer in the same place as every other host run.
         deps.audit.write(
@@ -123,6 +122,7 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
             outputTruncated: false,
           }),
         );
+        note();
         throw new RuntimeError({
           kind: "policy-denied",
           message: "Host execution is disabled by policy.",
@@ -140,7 +140,6 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
         const mapping = await deps.guardMappingFor(selection);
         const violation = mapping !== undefined ? findContainerPath(argv, mapping.containerPath) : undefined;
         if (violation !== undefined) {
-          note();
           deps.audit.write(
             record(argv, {
               policyAuthorized: false,
@@ -148,6 +147,7 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
               outputTruncated: false,
             }),
           );
+          note();
           throw new RuntimeError({
             kind: "policy-denied",
             message: `Host command references container-only path ${violation}.`,
@@ -180,7 +180,6 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
       } catch (error) {
         // A failed or timed-out host run is auditable too: the promise rejects before the success
         // record below, so the failure would otherwise leave no trace.
-        note();
         deps.audit.write(
           record(argv, {
             policyAuthorized: true,
@@ -189,10 +188,10 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
             errorSummary: error instanceof Error ? error.message : String(error),
           }),
         );
+        note();
         throw error;
       }
 
-      note();
       deps.audit.write(
         record(argv, {
           policyAuthorized: true,
@@ -201,6 +200,7 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
           outputTruncated: result.truncated,
         }),
       );
+      note();
 
       return {
         exitCode: result.exitCode,

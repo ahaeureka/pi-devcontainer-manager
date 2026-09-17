@@ -188,6 +188,11 @@ describe("redactCommandLine — both idioms", () => {
     // element's own value (the verify-node pass): ["curl","-H","Bearer","Bearer sk-live-T"] joined is
     // `curl -H Bearer Bearer sk-live-T`, and rule 1 then eats only the first pair.
     expect(redactCommandLine(["curl", "-H", "Bearer", "Bearer sk-live-TKN"])).not.toContain("sk-live-TKN");
+    // The element pass must not consume a scheme word that belongs to the NEXT element: rule 2 would
+    // rewrite "Authorization: Bearer" and orphan the token that follows (adversarial review).
+    expect(redactCommandLine(["curl", "-H", "Authorization: Bearer", "eyJhbGciOiJIUzI1NiJ9.SECRET"])).not.toContain(
+      "eyJhbGciOiJIUzI1NiJ9.SECRET",
+    );
     // Element-only redaction misses the flag-with-value idiom.
     expect(redactCommandLine(["mysql", "-u", "root", "--password", "s3cr3t-value"])).not.toContain("s3cr3t-value");
     // Neither pass may hide something it should not.

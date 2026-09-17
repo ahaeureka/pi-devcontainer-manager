@@ -158,8 +158,10 @@ a secret-named flag (`--password …`, `--api-key=…`), and credentials embedde
 (`scheme://user:pass@host`). Command lines that arrive as argv are redacted element-wise **and** joined, so
 neither `mysql --password s3cr3t` nor a standalone `Bearer <token>` element survives either form.
 
-It does **not** hide a bare `-u user:pass` pair (`curl -u alice:hunter2 https://…`) or an unflagged secret
-that appears as a plain positional argument. Two consequences worth knowing:
+It does **not** hide a bare `-u user:pass` pair (`curl -u alice:hunter2 https://…`), an unflagged secret
+that appears as a plain positional argument, or the part of a flag value that follows a space: the argv is
+rendered as one space-joined line, so `--password "a b"` hides up to the space (`--password [REDACTED] b`).
+A value that ends the line, or contains no whitespace, is fully hidden. Two consequences worth knowing:
 
 - With the default `audit.commandCapture: "fingerprint-only"`, no command text is recorded anywhere, so this
   is not a persistence concern; it matters under `"redacted-text"` and for the in-session summary.
