@@ -1,5 +1,5 @@
 {
-  "id": "evidence-94302ad1-393f-461d-a122-c7d287281338",
+  "id": "evidence-a8ebac2f-f2f2-4511-9bd4-0cf28560e4c1",
   "taskId": "routing-hardening",
   "checkSource": "fallback",
   "name": "test",
@@ -7,11 +7,11 @@
   "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/vitest/dist/cli.js run",
   "environment": "cwd=/data/work/ahaeureka/pi-devcontainer-manager node=v24.19.0 platform=linux",
   "exitCode": 0,
-  "startedAt": "2026-09-17T16:00:53.240Z",
-  "finishedAt": "2026-09-17T16:01:45.645Z",
-  "diffHash": "e44bb61ec90a80757af8de15a12ced83f37687be7cb11d5114227f7fa49562e3",
-  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  42 passed (42)\n      Tests  518 passed (518)\n   Start at  00:00:53\n   Duration  51.97s (transform 1.27s, setup 0ms, import 5.12s, tests 40.06s, environment 6ms)\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n",
-  "revisionId": "revision-b018ab17271752ed",
+  "startedAt": "2026-09-17T16:38:40.880Z",
+  "finishedAt": "2026-09-17T16:39:27.584Z",
+  "diffHash": "ff999924956a3ce1b1b808c8804f6a6defaebc58cd21e729ce4a08b5951ea506",
+  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  42 passed (42)\n      Tests  518 passed (518)\n   Start at  00:38:41\n   Duration  46.25s (transform 1.23s, setup 0ms, import 5.16s, tests 34.41s, environment 6ms)\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n",
+  "revisionId": "revision-44008b22313702cf",
   "scope": {
     "paths": [
       "CHANGELOG.md",
@@ -27,6 +27,6 @@
       "tests",
       "vitest.config.ts"
     ],
-    "hash": "5d3e3df4cded60eebcf7f049e971f36132e9c37dff193c89c7268058606ed8d9"
+    "hash": "e9426e80b0a99a573daf6e2689719e84a06f063d5b91418dfb201614329b770b"
   }
 }

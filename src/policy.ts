@@ -114,7 +114,8 @@ export function commandIdentity(
  *  - `--secret-flag value` / `--secret-flag=value`
  *  - credentials embedded in URLs (`scheme://user:pass@host`)
  */
-const SECRET_KEY = "(?:api[_-]?key|access[_-]?key|private[_-]?key|token|secret|password|passwd|credential|credentials|authorization|auth)";
+const SECRET_KEY =
+  "(?:api[_-]?key|access[_-]?key|private[_-]?key|token|secret|password|passwd|pwd|pass|sig|credential|credentials|authorization|auth)";
 
 export function redactText(text: string): string {
   let out = text;
@@ -194,10 +195,19 @@ export function displayProgram(argv: readonly string[]): string {
     : // A URL: the AUTHORITY (up to its first `/`), with userinfo — the part before the authority's last
       // `@` — dropped. An `@` later in the path is not userinfo and must not become the name.
       (() => {
-        const authority = afterScheme.split("/")[0] ?? "";
+        // The authority ends at `/`, `?` OR `#`: a QUERY is the canonical place a URL carries a credential
+        // (`https://host?p=hunter2`, a presigned URL's `X-Amz-Signature=…`), and it used to be rendered
+        // verbatim into the ledger and the status block (adversarial review).
+        const authority = afterScheme.split(/[/?#]/)[0] ?? "";
         return authority.includes("@") ? (authority.split("@").pop() ?? "") : authority;
       })();
-  const bounded = /^\[[^\]]*\]$/.test(withoutUserinfo) ? withoutUserinfo : (withoutUserinfo.split(/[:@]/)[0] ?? "");
+  const unwrapped = /^\[([^\]]*)\]$/.exec(withoutUserinfo);
+  const bounded =
+    unwrapped !== null && /^[0-9a-fA-F:.]+$/.test(unwrapped[1] ?? "")
+      ? // A real bracketed IPv6 literal is kept (it carries no credential), and nothing else is exempt: the
+        // old `[^\]]*` pattern returned ANY bracket-wrapped token verbatim, including `[alice:hunter2@host]`.
+        withoutUserinfo
+      : ((unwrapped?.[1] ?? withoutUserinfo).split(/[:@]/)[0] ?? "");
   const name = bounded.trim();
   if (name.length === 0) return "(no command)";
   return name.slice(0, 64);

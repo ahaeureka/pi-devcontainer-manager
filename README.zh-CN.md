@@ -144,7 +144,7 @@ bash "pytest -q"
 |---|---|
 | `/devcontainer` | 交互式动词选择器（无 UI 时输出用法提示） |
 | `/devcontainer list` | 发现并渲染注册表；同时修复失效的选择 |
-| `/devcontainer status` | 同一个状态块（目标、注册表、路由、上限） |
+| `/devcontainer status` | 同一个状态块（目标、注册表、路由、上限），并额外显示 `host runs:`——本会话宿主命令的**尝试次数**与**程序名** |
 | `/devcontainer up [path]` | `devcontainer up --workspace-folder`；成功后重新解析选择 |
 | `/devcontainer build [path]` | `devcontainer build` |
 | `/devcontainer stop` | Docker stop——策略授权 + 一次性确认 |

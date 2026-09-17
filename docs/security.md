@@ -166,12 +166,13 @@ default `audit.commandCapture: "fingerprint-only"` no command text is recorded a
 matter only under `"redacted-text"` — but the in-session summary renders a program name, so a
 credential-shaped `argv[0]` is the one place they would have shown up there, which is why that rendering is
 enforced (`displayProgram`) rather than assumed: it takes the FIRST whitespace-delimited token of `argv[0]`,
-and renders the HOST of whatever that token looks like — the authority between `://` and the first `/` (its
-userinfo dropped), or the part after the last `@` of a scheme-less `user:pass@host` token. Everything after the first
-`:` or `@` of that name is dropped as well, so a DSN pair with no host (`alice:hunter2`) renders `alice` and
-a port is not shown; what CAN still reach the surfaces is a credential that a caller spells as the leading
-word of the name itself (`argv[0]="hunter2"`, or a bare host with no `:`/`@`), which is not a shape a command
-line produces in practice. A rule that guessed at unflagged secrets would redact ordinary arguments
+and renders the NAME of whatever that token looks like — a URL gives its authority's host (the authority ends
+at the first `/`, `?` or `#`, and its userinfo is dropped), anything else gives its last path segment (`\`
+splits too, so a Windows drive letter is a separator), and everything after the first `:` or `@` of that name
+is dropped. A DSN pair with no host (`alice:hunter2`) therefore renders `alice`, a port is not shown, and a
+URL's query or fragment is never rendered. What CAN still reach the surfaces is a credential that a caller
+spells as the name itself — `argv[0]="hunter2"`, or a bare host with no `:`/`@` — which is not a shape a
+command line produces in practice. A rule that guessed at unflagged secrets would redact ordinary arguments
 too, so extending it is a policy decision rather than a bug fix, and belongs in its own change.
 
 The **in-session visibility deliberately keeps no command text at all**: `/devcontainer status` reports a
@@ -187,7 +188,8 @@ since the host-execution default change that grant ships enabled. This is a deci
 the surface is driven by the agent, so an interactive confirmation would either stall an autonomous run
 or degrade into a confirmation the operator clicks through. The compensating controls are the audit
 trail (every attempt that reaches the runner, including refusals and failures — an attempt a
-configuration withholds is refused before it and is visible only through the in-session summary), the
+configuration withholds is refused before it and appears in the in-session summary and in the first-attempt
+notice, not in an audit record), the
 in-session visibility added for host runs
 (`/devcontainer status` reports the session's host command attempts and the programs they named — every
 attempt counts, including one a configuration withheld, and the first of a session is announced on the

@@ -1,5 +1,5 @@
 {
-  "id": "evidence-2e08b07b-19cd-4313-9eac-ad6e904b7cd0",
+  "id": "evidence-40107ab9-92ba-47fc-8c90-f09c2baf3c86",
   "taskId": "routing-hardening",
   "checkId": "matrix:AC-1:test:npm run test:unit",
   "checkSource": "matrix",
@@ -8,11 +8,11 @@
   "command": "npm run test:unit",
   "environment": "cwd=/data/work/ahaeureka/pi-devcontainer-manager node=v24.19.0 platform=linux",
   "exitCode": 0,
-  "startedAt": "2026-09-17T16:01:45.645Z",
-  "finishedAt": "2026-09-17T16:02:01.344Z",
-  "diffHash": "e44bb61ec90a80757af8de15a12ced83f37687be7cb11d5114227f7fa49562e3",
-  "log": "\n> pi-devcontainer-manager@1.0.0 test:unit\n> vitest --run tests/unit\n\n\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  39 passed (39)\n      Tests  502 passed (502)\n   Start at  00:01:46\n   Duration  15.11s (transform 1.13s, setup 0ms, import 4.47s, tests 4.42s, environment 6ms)\n\n",
-  "revisionId": "revision-b018ab17271752ed",
+  "startedAt": "2026-09-17T16:39:27.585Z",
+  "finishedAt": "2026-09-17T16:39:43.265Z",
+  "diffHash": "ff999924956a3ce1b1b808c8804f6a6defaebc58cd21e729ce4a08b5951ea506",
+  "log": "\n> pi-devcontainer-manager@1.0.0 test:unit\n> vitest --run tests/unit\n\n\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  39 passed (39)\n      Tests  502 passed (502)\n   Start at  00:39:28\n   Duration  15.08s (transform 1.14s, setup 0ms, import 4.39s, tests 4.51s, environment 6ms)\n\n",
+  "revisionId": "revision-44008b22313702cf",
   "scope": {
     "paths": [
       "CHANGELOG.md",
@@ -28,6 +28,6 @@
       "tests",
       "vitest.config.ts"
     ],
-    "hash": "5d3e3df4cded60eebcf7f049e971f36132e9c37dff193c89c7268058606ed8d9"
+    "hash": "e9426e80b0a99a573daf6e2689719e84a06f063d5b91418dfb201614329b770b"
   }
 }
