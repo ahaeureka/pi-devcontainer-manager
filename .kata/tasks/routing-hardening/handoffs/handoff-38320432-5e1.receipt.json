@@ -1,0 +1,33 @@
+{
+  "protocolVersion": 1,
+  "taskId": "routing-hardening",
+  "handoffId": "handoff-38320432-5e1",
+  "platform": "pi",
+  "role": "reviewer",
+  "packetSha256": "4f88f8913f45064415afd1211b22e28a569a98fa9b9ca29668a6167e1c8e512a",
+  "acknowledgedAt": "2026-09-17T10:18:36.160Z",
+  "repository": {
+    "head": "c4a29167fb94cf8b3e8b36cdddb20ecf5ea6a1ad",
+    "branch": "feature/routing-hardening",
+    "diffHash": "1ec86555d4717c894b988bf15bb9e17b66ddb23642d8d42c89403d08d526bce4",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-18abd4d1236368b8",
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "README.zh-CN.md",
+        "dist",
+        "docs",
+        "extensions",
+        "openspec",
+        "package.json",
+        "scripts",
+        "src",
+        "tests"
+      ],
+      "hash": "1ec86555d4717c894b988bf15bb9e17b66ddb23642d8d42c89403d08d526bce4"
+    },
+    "worktreeRoot": "."
+  }
+}
