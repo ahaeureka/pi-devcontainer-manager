@@ -56,7 +56,23 @@ export function createAuditedHostRunner(deps) {
             // now granted by default, it is the only thing standing between a container path and the host.
             const selection = deps.targetStoreWorkspaceKey();
             if (selection !== undefined) {
-                const mapping = await deps.guardMappingFor(selection);
+                // Resolving the mapping goes through the registry (a `docker ps`), which can FAIL — an
+                // unreachable daemon is the escape hatch's own primary use case. A failure here must land on a
+                // channel someone reads rather than escaping unaudited, exactly like the container-surface
+                // guard (adversarial review of the routing hardening).
+                let mapping;
+                try {
+                    mapping = await deps.guardMappingFor(selection);
+                }
+                catch (error) {
+                    deps.audit.write(record(argv, {
+                        policyAuthorized: true,
+                        outputTruncated: false,
+                        errorSummary: error instanceof Error ? error.message : String(error),
+                    }));
+                    note();
+                    throw error;
+                }
                 const violation = mapping !== undefined ? findContainerPath(argv, mapping.containerPath) : undefined;
                 if (violation !== undefined) {
                     deps.audit.write(record(argv, {

@@ -251,3 +251,13 @@ describe("createHostRunLedger", () => {
     expect(ledger.summary()).toContain("docker");
   });
 });
+
+describe("displayProgram — credential shapes the audit rules know", () => {
+  it("redacts a URL's credentials before the basename strips the scheme", () => {
+    // The basename of `postgres://alice:s3cretpw@host` is `alice:s3cretpw@host`, so redacting after the
+    // basename loses the audit rule that needs the scheme prefix (adversarial review of the routing
+    // hardening).
+    expect(displayProgram(["postgres://alice:s3cretpw@db.example.test"])).not.toContain("s3cretpw");
+    expect(displayProgram(["https://alice:s3cretpw@git.example.test"])).not.toContain("s3cretpw");
+  });
+});

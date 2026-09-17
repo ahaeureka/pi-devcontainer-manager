@@ -21,8 +21,22 @@ import {
   devcontainerStatusParams,
 } from "../../src/tools.js";
 import type { ToolOptions } from "../../src/tools.js";
+import { createAuditedHostRunner } from "../../src/host-runner.js";
+import { createHostRunLedger } from "../../src/host-run-ledger.js";
+import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
 import { RuntimeError } from "../../src/errors.js";
 import type { ExecOutcome, ExecutionService } from "../../src/execution-service.js";
+
+function makeConfig(overrides: Partial<EffectiveConfig> = {}): EffectiveConfig {
+  return {
+    version: 1, dockerPath: "docker", devcontainerPath: "devcontainer", routeMode: "container-required",
+    allowedWorkspaceRoots: ["/ws"], environmentAllowlist: [], maxTimeoutSeconds: 900, maxOutputBytes: 1024,
+    discovery: { maxDepth: 3, excludedDirectories: [".git"] },
+    audit: { enabled: true, retentionDays: 90, commandCapture: "fingerprint-only" },
+    destructive: { allowStop: false, allowRemove: false }, hostExecution: { allow: true },
+    ...overrides,
+  };
+}
 
 function makeOptions(overrides: Partial<ToolOptions> = {}): ToolOptions {
   return {
@@ -331,5 +345,35 @@ describe("devcontainer_host_exec — a withheld attempt is reported", () => {
     // with "no host commands this session" while the agent kept trying (adversarial review).
     // The program name only: the visibility renders and stores no command text.
     expect(attempts).toEqual(["systemctl"]);
+  });
+});
+
+describe("the host runner's container-path guard read", () => {
+  it("audits and counts an attempt whose mapping read failed", async () => {
+    const records: AuditRecord[] = [];
+    const notices: string[] = [];
+    const ledger = createHostRunLedger({ limit: 5 });
+    const host = createAuditedHostRunner({
+      runner: { async exec() { return { exitCode: 0, signal: null, durationMs: 1, truncated: false, stdout: "", stderr: "" }; } },
+      config: makeConfig(),
+      audit: { write: (record) => void records.push(record) },
+      sessionWorkspace: "/ws",
+      env: { PATH: "/usr/bin" },
+      targetStoreWorkspaceKey: () => "/ws/project-a",
+      guardMappingFor: async () => {
+        throw new Error("Docker executable '/nonexistent/docker' is unavailable.");
+      },
+      ledger,
+      onFirstHostRun: (program) => void notices.push(program),
+    });
+
+    // An unreachable daemon is the escape hatch's own primary use case: the failure must land on a
+    // channel someone reads, exactly like the container-surface guard's mapping read.
+    await expect(host.run(["systemctl", "restart", "docker"])).rejects.toThrow("is unavailable");
+
+    expect(records).toHaveLength(1);
+    expect(records[0]?.errorSummary).toContain("is unavailable");
+    expect(ledger.count()).toBe(1);
+    expect(notices).toEqual(["systemctl"]);
   });
 });

@@ -128,8 +128,12 @@ export function displayProgram(argv) {
     const first = argv[0];
     if (first === undefined)
         return "(no command)";
-    const base = first.split("/").pop() ?? first;
-    const redacted = redactText(base).replace(/[\u0000-\u001f\u007f]/g, "");
+    // Redact BEFORE the basename: a URL-shaped program name keeps its credentials in the part the basename
+    // would keep (`postgres://alice:s3cretpw@host` -> `alice:s3cretpw@host`), and the audit rules need the
+    // scheme prefix to see them (adversarial review of the routing hardening).
+    const redactedWhole = redactText(first);
+    const base = redactedWhole.split("/").pop() ?? redactedWhole;
+    const redacted = base.replace(/[\u0000-\u001f\u007f]/g, "");
     if (redacted.length === 0)
         return "(no command)";
     return redacted.slice(0, 64);

@@ -643,7 +643,7 @@ export function parseHostExecArgv(input) {
         if (flag === null) {
             return {
                 ok: false,
-                text: `[policy-denied] Free-text arguments are not accepted here: \`${rest.split(/\s+/)[0]}\` would be ` +
+                text: `[policy-denied] Free-text arguments are not accepted here: \`${displayProgram([rest])}\` would be ` +
                     `reinterpreted before it runs on the host.\n${HOST_EXEC_USAGE}`,
             };
         }
