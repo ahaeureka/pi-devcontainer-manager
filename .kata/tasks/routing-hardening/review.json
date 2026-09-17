@@ -1,14 +1,5 @@
 {
-  "revisionId": "revision-4e7ae40d8ae49bf8",
-  "findings": [
-    {
-      "id": "finding-tree-moved-after-rev9-nodes",
-      "taskId": "routing-hardening",
-      "acceptanceId": "AC-1",
-      "severity": "blocking",
-      "message": "PROCESS, not a defect: both node passes of the contracted revision agreed on four items, fixed together here — argv[0] was an unredacted and uncapped channel (a credential-shaped program name was reproduced, and the notice path had no length cap), a test still imported the deleted redaction helper, comments still described the deleted redaction, and docs/security.md listed the audit trail as covering attempts a configuration withholds (which never reach the runner and are not audited). `displayProgram` now enforces the rendering in one place.",
-      "path": "src/policy.ts"
-    }
-  ],
+  "revisionId": "revision-ba5cb248ba524d61",
+  "findings": [],
   "status": "pending"
 }
