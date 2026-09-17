@@ -1,7 +1,7 @@
 ---
 source_path: .kata/tasks/arch-review-p5-public-surfaces/wiki/arch-review-p5-public-surfaces.md
-ingested: 2026-09-17T07:47:43.599Z
-sha256: eddd505912b6d421b05996944ff14e4ddc766cb20864d6ec61fe73ebc263c5eb
+ingested: 2026-09-17T08:07:39.651Z
+sha256: 2bf93778a254bb23a1e059150b198dd085efd76e23b315a71cf4667c6786a0f4
 ---
 # Public surfaces and the process boundary (Phase 5 build notes)
 
@@ -83,3 +83,42 @@ Practical rule: **after any `build --seal`, validate the new envelopes before tr
 `kind` in the current enum (`integration` was removed while the task matrix still allows it), `name`
 matching the pattern, and the required fields present. A gate that reports "no evidence at all" is
 describing the reader, not the work.
+
+## 5. What the review cycle added: the interface edge cases are the bug
+
+The independent pass on this phase found no blocking defect and still produced two real bugs in the new
+parser, both **silent**, both on the surface that executes on the host:
+
+- `--argv` was matched by prefix, so `--argverbose` was accepted as the flag and yielded the argument
+  `erbose` — a mangled command name. **Match a flag as a whole word.**
+- The `--argv=<value>` recovery slice was off by the flag's length, so a value that ended at the next
+  `--argv` was REFUSED instead of split (`--argv= --argv x`). An off-by-N in a parser is invisible in
+  the happy path and total in the edge path.
+
+It also caught a documentation-shaped defect worth generalizing: the CHANGELOG's migration example
+used shell quoting in a grammar where quotes are ordinary characters, i.e. **an example that runs a
+different command than it shows**. When the point of a change is "there is no shell here", every
+example has to be written as literally as the parser reads it.
+
+## 6. Process mechanics this phase had to work out
+
+Repairing a sealed revision after a PASS is a specific route, and the CLI is explicit about each step:
+
+1. Move the task into `review` (`kata-cli review --confirm-host-model`), and record the repair as a
+   **blocking** finding in `review.json` — in this phase it was a *process* finding ("the tree no
+   longer matches the sealed revision"), not a defect, because the review's items were already fixed.
+   `status` may only be `pending` or `approved`.
+2. The first `build --seal` after that **enters implement and does NOT seal** — its diagnostics say so
+   in as many words. Run `build --seal` a second time to create the new revision.
+3. A mutation needs a **current acknowledged handoff receipt for the role that matches the phase**,
+   and the phase does not change until the command succeeds: after moving to `review` the reviewer
+   receipt is the one that unblocks `review`, and after the repair entry the *implementer* receipt
+   unblocks the seal.
+4. `hardVerify` cannot go straight back to implement: the repair entry from that phase needs a
+   repairable verify FAIL, which a PASS does not provide — hence step 1.
+
+And the rule from the previous phase paid for itself immediately: **validate the freshly-sealed
+evidence envelopes before trusting a gate.** Three of this phase's envelopes again had `name`s with
+spaces (the seal writes `${acceptanceId}-${kind}-${command}`), so the reader rejected the directory
+and every criterion read as `missing_test_evidence`; relabelling them took one command instead of a
+wasted verify round.

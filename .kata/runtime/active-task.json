@@ -1,8 +1,0 @@
-{
-  "taskId": "arch-review-p5-public-surfaces",
-  "role": "judge",
-  "phase": "judge",
-  "branch": "feature/arch-review-p5-public-surfaces",
-  "origin": "workflow",
-  "activatedAt": "2026-09-17T08:04:30.697Z"
-}
