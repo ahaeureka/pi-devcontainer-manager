@@ -1,7 +1,7 @@
 {
   "id": "evidence-f6b84ed4-ddd4-49c2-8d1c-70d9db45d336",
   "taskId": "arch-review-p4-vocabulary-identity",
-  "name": "AC-1-typecheck-npm run typecheck",
+  "name": "AC-1-typecheck-npm-run-typecheck",
   "kind": "typecheck",
   "command": "npm run typecheck",
   "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",

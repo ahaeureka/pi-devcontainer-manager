@@ -1,7 +1,7 @@
 {
   "id": "evidence-47f0f248-be99-4bf3-bb4b-6216b2a52b10",
   "taskId": "arch-review-p4-vocabulary-identity",
-  "name": "AC-1-test-npm run test:unit",
+  "name": "AC-1-test-npm-run-test-unit",
   "kind": "test",
   "command": "npm run test:unit",
   "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
