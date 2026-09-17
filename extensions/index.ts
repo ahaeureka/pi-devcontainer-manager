@@ -559,6 +559,8 @@ export default function (pi: ExtensionAPI): void {
         // The runner is not reached when configuration withholds the surface, so this path counts and
         // announces the attempt itself — otherwise a withheld configuration would leave the operator
         // with "no host commands this session" while the agent kept trying.
+        // The callers hand over a RAW first token (the ledger renders it): passing an already-rendered program
+        // turned "(no command)" into "(no" (adversarial review).
         if (hostRuns.noteFirstRun([program])) {
           // A withheld attempt is refused BEFORE the runner, so it leaves no `host-exec` audit record:
           // the notice must not claim one (verify-node adversarial pass). Redaction is the audit

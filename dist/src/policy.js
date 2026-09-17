@@ -114,9 +114,10 @@ export function redactText(text) {
     out = out.replace(new RegExp(`(--?${SECRET_KEY})(\\s*=\\s*|\\s+)("[^"]*"|'[^']*'|[^\\s"']+)`, "gi"), "$1$2[REDACTED]");
     // 4. Credentials embedded in URLs: scheme://user:pass@host.
     //
-    // The password class allows `/` and `@`: a password containing either used to leave its tail in the text
-    // (`https://alice:/hunter2@host` was returned unchanged; `postgres://alice:p@ss@host/db` kept `ss@host`).
-    // Anything between the `://` and the LAST `@` of the authority is userinfo, so it is replaced wholesale.
+    // The user class excludes `/` and the password class allows `@`, so userinfo is consumed up to the LAST `@`
+    // before a `/` (`postgres://alice:p@ss@host/db` used to keep `ss@host`). A password CONTAINING a slash is
+    // indistinguishable from a path and is documented as out of scope in `docs/security.md` — which is why the
+    // in-session rendering (`displayProgram`) is enforced independently of this rule.
     out = out.replace(/(\w+:\/\/)[^\s/]*@/g, "$1[REDACTED]@");
     return out;
 }
@@ -143,15 +144,20 @@ export function displayProgram(argv) {
     // A URL-shaped name renders as its HOST only — never its userinfo. Taking the part before the first `/`
     // was not enough (`redis://:hunter2@cache:6379` has no slash and kept the password), so the userinfo is
     // dropped explicitly (adversarial review).
-    // A URL-shaped name renders as the AUTHORITY HOST only: the authority is what sits between `://` and the
-    // next `/`, and its userinfo (the part before the LAST `@` in it) is dropped. Splitting on the LAST `@` of
-    // the whole string was wrong — a path or query containing `@user:pass` then rendered as the "host".
-    const base = redactedWhole.includes("://")
-        ? (() => {
-            const authority = (redactedWhole.split("://")[1] ?? "").split("/")[0] ?? "";
-            return authority.includes("@") ? (authority.split("@").pop() ?? "") : authority;
-        })()
-        : (redactedWhole.split("/").pop() ?? redactedWhole);
+    // Render the HOST of whatever this token looks like, with or without a scheme. `alice:hunter2@host` is as
+    // credential-shaped as `https://alice:hunter2@host`, and the `://` branch alone missed it (adversarial
+    // review): the userinfo is the text before the LAST `@` of the token, and everything after it is the host.
+    // With a scheme, the AUTHORITY is what sits between `://` and the first `/`, and its userinfo is what comes
+    // before the LAST `@` INSIDE that authority — an `@` in a path or query is not userinfo and must not turn
+    // the path into the "host". Without a scheme, a `user:pass@host`-shaped token still has its userinfo dropped.
+    const hasScheme = redactedWhole.includes("://");
+    const afterScheme = hasScheme ? (redactedWhole.split("://")[1] ?? "") : redactedWhole;
+    const authority = afterScheme.split("/")[0] ?? "";
+    const base = authority.includes("@")
+        ? (authority.split("@").pop() ?? "(no command)")
+        : hasScheme
+            ? authority
+            : (redactedWhole.split("/").pop() ?? redactedWhole);
     const redacted = base.replace(/[\u0000-\u001f\u007f]/g, "").trim();
     if (redacted.length === 0)
         return "(no command)";

@@ -373,6 +373,22 @@ describe("buildWorkspaceRegistry", () => {
     ]);
   });
 
+  it("orders candidates running-first, so a stopped container cannot become the target", () => {
+    const fs = fsTree();
+    addFile(fs, "/work/a/.devcontainer/devcontainer.json");
+    // Docker's own listing is NOT running-first: the newest container is often the stopped one.
+    const docker = [
+      dockerCandidate({ id: "stopped1", workspaceKey: "/work/a", state: "exited" }),
+      dockerCandidate({ id: "running1", workspaceKey: "/work/a", state: "running" }),
+    ];
+    const result = registry(fs, docker);
+
+    // The primary candidate is the running one, so a workspace with exactly one running container does not
+    // silently target a stopped sibling (adversarial review).
+    expect(result.entries[0]?.containerCandidates[0]?.id).toBe("running1");
+    expect(result.entries[0]?.ambiguous).toBe(false);
+  });
+
   it("does not flag ambiguity when only one container is running", () => {
     const fs = fsTree();
     addFile(fs, "/work/a/.devcontainer/devcontainer.json");

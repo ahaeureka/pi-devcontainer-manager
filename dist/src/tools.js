@@ -150,8 +150,8 @@ export function createDevcontainerHostExecTool(options) {
         executionMode: "sequential",
         execute: async (_toolCallId, params, signal, _onUpdate, _ctx) => {
             if (!options.hostExecutionAllowed) {
-                // The PROGRAM, not the command line (see the ledger's note: the visibility renders no argv).
-                options.onWithheldHostAttempt?.(displayProgram(params.argv));
+                // The RAW first token: the ledger renders it (rendering twice turned "(no command)" into "(no").
+                options.onWithheldHostAttempt?.(params.argv[0] ?? "");
                 throw new RuntimeError({
                     kind: "policy-denied",
                     message: "Host execution is disabled by policy.",

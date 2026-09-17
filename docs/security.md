@@ -166,8 +166,10 @@ default `audit.commandCapture: "fingerprint-only"` no command text is recorded a
 matter only under `"redacted-text"` — but the in-session summary renders a program name, so a
 credential-shaped `argv[0]` is the one place they would have shown up there, which is why that rendering is
 enforced (`displayProgram`) rather than assumed: it takes the FIRST whitespace-delimited token of `argv[0]`,
-and a URL-shaped name renders as the authority HOST only — so no credential reaches either operator surface
-even for the shapes the audit-side rule misses. A rule that guessed at unflagged secrets would redact ordinary arguments
+and renders the HOST of whatever that token looks like — the authority between `://` and the first `/` (its
+userinfo dropped), or the part after the last `@` of a scheme-less `user:pass@host` token. A credential can
+therefore only reach the operator surfaces by being spelled as a program NAME with no `@` or `/` at all
+(`argv[0]="hunter2"`), which is not a shape a command line produces in practice. A rule that guessed at unflagged secrets would redact ordinary arguments
 too, so extending it is a policy decision rather than a bug fix, and belongs in its own change.
 
 The **in-session visibility deliberately keeps no command text at all**: `/devcontainer status` reports a

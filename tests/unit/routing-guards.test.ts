@@ -286,6 +286,10 @@ describe("the URL rule spans a slash in the password", () => {
     // `argv[0]` may be a WHOLE command line: only the first token is a program name.
     expect(displayProgram(["ssh alice:hunter2@host"])).toBe("ssh");
     expect(displayProgram(["docker login -u alice -p hunter2"])).toBe("docker");
+    // A SCHEME-LESS credential-shaped token is dropped to its host too (`://` alone was the wrong trigger).
+    expect(displayProgram(["alice:hunter2@host"])).toBe("host");
+    // And an `@` in a PATH is not userinfo: the authority host still wins.
+    expect(displayProgram(["https://host:8080/path@user:hunter2"])).toBe("host:8080");
   });
 });
 

@@ -694,7 +694,8 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     if (!services.config.hostExecution.allow) {
       // A withheld attempt is exactly what the operator needs to see: count it before answering.
       const attempted = parseHostExecArgv(args);
-      services.onWithheldHostAttempt?.(displayProgram(attempted.ok ? attempted.argv : [args.trim().split(/\s+/)[0] ?? ""]));
+      // The RAW first token: the ledger renders it.
+      services.onWithheldHostAttempt?.(attempted.ok ? attempted.argv[0] ?? "" : args.trim().split(/\s+/)[0] ?? "");
       return {
         text:
           "[policy-denied] Host execution is disabled by policy.\n" +

@@ -2,6 +2,7 @@ import { evaluatePolicy } from "./policy.js";
 import { commandIdentity } from "./policy.js";
 import { RuntimeError } from "./errors.js";
 import { findContainerPath } from "./path-mapper.js";
+import { isSamePath } from "./workspace-path.js";
 import { displayProgram } from "./policy.js";
 export function createAuditedHostRunner(deps) {
     const now = deps.clock ?? (() => new Date().toISOString());
@@ -75,8 +76,7 @@ export function createAuditedHostRunner(deps) {
                 }
                 // A mapping that keeps the path is not a mis-route: the same path exists on both sides (the mirror
                 // mount idiom), exactly like the reverse guard's exemption (adversarial review).
-                const sameSpot = (left, right) => left.replace(/\/+$/, "") === right.replace(/\/+$/, "");
-                const violation = mapping !== undefined && !sameSpot(mapping.containerPath, mapping.hostPath)
+                const violation = mapping !== undefined && !isSamePath(mapping.containerPath, mapping.hostPath)
                     ? findContainerPath(argv, mapping.containerPath)
                     : undefined;
                 if (violation !== undefined) {

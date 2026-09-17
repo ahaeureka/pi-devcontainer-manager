@@ -364,7 +364,11 @@ export function buildWorkspaceRegistry(input: DiscoveryInput): RegistryResult {
         state: mapContainerState(c.state) ?? ("unknown" as const),
         // Carried so the operator-facing container picker can name the image (AC-4).
         ...(c.image !== undefined && c.image.length > 0 ? { image: c.image } : {}),
-      }));
+      }))
+      // The candidate ORDER is priority: the primary candidate is `containerCandidates[0]`, and `ambiguous`
+      // only trips for more than one RUNNING container, so a stopped container listed first by Docker would
+      // otherwise become the target of a workspace that has a running one (adversarial review).
+      .sort((left, right) => Number(right.state === "running") - Number(left.state === "running"));
     const runningCount = candidates.filter((c) => c.state === "running").length;
     // `byKey` only ever holds host-config entries, so the variant is known here; `both` says the
     // containers were discovered alongside a configuration rather than instead of one.
@@ -384,7 +388,9 @@ export function buildWorkspaceRegistry(input: DiscoveryInput): RegistryResult {
         state: mapContainerState(c.state) ?? ("unknown" as const),
         // Carried so the operator-facing container picker can name the image (AC-4).
         ...(c.image !== undefined && c.image.length > 0 ? { image: c.image } : {}),
-      }));
+      }))
+      // Running first, for the same reason as above.
+      .sort((left, right) => Number(right.state === "running") - Number(left.state === "running"));
     if (candidates.length === 0) continue;
     entries.push({
       kind: "container-only",

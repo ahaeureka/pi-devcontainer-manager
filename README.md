@@ -213,6 +213,7 @@ If the Dev Containers CLI is missing, run `/devcontainer setup` once.
 | `/devcontainer remove` | Docker `rm -f` — policy grant + fresh confirmation |
 | `/devcontainer logs [--tail N]` | Bounded `docker logs` (default 100 lines); policy-checked and audited |
 | `/devcontainer use [workspace\|container-id]` | Selects the target; with several running containers for one workspace it offers a picker (or takes an explicit id) |
+| reverse guard | `devcontainer_exec` **refuses** an argv that names the HOST workspace path when the configuration mounts it elsewhere, and the refusal names the container path to use |
 | `/devcontainer host-exec --argv <value> [...]` | Audited host escape hatch (granted by default; a configuration can withhold it with `hostExecution.allow: false`). One `--argv` per argument, no shell or quote processing; a value ends at the next `--argv`, and `--argv=<value>` passes an empty argument |
 | `/devcontainer setup` | Install/upgrade the Dev Containers CLI globally (confirmed, audited) |
 | `/devcontainer off` | Clear the target and hand this session back to the host (dormant); the opt-out is persisted, so `/reload` does not restore the target (nor auto-engage it) until you select one again — unless `activation` is `"always"`, which always takes over |

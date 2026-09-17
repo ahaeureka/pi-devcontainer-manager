@@ -36,21 +36,14 @@ export function createHostRunLedger(options: { limit?: number } = {}): HostRunLe
   const recent: string[] = [];
   let firstRunNoted = false;
 
-  // The program NAME is not command text: it is one word, rendered by the enforced `displayProgram`, and the
-  // audit policy that governs command CAPTURE does not withhold it. (It used to, which made the visibility
-  // claim false under `commandCapture: "none"` — adversarial review.)
-  let keepText = true;
   const remember = (argv: readonly string[]): void => {
     count += 1;
-    {
-      // The summary names the PROGRAM, never the command line. Ten adversarial passes over this
-      // change found five credentials reachable through a rendered argv (and two of them through
-      // fixes for the previous one), so the visibility keeps the signal an operator needs — how many
-      // host commands, and which tools — and stores no command text at all. A program name cannot be
-      // a credential, and the authoritative record is the audit trail, which keeps its own policy.
-      recent.push(displayProgram(argv));
-      while (recent.length > limit) recent.shift();
-    }
+    // The summary names the PROGRAM, never the command line: many adversarial passes found credentials
+    // reachable through a rendered argv (two of them through fixes for the previous one), so the visibility
+    // keeps the signal an operator needs — how many host commands, and which tools — and stores no command
+    // text at all. `displayProgram` is the enforced rendering; a program name can be credential-shaped.
+    recent.push(displayProgram(argv));
+    while (recent.length > limit) recent.shift();
   };
 
   return {

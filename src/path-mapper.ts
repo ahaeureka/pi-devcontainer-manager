@@ -209,7 +209,7 @@ export function containerOnlyMounts(
   for (const entry of candidates) {
     const target = parseWorkspaceMount(entry).target;
     if (target === undefined || !isAbsolute(target)) continue;
-    if (workspaceTarget !== undefined && (target === workspaceTarget || target.startsWith(`${normalize(workspaceTarget)}/`))) {
+    if (workspaceTarget !== undefined && isAtOrUnder(normalize(target), normalize(workspaceTarget))) {
       continue;
     }
     seen.add(target);
