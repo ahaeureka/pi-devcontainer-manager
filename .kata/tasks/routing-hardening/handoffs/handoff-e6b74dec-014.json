@@ -1,0 +1,351 @@
+{
+  "protocolVersion": 1,
+  "id": "handoff-e6b74dec-014",
+  "taskId": "routing-hardening",
+  "createdAt": "2026-09-17T14:56:14.280Z",
+  "from": {
+    "role": "implementer"
+  },
+  "to": {
+    "role": "reviewer"
+  },
+  "phase": "hardVerify",
+  "repository": {
+    "head": "3a5e3a434da907a785fe01ffb5484ef96c0b5124",
+    "branch": "feature/routing-hardening",
+    "diffHash": "e43f0516b2d6746a0dfa37080cf88731e3a675cdfa23c67360bd4d47922cfcb1",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-797695aaa7a96f13",
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "README.zh-CN.md",
+        "dist",
+        "docs",
+        "extensions",
+        "openspec",
+        "package.json",
+        "scripts",
+        "src",
+        "tests",
+        "vitest.config.ts"
+      ],
+      "hash": "e43f0516b2d6746a0dfa37080cf88731e3a675cdfa23c67360bd4d47922cfcb1"
+    },
+    "worktreeRoot": "."
+  },
+  "task": {
+    "id": "routing-hardening",
+    "title": "Host runs are visible to the operator in-session: the host escape hatch reports ",
+    "phase": "intake",
+    "acceptance": [
+      {
+        "id": "AC-1",
+        "statement": "Host runs are visible to the operator in-session: the host escape hatch reports the first host run of a session through the operator UI, and `/devcontainer status` shows how many host command attempts this session has made and which PROGRAMS they named (no command text is stored), so a model drifting toward the host is noticed without reading the audit log. The audit trail stays the authoritative record; this is a summary, not a second one."
+      },
+      {
+        "id": "AC-2",
+        "statement": "Package work cannot be silently mis-routed into the container: a structured container-surface request (`devcontainer_exec`) whose argv names the HOST workspace path is refused with a typed `policy-denied` error that names the container path to use instead, when the workspace's configuration maps the host path somewhere else. The refusal is skipped when there is no mapping to consult, and when the mapping's container path equals the host path (there the host path IS the right path)."
+      },
+      {
+        "id": "AC-3",
+        "statement": "The reverse guard stays narrow and explicable: it triggers only on a literal argv element that IS the host workspace path or lies beneath it as a path segment, never on a substring of an unrelated flag or value, and it is documented as deliberately NOT covering routed-shell text (where the same detection would be an unreliable heuristic over a string). Its refusal is audited like any other policy denial."
+      },
+      {
+        "id": "AC-4",
+        "statement": "An ambiguous workspace no longer forces the operator to copy a container id: `/devcontainer use` offers an interactive picker of that workspace's containers (id, state, image) when more than one running container matches, and selecting one binds exactly that candidate. The rule that Docker result order must never decide the target is preserved — the picker replaces the refusal, not the decision — and the explicit `/devcontainer use <container-id>` path keeps working."
+      },
+      {
+        "id": "AC-5",
+        "statement": "The host escape hatch's gating asymmetry is documented as a deliberate decision rather than left implicit: `docs/security.md` states that an arbitrary host command needs the policy grant and an audit record but no per-action confirmation (unlike `stop`/`remove`), explains why (the surface is driven by the agent, so an interactive confirmation would either stall it or become a rubber stamp), and names the visibility added in REQ-1 and the configuration that withholds the surface entirely as the compensating controls."
+      },
+      {
+        "id": "AC-6",
+        "statement": "No regression, and the review's contract invariants hold: the CLI still receives the HOST workspace path for `up`/`build`/`exec`, no argv shape changes, discovery stays lazy/read-only/bounded, targets are never auto-started, `stop`/`remove` keep both gates, host execution stays withheld-able and audited with the same operation/initiator/capture defaults, `/devcontainer setup` is untouched, the audit shape and modes are unchanged, and the full gate set is green (`npm run typecheck`, `npx vitest run`, `verify-package.mjs --unit-tests`, a rebuilt `dist/` committed with the sources, the packed smoke run, `npm run install:local -- --check`)."
+      }
+    ],
+    "branch": "main",
+    "createdAt": "2026-09-17T09:06:32.355Z",
+    "updatedAt": "2026-09-17T09:06:32.355Z",
+    "workflowProfile": {
+      "version": 1,
+      "isolationMode": "git_flow",
+      "developmentMode": "tdd",
+      "reviewMode": "security",
+      "comet": {
+        "projectInit": "not_requested",
+        "openStatus": "acknowledged"
+      },
+      "gitFlow": {
+        "strategy": "manual",
+        "branch": "feature/routing-hardening",
+        "baseBranch": "main",
+        "status": "active"
+      }
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "statement": "Host runs are visible to the operator in-session: the host escape hatch reports the first host attempt of a session (naming the program) through the operator UI, and `/devcontainer status` shows how many host command attempts this session has made and which programs they named. The summary stores NO command text at all — the audit trail stays the authoritative record — because the redaction of a rendered command line proved to be the source of every defect five adversarial passes found in this feature.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-17_command-routing-assessment.md §4.1 (option b) and §4.4",
+        "confirmedAt": "2026-09-17T09:06:32.354Z"
+      },
+      {
+        "id": "REQ-2",
+        "statement": "Package work cannot be silently mis-routed into the container: a structured container-surface request (`devcontainer_exec`) whose argv names the HOST workspace path is refused with a typed `policy-denied` error that names the container path to use instead, when the workspace's configuration maps the host path somewhere else. The refusal is skipped when there is no mapping to consult, and when the mapping's container path equals the host path (there the host path IS the right path).",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-17_command-routing-assessment.md §4.2",
+        "confirmedAt": "2026-09-17T09:06:32.355Z"
+      },
+      {
+        "id": "REQ-3",
+        "statement": "The reverse guard stays narrow and explicable: it triggers only on a literal argv element that IS the host workspace path or lies beneath it as a path segment, never on a substring of an unrelated flag or value, and it is documented as deliberately NOT covering routed-shell text (where the same detection would be an unreliable heuristic over a string). Its refusal is audited like any other policy denial.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-17_command-routing-assessment.md §4.2, plus the Phase-5 lesson that a classifier over shell text cannot be made safe",
+        "confirmedAt": "2026-09-17T09:06:32.355Z"
+      },
+      {
+        "id": "REQ-4",
+        "statement": "An ambiguous workspace no longer forces the operator to copy a container id: `/devcontainer use` offers an interactive picker of that workspace's containers (id, state, image) when more than one running container matches, and selecting one binds exactly that candidate. The rule that Docker result order must never decide the target is preserved — the picker replaces the refusal, not the decision — and the explicit `/devcontainer use <container-id>` path keeps working.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-17_command-routing-assessment.md §4.3",
+        "confirmedAt": "2026-09-17T09:06:32.355Z"
+      },
+      {
+        "id": "REQ-5",
+        "statement": "The host escape hatch's gating asymmetry is documented as a deliberate decision rather than left implicit: `docs/security.md` states that an arbitrary host command needs the policy grant and an audit record but no per-action confirmation (unlike `stop`/`remove`), explains why (the surface is driven by the agent, so an interactive confirmation would either stall it or become a rubber stamp), and names the visibility added in REQ-1 and the configuration that withholds the surface entirely as the compensating controls.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-17_command-routing-assessment.md §4.1 (decision: b, with c rejected as a stall)",
+        "confirmedAt": "2026-09-17T09:06:32.355Z"
+      },
+      {
+        "id": "REQ-6",
+        "statement": "No regression, and the review's contract invariants hold: the CLI still receives the HOST workspace path for `up`/`build`/`exec`, no argv shape changes, discovery stays lazy/read-only/bounded, targets are never auto-started, `stop`/`remove` keep both gates, host execution stays withheld-able and audited with the same operation/initiator/capture defaults, `/devcontainer setup` is untouched, the audit shape and modes are unchanged, and the full gate set is green (`npm run typecheck`, `npx vitest run`, `verify-package.mjs --unit-tests`, a rebuilt `dist/` committed with the sources, the packed smoke run, `npm run install:local -- --check`).",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraints 1-10",
+        "confirmedAt": "2026-09-17T09:06:32.355Z"
+      }
+    ],
+    "acceptanceMatrix": {
+      "version": 1,
+      "rows": [
+        {
+          "acceptanceId": "AC-1",
+          "designRefs": [
+            "assessment §4.1"
+          ],
+          "implementationPaths": [
+            "src/host-run-ledger.ts",
+            "src/host-runner.ts",
+            "src/commands.ts",
+            "extensions/index.ts"
+          ],
+          "testPaths": [
+            "tests/unit/routing-guards.test.ts",
+            "tests/unit/host-runner.test.ts",
+            "tests/unit/commands.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-2",
+          "designRefs": [
+            "assessment §4.2"
+          ],
+          "implementationPaths": [
+            "src/routing-guard.ts",
+            "src/execution-service.ts",
+            "extensions/index.ts"
+          ],
+          "testPaths": [
+            "tests/unit/routing-guards.test.ts",
+            "tests/unit/service-routing-guard.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-3",
+          "designRefs": [
+            "assessment §4.2"
+          ],
+          "implementationPaths": [
+            "src/routing-guard.ts",
+            "src/execution-service.ts"
+          ],
+          "testPaths": [
+            "tests/unit/routing-guards.test.ts",
+            "tests/unit/service-routing-guard.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-4",
+          "designRefs": [
+            "assessment §4.3"
+          ],
+          "implementationPaths": [
+            "src/commands.ts"
+          ],
+          "testPaths": [
+            "tests/unit/commands.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-5",
+          "designRefs": [
+            "assessment §4.1"
+          ],
+          "implementationPaths": [
+            "docs/security.md",
+            "CHANGELOG.md"
+          ],
+          "testPaths": [
+            "tests/unit"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-6",
+          "designRefs": [
+            "assessment §5"
+          ],
+          "implementationPaths": [
+            "dist",
+            "README.md"
+          ],
+          "testPaths": [
+            "tests/unit"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            },
+            {
+              "kind": "test",
+              "command": "node scripts/smoke-pi-package.mjs --no-model"
+            }
+          ],
+          "verificationLevel": "integration"
+        }
+      ]
+    },
+    "ownedPaths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests",
+      "vitest.config.ts"
+    ]
+  },
+  "context": {
+    "requiredReads": [
+      "AGENTS.md",
+      ".llmwiki/SCHEMA.md",
+      ".llmwiki/index.md",
+      ".llmwiki/log.md",
+      ".kata/tasks/routing-hardening/task.json",
+      ".kata/tasks/routing-hardening/current-state.json"
+    ],
+    "designRefs": [],
+    "sourceRefs": [
+      "AC-1",
+      "AC-2",
+      "AC-3",
+      "AC-4",
+      "AC-5",
+      "AC-6"
+    ],
+    "authoritativeWiki": [],
+    "excludedWiki": [
+      {
+        "id": "llmwiki-arch-review-p1-foundation",
+        "reason": "not-authoritative"
+      }
+    ],
+    "evidencePaths": [
+      ".kata/evidence/routing-hardening-AC-1-test-npm-run-test-unit.json",
+      ".kata/evidence/routing-hardening-AC-1-typecheck-npm-run-typecheck.json",
+      ".kata/evidence/routing-hardening-AC-6-test-node-scripts-smoke-pi-package.mjs---no-model.json",
+      ".kata/evidence/routing-hardening-test.json",
+      ".kata/evidence/routing-hardening-typecheck.json"
+    ],
+    "priorArtifacts": [
+      ".kata/tasks/routing-hardening/review.json",
+      ".kata/tasks/routing-hardening/judge.json",
+      ".kata/tasks/routing-hardening/repair.json"
+    ]
+  },
+  "permissions": {
+    "allowedWrites": [
+      ".kata/tasks/routing-hardening/review.json"
+    ],
+    "guardInstructions": [
+      "You may only write review findings to review.json.",
+      "Check that acceptance criteria are met by the implementation.",
+      "Assign severity: blocking (must fix), major, minor, note.",
+      "Fresh evidence must be collected after any repair.",
+      "Work on feature/routing-hardening; do not start, finish, or switch Git Flow branches outside the recorded task action.",
+      "Security review: inspect trust boundaries, secrets, dependency changes, input validation, and authorization effects."
+    ]
+  },
+  "nextAction": "Perform reviewer work after verifying this handoff."
+}
