@@ -1,8 +1,8 @@
 {
   "fromPhase": "review",
   "reason": "revision_superseded",
-  "baselineRevisionId": "revision-82077b8627381bea",
-  "baselineManifestHash": "760034995ea64a9386f9bba55013d522d134aca424bf13db05fa5099fdfccb82",
+  "baselineRevisionId": "revision-95bf9b8cb4bdb374",
+  "baselineManifestHash": "573b3b0318695dc8f2b1997674f6dac4c3d12917c071c4e5e1db8b405ad6f496",
   "findings": [],
   "taskId": "routing-hardening",
   "toPhase": "implement",
@@ -10,7 +10,7 @@
     "id": "kata-agent",
     "role": "implementer"
   },
-  "createdAt": "2026-09-17T17:55:08.535Z",
-  "resolvedAt": "2026-09-17T17:56:40.112Z",
-  "resolvedRevisionId": "revision-95bf9b8cb4bdb374"
+  "createdAt": "2026-09-17T18:09:18.740Z",
+  "resolvedAt": "2026-09-17T18:10:51.369Z",
+  "resolvedRevisionId": "revision-f9e2ce3c25963d88"
 }

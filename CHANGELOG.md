@@ -19,6 +19,11 @@ to [Semantic Versioning](https://semver.org/).
   instead of only refusing with the candidate ids. Docker result order still never decides the target —
   you pick, and cancelling keeps the refusal. The explicit `/devcontainer use <container-id>` path is
   unchanged.
+- The in-session host-run summary renders a PROGRAM NAME only when it can be classified safely (a bare word, a
+  filesystem path's plain last segment, or a URL's host); every ambiguous token — a userinfo pair, a path segment
+  carrying credentials, an env assignment, a query — renders `(no command)` instead. Eight adversarial passes each
+  broke a heuristic that tried to tell a program name from a credential, so the rule is now closed rather than
+  clever.
 - Host runs are now visible in-session: `/devcontainer status` reports how many host command attempts the
   session has made and WHICH PROGRAMS they named (e.g. `docker`, `systemctl`), and the first attempt of a
   session is announced on the operator channel with, in the same notice, whether a record was written at

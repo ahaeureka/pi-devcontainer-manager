@@ -160,87 +160,43 @@ export function redactText(text: string): string {
  * pathological argument cannot flood the operator channel or the status block, and never blank.
  */
 export function displayProgram(argv: readonly string[]): string {
-  // `argv[0]` is not guaranteed to be a bare program name: a caller may hand over the whole command line as
-  // one string, and rendering that would store command text. Take the FIRST ASCII-whitespace-delimited token.
-  // (ASCII only: U+00A0 and U+FEFF are matched by `\s`, so a credential-shaped token could be split before
-  // its `@host` tail and the tail rendered — adversarial review.)
+  // The rendering is deliberately CLOSED rather than clever. Eight adversarial passes each broke a heuristic
+  // that tried to tell a program name from a credential, so the rule now only renders a name it can justify,
+  // and `(no command)` otherwise. `argv[0]` may be a whole command line, so only its FIRST ASCII-whitespace
+  // token is considered.
   const first = argv[0]?.trim().split(/[ \t\n\r\f\v]+/)[0];
   if (first === undefined || first.length === 0) return "(no command)";
 
-  // Strip control and format characters FIRST (C0/C1/DEL/Cf): a U+202E in a name can visually reorder the
-  // notice the operator is asked to trust, and stripping first means the structural rules below see the
-  // real text.
-  const cleaned = first.replace(/[\u0000-\u001f\u007f-\u009f\p{Cf}\u2028\u2029]/gu, "");
-  if (cleaned.length === 0) return "(no command)";
+  // Strip control, format, line-separator and space-separator characters: a U+202E can reorder the notice, and
+  // a Unicode space (Zs) makes one entry read as several in the ` | `-joined summary.
+  const token = first.replace(/[\u0000-\u001f\u007f-\u009f\p{Cf}\p{Zl}\p{Zp}\p{Zs}]/gu, "");
+  if (token.length === 0) return "(no command)";
 
-  // Redact with the audit rules before any slicing: a URL-shaped name keeps its credentials in the part a
-  // basename would keep, and the rules need the scheme prefix to see them.
-  const redacted = redactText(cleaned);
+  const redacted = redactText(token);
+  const classify = (value: string): string => {
+    // 1. A URL renders its HOST: with a scheme, or protocol-relative when its first segment looks like a host
+    //    (a dot). Userinfo, query and fragment are dropped.
+    const schemed = value.includes("://");
+    const protocolRelative = value.startsWith("//") && (value.slice(2).split("/")[0] ?? "").includes(".");
+    if (schemed || protocolRelative) {
+      const rest = schemed ? (value.split("://")[1] ?? "") : value.slice(2);
+      const authority = rest.split(/[/?#]/)[0] ?? "";
+      const host = authority.includes("@") ? (authority.split("@").pop() ?? "") : authority;
+      // After userinfo is dropped, what remains IS the host: rendering it is safe by construction.
+      return host.length > 0 ? host : "(no command)";
+    }
+    // 2. A filesystem path (absolute, explicitly relative or Windows-drive) renders its LAST segment — but only
+    //    when that segment is a plain name: a segment carrying `@` or `:` is the userinfo/user position a
+    //    credential occupies (`./TOKEN@host`, `/tmp/user:pass`), so it is not rendered.
+    const isPath = value.startsWith("/") || value.startsWith("./") || value.startsWith("../") || /^[A-Za-z]:[\\/]/.test(value);
+    if (isPath) {
+      const last = value.split(/[\\/]/).filter((part) => part.length > 0).pop() ?? "";
+      return last.length > 0 && !/[@:]/.test(last) && !/^\[[^\]]+\]$/.test(last) ? last : "(no command)";
+    }
+    // 3. A SIMPLE token with no separator and no userinfo punctuation is the name itself (`docker`, `systemctl`).
+    return /^[A-Za-z0-9][A-Za-z0-9._+-]*$/.test(value) ? value : "(no command)";
+  };
 
-  // Then reduce to a NAME, conservatively — a whitelist, not a list of known-bad shapes (four adversarial
-  // passes each found the next shape a blacklist missed):
-  //   * a URL renders its HOST: the authority between `://` and the first `/`, with any userinfo (before its
-  //     last `@`) dropped;
-  //   * everything else renders the LAST path segment — splitting on `\` as well as `/`, so a Windows drive
-  //     letter is a separator, not userinfo;
-  //   * and whatever remains is truncated at the first `:` or `@`, because `alice:hunter2` (a DSN pair with no
-  //     host) and `alice:hunter2@host` must never render the password. A port or an IPv6 literal is lost with
-  //     it: a program NAME is the signal an operator needs, and no credential can survive this rule.
-  const schemeLess = !redacted.includes("://");
-  const afterScheme = schemeLess ? redacted : (redacted.split("://")[1] ?? "");
-  const withoutUserinfo = schemeLess
-    ? // Strip a QUERY or FRAGMENT first: a scheme-less URL is a URL, and a query is where a signed URL carries
-      // its credential (`bucket.s3.amazonaws.com/key?X-Amz-Signature=…`) — adversarial review.
-      (() => {
-        const bare = afterScheme.split(/[?#]/)[0] ?? "";
-        // `[user[:pass]@]host` with no scheme renders the HOST, mirroring the URL branch: the credential can
-        // sit in the user position (a token-in-URL), and the host is the name an operator needs.
-        // CONSERVATIVE, not clever: four adversarial passes each broke the previous heuristic, so a token
-        // that is not clearly a filesystem path or a host is not rendered at all.
-        //   * a token with no separator at all is a bare name (`docker`);
-        //   * an absolute or explicitly relative path renders its last segment (`/usr/bin/docker`,
-        //     `./build.sh`), splitting on `\` as well;
-        //   * anything else that carries a separator is ambiguous — `internal-host/hook/SECRET`,
-        //     `S3CR3Tpw@host.example/x`, `python3.11/bin/pip` — and renders the placeholder.
-        if (!/[\\/]/.test(bare)) {
-          // A bare token: `user:pass@host` renders the HOST, `user:pass` renders the USERNAME (a username is
-          // not a credential), and a plain word is the name.
-          if (bare.includes("@")) return bare.split("@").pop() ?? "(no command)";
-          if (bare.includes(":")) return bare.split(":")[0] ?? "(no command)";
-          return bare;
-        }
-        if (bare.startsWith("//")) {
-          // A PROTOCOL-RELATIVE URL: its authority is the segment after `//`, with userinfo dropped — a
-          // webhook or signed link keeps its secret in the path, so the path must not be rendered.
-          const authority = (bare.split(/[/?#]/).filter((part) => part.length > 0)[0] ?? "");
-          return authority.includes("@") ? (authority.split("@").pop() ?? "(no command)") : authority;
-        }
-        if (bare.startsWith("/") || bare.startsWith("./") || bare.startsWith("../") || /^[A-Za-z]:[\\/]/.test(bare)) {
-          const last = bare.split(/[\\/]/).filter((part) => part.length > 0).pop() ?? "";
-          // A path segment can still carry userinfo (`/tmp/alice:hunter2`); the caller-side rules below drop
-          // everything from the first `:`/`@`, so only the path prefix has to be trusted here.
-          return last;
-        }
-        return "(no command)";
-      })()
-    : // A URL: the AUTHORITY (up to its first `/`), with userinfo — the part before the authority's last
-      // `@` — dropped. An `@` later in the path is not userinfo and must not become the name.
-      (() => {
-        // The authority ends at `/`, `?` OR `#`: a QUERY is the canonical place a URL carries a credential
-        // (`https://host?p=hunter2`, a presigned URL's `X-Amz-Signature=…`), and it used to be rendered
-        // verbatim into the ledger and the status block (adversarial review).
-        const authority = afterScheme.split(/[/?#]/)[0] ?? "";
-        return authority.includes("@") ? (authority.split("@").pop() ?? "") : authority;
-      })();
-  const withoutPort = /^(\[[^\]]*\])(?::[0-9]+)?$/.exec(withoutUserinfo)?.[1] ?? withoutUserinfo;
-  const unwrapped = /^\[([^\]]*)\]$/.exec(withoutPort);
-  const bounded =
-    unwrapped !== null && /^[0-9a-fA-F:.]+$/.test(unwrapped[1] ?? "")
-      ? // A real bracketed IPv6 literal is kept (it carries no credential), and nothing else is exempt: the
-        // old `[^\]]*` pattern returned ANY bracket-wrapped token verbatim, including `[alice:hunter2@host]`.
-        withoutUserinfo
-      : ((unwrapped?.[1] ?? withoutPort).split(/[:@]/)[0] ?? "");
-  const name = bounded.trim();
-  if (name.length === 0) return "(no command)";
-  return Array.from(name).slice(0, 64).join("");
+  const name = classify(redacted);
+  return name === "(no command)" ? name : Array.from(name).slice(0, 64).join("");
 }
