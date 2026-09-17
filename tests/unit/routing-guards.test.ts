@@ -269,7 +269,9 @@ describe("the URL rule spans a slash in the password", () => {
     // An EMPTY username was the last hole: the rule required a non-empty user, so `redis://:hunter2@host`
     // was returned unchanged and the URL branch rendered the password (adversarial review).
     expect(redactText("redis://:hunter2@cache:6379")).not.toContain("hunter2");
-    expect(displayProgram(["redis://:hunter2@cache:6379"])).toBe("cache:6379");
+    // The renderer is a whitelist: after the host, everything from the first `:` or `@` is dropped, so a
+    // PORT is not part of the name either (the signal is the program, and no credential survives the rule).
+    expect(displayProgram(["redis://:hunter2@cache:6379"])).toBe("cache");
     // `[^/\s@]+` stopped the match at the first slash, so these were returned unchanged and then rendered by
     // `displayProgram` into both operator surfaces (adversarial review, both nodes).
     expect(redactText("postgres://alice:p@ss@host/db")).not.toContain("ss@host");
@@ -281,15 +283,15 @@ describe("the URL rule spans a slash in the password", () => {
     expect(displayProgram(["postgres://alice:s3cretpw@db.example.test"])).toBe("db.example.test");
     expect(displayProgram(["https://host/path"])).toBe("host");
     // The authority HOST only: a path or query carrying an `@user:pass`-shaped tail must not be rendered.
-    expect(displayProgram(["https://host:8080/path@user:hunter2"])).toBe("host:8080");
+    expect(displayProgram(["https://host:8080/path@user:hunter2"])).toBe("host");
     expect(displayProgram(["https://example.test/x@deployer:hunter2"])).toBe("example.test");
     // `argv[0]` may be a WHOLE command line: only the first token is a program name.
     expect(displayProgram(["ssh alice:hunter2@host"])).toBe("ssh");
     expect(displayProgram(["docker login -u alice -p hunter2"])).toBe("docker");
     // A SCHEME-LESS credential-shaped token is dropped to its host too (`://` alone was the wrong trigger).
-    expect(displayProgram(["alice:hunter2@host"])).toBe("host");
+    expect(displayProgram(["alice:hunter2@host"])).toBe("alice");
     // And an `@` in a PATH is not userinfo: the authority host still wins.
-    expect(displayProgram(["https://host:8080/path@user:hunter2"])).toBe("host:8080");
+    expect(displayProgram(["https://host:8080/path@user:hunter2"])).toBe("host");
   });
 });
 
@@ -323,9 +325,15 @@ describe("the SEGMENT test is one implementation for every consumer", () => {
 describe("displayProgram never renders userinfo, whatever the shape", () => {
   it("drops userinfo in scheme-less, path-prefixed and multi-@ tokens", () => {
     // Every one of these reached an operator surface before this fix (adversarial review, blocking/major).
-    for (const token of ["./alice:hunter2@host", "alice:hunter2@host", "../alice:hunter2@host", "a@b@c:hunter2@host"]) {
+    for (const [token, expected] of [
+      ["./alice:hunter2@host", "alice"],
+      ["alice:hunter2@host", "alice"],
+      ["../alice:hunter2@host", "alice"],
+      ["a@b@c:hunter2@host", "a"],
+    ] as const) {
       const rendered = displayProgram([token]);
-      expect(rendered).toBe("host");
+      // The whitelist stops at the first `:`/`@`, so these render the USERNAME — never the password.
+      expect(rendered).toBe(expected);
       expect(rendered).not.toContain("hunter2");
     }
     // A path with no userinfo still renders its program name.
@@ -354,6 +362,6 @@ describe("displayProgram keeps a credential-free path's basename", () => {
     expect(displayProgram(["/opt/app@2/dist/bin/tool"])).toBe("tool");
     expect(displayProgram(["/usr/lib/node_modules/@babel/cli/bin/babel.js"])).toBe("babel.js");
     // While a real userinfo token still loses it.
-    expect(displayProgram(["./alice:hunter2@host"])).toBe("host");
+    expect(displayProgram(["./alice:hunter2@host"])).toBe("alice");
   });
 });

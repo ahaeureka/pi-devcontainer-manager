@@ -20,7 +20,6 @@
  * shape matches Pi's `ToolDefinition`.
  */
 import { Type } from "typebox";
-import { displayProgram } from "./policy.js";
 import { RuntimeError, errorKindOf } from "./errors.js";
 import { executeWithTimeout, resolveTimeoutMs } from "./bash-router.js";
 import { combineCommandOutput, formatToolOutput } from "./tool-output.js";

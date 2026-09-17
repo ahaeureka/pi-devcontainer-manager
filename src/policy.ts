@@ -160,64 +160,45 @@ export function redactText(text: string): string {
  */
 export function displayProgram(argv: readonly string[]): string {
   // `argv[0]` is not guaranteed to be a bare program name: a caller may hand over the whole command line as
-  // one string (the free-text refusal path does), and rendering that would store command text — which this
-  // visibility is not allowed to do. Take the first whitespace-delimited token, always.
-  const first = argv[0]?.trim().split(/\s+/)[0];
+  // one string, and rendering that would store command text. Take the FIRST ASCII-whitespace-delimited token.
+  // (ASCII only: U+00A0 and U+FEFF are matched by `\s`, so a credential-shaped token could be split before
+  // its `@host` tail and the tail rendered — adversarial review.)
+  const first = argv[0]?.trim().split(/[ \t\n\r\f\v]+/)[0];
   if (first === undefined || first.length === 0) return "(no command)";
-  // Redact BEFORE the basename: a URL-shaped program name keeps its credentials in the part the basename
-  // would keep (`postgres://alice:s3cretpw@host` -> `alice:s3cretpw@host`), and the audit rules need the
-  // scheme prefix to see them. A URL-shaped name is then rendered as its HOST only — a program name is a
-  // word, and after redaction the remaining userinfo has no value worth showing (adversarial review).
-  const redactedWhole = redactText(first);
-  // A URL-shaped name renders as its HOST only — never its userinfo. Taking the part before the first `/`
-  // was not enough (`redis://:hunter2@cache:6379` has no slash and kept the password), so the userinfo is
-  // dropped explicitly (adversarial review).
-  // Render the HOST of whatever this token looks like, with or without a scheme. `alice:hunter2@host` is as
-  // credential-shaped as `https://alice:hunter2@host`, and the `://` branch alone missed it (adversarial
-  // review): the userinfo is the text before the LAST `@` of the token, and everything after it is the host.
-  // With a scheme, the AUTHORITY is what sits between `://` and the first `/`, and its userinfo is what comes
-  // before the LAST `@` INSIDE that authority — an `@` in a path or query is not userinfo and must not turn
-  // the path into the "host". Without a scheme, a `user:pass@host`-shaped token still has its userinfo dropped.
-  const hasScheme = redactedWhole.includes("://");
-  const afterScheme = hasScheme ? (redactedWhole.split("://")[1] ?? "") : redactedWhole;
-  const authority = afterScheme.split("/")[0] ?? "";
-  // With a scheme the userinfo lives inside the authority; WITHOUT one there may be a path in front of it
-  // (`./alice:hunter2@host`), so the `@` must be looked for in the WHOLE token — taking the last segment
-  // verbatim rendered the credential (adversarial review).
-  // The authority is credential-shaped when it carries a `:` (a user:password pair) — then the host is what
-  // follows the LAST `@` of the whole token, because a password containing `/` cut the authority short
-  // (`https://deployer:QWERTY/x@host` used to render `deployer:QWERTY`).
-  // `host:port` is not userinfo, but `user:password` is: the discriminator is whether everything after the
-  // LAST `:` is a port (all digits). Without it, `https://host:8080/path@user:hunter2` rendered the PATH's
-  // `@tail` as the host (adversarial review).
-  const afterColon = authority.slice(authority.lastIndexOf(":") + 1);
-  const authorityLooksLikeUserinfo =
-    authority.includes(":") && !authority.includes("@") && !/^[0-9]+$/.test(afterColon);
-  const hostAfterLastAt = (): string | undefined => {
-    if (!redactedWhole.includes("@")) return undefined;
-    const tail = redactedWhole.split("@").pop() ?? "";
-    return tail.split("/")[0] ?? "";
-  };
-  const base = authority.includes("@")
-    ? (authority.split("@").pop() ?? "(no command)")
-    : !hasScheme &&
-        afterScheme.includes("@") &&
-        !(afterScheme.split("@").pop() ?? "").includes("/")
-      ? (afterScheme.split("@").pop() ?? "(no command)")
-      : authorityLooksLikeUserinfo
-        ? // No `@` to find the host after: render the USERNAME only (a username is not a credential, and a
-          // password cannot be told apart from a host here).
-          (hostAfterLastAt() || authority.split(":")[0] || "(no command)")
-        : hasScheme
-          ? authority
-          : (redactedWhole.split("/").pop() ?? redactedWhole);
-  // Strip control AND format characters (a U+202E in a name can visually reorder the notice the operator is
-  // asked to trust) and treat a Windows separator as a separator.
-  const redacted = base
-    .replace(/[\u0000-\u001f\u007f\p{Cf}]/gu, "")
-    .split(/[\\/]/)
-    .pop()
-    ?.trim() ?? "";
-  if (redacted.length === 0) return "(no command)";
-  return redacted.slice(0, 64);
+
+  // Strip control and format characters FIRST (C0/C1/DEL/Cf): a U+202E in a name can visually reorder the
+  // notice the operator is asked to trust, and stripping first means the structural rules below see the
+  // real text.
+  const cleaned = first.replace(/[\u0000-\u001f\u007f-\u009f\p{Cf}]/gu, "");
+  if (cleaned.length === 0) return "(no command)";
+
+  // Redact with the audit rules before any slicing: a URL-shaped name keeps its credentials in the part a
+  // basename would keep, and the rules need the scheme prefix to see them.
+  const redacted = redactText(cleaned);
+
+  // Then reduce to a NAME, conservatively — a whitelist, not a list of known-bad shapes (four adversarial
+  // passes each found the next shape a blacklist missed):
+  //   * a URL renders its HOST: the authority between `://` and the first `/`, with any userinfo (before its
+  //     last `@`) dropped;
+  //   * everything else renders the LAST path segment — splitting on `\` as well as `/`, so a Windows drive
+  //     letter is a separator, not userinfo;
+  //   * and whatever remains is truncated at the first `:` or `@`, because `alice:hunter2` (a DSN pair with no
+  //     host) and `alice:hunter2@host` must never render the password. A port or an IPv6 literal is lost with
+  //     it: a program NAME is the signal an operator needs, and no credential can survive this rule.
+  const schemeLess = !redacted.includes("://");
+  const afterScheme = schemeLess ? redacted : (redacted.split("://")[1] ?? "");
+  const withoutUserinfo = schemeLess
+    ? // A path: the LAST segment is the name, and an `@` in a DIRECTORY is not userinfo
+      // (`/opt/app@2/dist/bin/tool` is `tool`, `/usr/lib/node_modules/@babel/cli/bin/babel.js` is `babel.js`).
+      (afterScheme.split(/[\\/]/).pop() ?? afterScheme)
+    : // A URL: the AUTHORITY (up to its first `/`), with userinfo — the part before the authority's last
+      // `@` — dropped. An `@` later in the path is not userinfo and must not become the name.
+      (() => {
+        const authority = afterScheme.split("/")[0] ?? "";
+        return authority.includes("@") ? (authority.split("@").pop() ?? "") : authority;
+      })();
+  const bounded = /^\[[^\]]*\]$/.test(withoutUserinfo) ? withoutUserinfo : (withoutUserinfo.split(/[:@]/)[0] ?? "");
+  const name = bounded.trim();
+  if (name.length === 0) return "(no command)";
+  return name.slice(0, 64);
 }
