@@ -9,7 +9,7 @@
  * It is deliberately a ledger and NOT a second record: no timestamps, no output, no identity, and no
  * command text — just a count and the PROGRAM names, bounded so a long session cannot grow it without
  * limit. (It used to remember redacted command lines; the redaction turned out to be the source of
- * every defect five adversarial passes found in this feature, and naming the program gives an operator
+ * every defect this feature's adversarial passes found, and naming the program gives an operator
  * the drift signal while the single enforced `displayProgram` keeps a credential out of it — a program name
  * CAN be credential-shaped, which is why the rendering is enforced rather than assumed.)
  */

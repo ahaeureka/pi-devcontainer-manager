@@ -11,7 +11,7 @@ import { displayProgram } from "./policy.js";
  * It is deliberately a ledger and NOT a second record: no timestamps, no output, no identity, and no
  * command text — just a count and the PROGRAM names, bounded so a long session cannot grow it without
  * limit. (It used to remember redacted command lines; the redaction turned out to be the source of
- * every defect five adversarial passes found in this feature, and naming the program gives an operator
+ * every defect this feature's adversarial passes found, and naming the program gives an operator
  * the drift signal while the single enforced `displayProgram` keeps a credential out of it — a program name
  * CAN be credential-shaped, which is why the rendering is enforced rather than assumed.)
  */
@@ -38,7 +38,7 @@ export function createHostRunLedger(options: { limit?: number } = {}): HostRunLe
 
   const remember = (argv: readonly string[]): void => {
     count += 1;
-    // The summary names the PROGRAM, never the command line: many adversarial passes found credentials
+    // The summary names the PROGRAM, never the command line: eleven adversarial passes found credentials
     // reachable through a rendered argv (two of them through fixes for the previous one), so the visibility
     // keeps the signal an operator needs — how many host commands, and which tools — and stores no command
     // text at all. `displayProgram` is the enforced rendering; a program name can be credential-shaped.

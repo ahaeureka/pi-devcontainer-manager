@@ -6,7 +6,7 @@ export function createHostRunLedger(options = {}) {
     let firstRunNoted = false;
     const remember = (argv) => {
         count += 1;
-        // The summary names the PROGRAM, never the command line: many adversarial passes found credentials
+        // The summary names the PROGRAM, never the command line: eleven adversarial passes found credentials
         // reachable through a rendered argv (two of them through fixes for the previous one), so the visibility
         // keeps the signal an operator needs — how many host commands, and which tools — and stores no command
         // text at all. `displayProgram` is the enforced rendering; a program name can be credential-shaped.

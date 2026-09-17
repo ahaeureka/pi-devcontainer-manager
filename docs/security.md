@@ -181,7 +181,7 @@ A rule that guessed at unflagged secrets would redact ordinary arguments
 too, so extending it is a policy decision rather than a bug fix, and belongs in its own change.
 
 The **in-session visibility deliberately keeps no command text at all**: `/devcontainer status` reports a
-count and the program names, and the one-shot notice names the program. Five adversarial passes found
+count and the program names, and the one-shot notice names the program. Adversarial passes found
 credentials reachable through a rendered command line (two of them through fixes for the previous one), so
 the surface that produced them was removed rather than patched again.
 
