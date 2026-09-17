@@ -1,0 +1,23 @@
+{
+  "protocolVersion": 1,
+  "taskId": "routing-hardening",
+  "handoffId": "handoff-b59f7d83-8b4",
+  "platform": "pi",
+  "role": "designer",
+  "packetSha256": "716075dd28a7fc0c5d67918f526bf7ca56d8cbeb50808a91b3e4e7eb726e3de8",
+  "acknowledgedAt": "2026-09-17T09:13:10.794Z",
+  "repository": {
+    "head": "0f284012bf360fa7f3ba0672618dd93a0e32f0d2",
+    "branch": "feature/routing-hardening",
+    "diffHash": "34fd30a1fd78566ae57523a223ccb540f34d1d94020032030c9927b8c7047d78",
+    "scope": {
+      "kind": "task_context",
+      "paths": [
+        ".kata/tasks/routing-hardening/task.json",
+        ".kata/tasks/routing-hardening/current-state.json"
+      ],
+      "hash": "34fd30a1fd78566ae57523a223ccb540f34d1d94020032030c9927b8c7047d78"
+    },
+    "worktreeRoot": "."
+  }
+}

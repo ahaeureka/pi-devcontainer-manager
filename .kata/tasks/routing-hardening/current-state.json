@@ -1,9 +1,9 @@
 {
   "taskId": "routing-hardening",
-  "phase": "intake",
+  "phase": "plan",
   "actor": {
-    "id": "system",
-    "role": "system"
+    "id": "kata-designer",
+    "role": "designer"
   },
-  "updatedAt": "2026-09-17T09:06:32.355Z"
+  "updatedAt": "2026-09-17T09:13:10.945Z"
 }

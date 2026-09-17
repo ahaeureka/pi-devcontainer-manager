@@ -38,7 +38,7 @@
     "reviewMode": "security",
     "comet": {
       "projectInit": "not_requested",
-      "openStatus": "required"
+      "openStatus": "acknowledged"
     },
     "gitFlow": {
       "strategy": "manual",
