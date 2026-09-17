@@ -277,8 +277,9 @@ export function buildWorkspaceRegistry(input) {
             entries.push(hostEntry);
             continue;
         }
-        // Expose EVERY candidate, ordered by Docker's own listing (which puts the running container
-        // first), and fail closed when more than one is running so result order never decides the target.
+        // Expose EVERY candidate, ordered RUNNING-FIRST by the sort below, and fail closed when more than one is
+        // running so Docker's listing order never decides the target. (Docker does NOT reliably put the running
+        // container first — assuming it did made a stopped container a workspace's primary candidate.)
         const candidates = dockerList
             .filter((c) => c.id !== "")
             .map((c) => ({

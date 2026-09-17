@@ -189,9 +189,17 @@ export function displayProgram(argv: readonly string[]): string {
   const schemeLess = !redacted.includes("://");
   const afterScheme = schemeLess ? redacted : (redacted.split("://")[1] ?? "");
   const withoutUserinfo = schemeLess
-    ? // A path: the LAST segment is the name, and an `@` in a DIRECTORY is not userinfo
-      // (`/opt/app@2/dist/bin/tool` is `tool`, `/usr/lib/node_modules/@babel/cli/bin/babel.js` is `babel.js`).
-      (afterScheme.split(/[\\/]/).pop() ?? afterScheme)
+    ? // Strip a QUERY or FRAGMENT first: a scheme-less URL is a URL, and a query is where a signed URL carries
+      // its credential (`bucket.s3.amazonaws.com/key?X-Amz-Signature=…`) — adversarial review.
+      (() => {
+        const bare = afterScheme.split(/[?#]/)[0] ?? "";
+        // `[user[:pass]@]host` with no scheme renders the HOST, mirroring the URL branch: the credential can
+        // sit in the user position (a token-in-URL), and the host is the name an operator needs.
+        const afterAt = bare.includes("@") && !bare.split("@").pop()?.includes("/") ? (bare.split("@").pop() ?? bare) : bare;
+        // Otherwise a path: the LAST segment is the name, and an `@` in a DIRECTORY is not userinfo
+        // (`/opt/app@2/dist/bin/tool` is `tool`, `/usr/lib/node_modules/@babel/cli/bin/babel.js` is `babel.js`).
+        return (afterAt.split(/[\\/]/).pop() ?? afterAt);
+      })()
     : // A URL: the AUTHORITY (up to its first `/`), with userinfo — the part before the authority's last
       // `@` — dropped. An `@` later in the path is not userinfo and must not become the name.
       (() => {
@@ -201,14 +209,15 @@ export function displayProgram(argv: readonly string[]): string {
         const authority = afterScheme.split(/[/?#]/)[0] ?? "";
         return authority.includes("@") ? (authority.split("@").pop() ?? "") : authority;
       })();
-  const unwrapped = /^\[([^\]]*)\]$/.exec(withoutUserinfo);
+  const withoutPort = /^(\[[^\]]*\])(?::[0-9]+)?$/.exec(withoutUserinfo)?.[1] ?? withoutUserinfo;
+  const unwrapped = /^\[([^\]]*)\]$/.exec(withoutPort);
   const bounded =
     unwrapped !== null && /^[0-9a-fA-F:.]+$/.test(unwrapped[1] ?? "")
       ? // A real bracketed IPv6 literal is kept (it carries no credential), and nothing else is exempt: the
         // old `[^\]]*` pattern returned ANY bracket-wrapped token verbatim, including `[alice:hunter2@host]`.
         withoutUserinfo
-      : ((unwrapped?.[1] ?? withoutUserinfo).split(/[:@]/)[0] ?? "");
+      : ((unwrapped?.[1] ?? withoutPort).split(/[:@]/)[0] ?? "");
   const name = bounded.trim();
   if (name.length === 0) return "(no command)";
-  return name.slice(0, 64);
+  return Array.from(name).slice(0, 64).join("");
 }

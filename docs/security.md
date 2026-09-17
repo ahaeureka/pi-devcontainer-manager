@@ -170,7 +170,7 @@ and renders the NAME of whatever that token looks like — a URL gives its autho
 at the first `/`, `?` or `#`, and its userinfo is dropped), anything else gives its last path segment (`\`
 splits too, so a Windows drive letter is a separator), and everything after the first `:` or `@` of that name
 is dropped. A DSN pair with no host (`alice:hunter2`) therefore renders `alice`, a port is not shown, and a
-URL's query or fragment is never rendered. What CAN still reach the surfaces is a credential that a caller
+URL's query or fragment is never rendered — with or without a scheme. What CAN still reach the surfaces is a credential that a caller
 spells as the name itself — `argv[0]="hunter2"`, or a bare host with no `:`/`@` — which is not a shape a
 command line produces in practice. A rule that guessed at unflagged secrets would redact ordinary arguments
 too, so extending it is a policy decision rather than a bug fix, and belongs in its own change.

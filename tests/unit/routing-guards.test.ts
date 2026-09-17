@@ -289,7 +289,9 @@ describe("the URL rule spans a slash in the password", () => {
     expect(displayProgram(["ssh alice:hunter2@host"])).toBe("ssh");
     expect(displayProgram(["docker login -u alice -p hunter2"])).toBe("docker");
     // A SCHEME-LESS credential-shaped token is dropped to its host too (`://` alone was the wrong trigger).
-    expect(displayProgram(["alice:hunter2@host"])).toBe("alice");
+    // A `[user[:pass]@]host` token renders the HOST: the credential can sit in the user position, and the
+    // host is the name an operator needs (mirrors the URL branch).
+    expect(displayProgram(["alice:hunter2@host"])).toBe("host");
     // And an `@` in a PATH is not userinfo: the authority host still wins.
     expect(displayProgram(["https://host:8080/path@user:hunter2"])).toBe("host");
   });
@@ -326,10 +328,10 @@ describe("displayProgram never renders userinfo, whatever the shape", () => {
   it("drops userinfo in scheme-less, path-prefixed and multi-@ tokens", () => {
     // Every one of these reached an operator surface before this fix (adversarial review, blocking/major).
     for (const [token, expected] of [
-      ["./alice:hunter2@host", "alice"],
-      ["alice:hunter2@host", "alice"],
-      ["../alice:hunter2@host", "alice"],
-      ["a@b@c:hunter2@host", "a"],
+      ["./alice:hunter2@host", "host"],
+      ["alice:hunter2@host", "host"],
+      ["../alice:hunter2@host", "host"],
+      ["a@b@c:hunter2@host", "host"],
     ] as const) {
       const rendered = displayProgram([token]);
       // The whitelist stops at the first `:`/`@`, so these render the USERNAME — never the password.
@@ -361,7 +363,7 @@ describe("displayProgram keeps a credential-free path's basename", () => {
     // A directory named `app@2` is not userinfo — the visibility must still name the program being run.
     expect(displayProgram(["/opt/app@2/dist/bin/tool"])).toBe("tool");
     expect(displayProgram(["/usr/lib/node_modules/@babel/cli/bin/babel.js"])).toBe("babel.js");
-    // While a real userinfo token still loses it.
-    expect(displayProgram(["./alice:hunter2@host"])).toBe("alice");
+    // While a real userinfo token renders its HOST (no credential survives).
+    expect(displayProgram(["./alice:hunter2@host"])).toBe("host");
   });
 });
