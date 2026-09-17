@@ -1,15 +1,15 @@
 {
   "fromPhase": "review",
   "reason": "review_findings",
-  "baselineRevisionId": "revision-08fd4eb173c0da96",
-  "baselineManifestHash": "e92bc57de8397a3fb667f3722568fb82a2a2733dad38fe3c6926ae84d7deb1fa",
+  "baselineRevisionId": "revision-aede85a60a62e379",
+  "baselineManifestHash": "0f9dba76f22020fbb99211fff4cab229df8ff0aacacea225d169978cbc1df062",
   "findings": [
     {
-      "id": "finding-tree-moved-after-verify-pass",
+      "id": "finding-tree-moved-after-node-passes",
       "acceptanceId": "AC-1",
       "severity": "blocking",
-      "message": "PROCESS, not a defect: the verify-node adversarial pass on revision-08fd4eb1 returned one major and one minor (fixed in 1ab2c7f) — the visibility redacted each argv ELEMENT while the audit trail redacts the JOINED command line (so `--password s3cr3t` reached the operator notice verbatim), and a withheld attempt claimed `(audited)` while leaving no audit record. Re-sealing so both node records match the tree.",
-      "path": "src/host-run-ledger.ts"
+      "message": "PROCESS, not a defect: BOTH node passes on revision-aede85a6 returned findings (one major, three minors, one nit; all in the visibility, none in the guards) and are fixed in this revision — joining before redacting was not always stronger (`redactText`'s scheme rule orphans a value when the next element starts with a scheme word, so a standalone `Bearer <token>` element leaked), `(audited)` was claimed for attempts that persist nothing (withheld, or `audit.enabled: false`), the regression test did not pin the notice fix, the new tools test omitted a required option, and the CHANGELOG overstated the redaction. Re-sealing so both node records can match the tree.",
+      "path": "src/policy.ts"
     }
   ],
   "taskId": "routing-hardening",
@@ -18,7 +18,7 @@
     "id": "kata-agent",
     "role": "implementer"
   },
-  "createdAt": "2026-09-17T11:37:40.175Z",
-  "resolvedAt": "2026-09-17T11:38:27.765Z",
-  "resolvedRevisionId": "revision-aede85a60a62e379"
+  "createdAt": "2026-09-17T11:56:25.565Z",
+  "resolvedAt": "2026-09-17T11:57:12.837Z",
+  "resolvedRevisionId": "revision-35236165b4055c92"
 }
