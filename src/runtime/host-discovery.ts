@@ -359,7 +359,12 @@ export function buildWorkspaceRegistry(input: DiscoveryInput): RegistryResult {
     // first), and fail closed when more than one is running so result order never decides the target.
     const candidates = dockerList
       .filter((c) => c.id !== "")
-      .map((c) => ({ id: c.id, state: mapContainerState(c.state) ?? ("unknown" as const) }));
+      .map((c) => ({
+        id: c.id,
+        state: mapContainerState(c.state) ?? ("unknown" as const),
+        // Carried so the operator-facing container picker can name the image (AC-4).
+        ...(c.image !== undefined && c.image.length > 0 ? { image: c.image } : {}),
+      }));
     const runningCount = candidates.filter((c) => c.state === "running").length;
     // `byKey` only ever holds host-config entries, so the variant is known here; `both` says the
     // containers were discovered alongside a configuration rather than instead of one.
@@ -374,7 +379,12 @@ export function buildWorkspaceRegistry(input: DiscoveryInput): RegistryResult {
     // path to invent and no placeholder kind to explain away (review finding L4-04).
     const candidates = list
       .filter((c) => c.id !== "")
-      .map((c) => ({ id: c.id, state: mapContainerState(c.state) ?? ("unknown" as const) }));
+      .map((c) => ({
+        id: c.id,
+        state: mapContainerState(c.state) ?? ("unknown" as const),
+        // Carried so the operator-facing container picker can name the image (AC-4).
+        ...(c.image !== undefined && c.image.length > 0 ? { image: c.image } : {}),
+      }));
     if (candidates.length === 0) continue;
     entries.push({
       kind: "container-only",

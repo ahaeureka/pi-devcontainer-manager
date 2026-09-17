@@ -64,11 +64,36 @@ describe("detectHostPathOnContainerSurface", () => {
     ).toBeUndefined();
   });
 
-  it("never refuses the container's own path space, even beneath the host path", () => {
+  it("never refuses the container's own path space when it is NESTED under the host path", () => {
+    // The workspace mounted at a subdirectory of the host path: `/host/proj/container/x` is the
+    // container's own workspace, so a request for it is legitimate.
     expect(
       detectHostPathOnContainerSurface(["cat", "/host/proj/container/x"], {
         hostPath: "/host/proj",
         containerPath: "/host/proj/container",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("refuses when the container path is an ANCESTOR of the host path", () => {
+    // The workspace mounted at a shallower container path: every host-path request then names a
+    // different file inside the container, so the blanket container-space exemption must not swallow it
+    // (found by the second adversarial pass).
+    expect(
+      detectHostPathOnContainerSurface(["cat", "/data/work/proj/README.md"], {
+        hostPath: "/data/work/proj",
+        containerPath: "/data",
+      }),
+    ).toBe("/data/work/proj/README.md");
+  });
+
+  it("expands ${localWorkspaceFolder} in a same-path mount", () => {
+    // A mirror mount written with the variable must still be recognised as "same file on both sides".
+    expect(
+      detectHostPathOnContainerSurface(["cat", "/data/work/proj/README.md"], {
+        hostPath: "/data/work/proj",
+        containerPath: "/workspaces/proj",
+        containerVisiblePaths: ["${localWorkspaceFolder}"],
       }),
     ).toBeUndefined();
   });
@@ -149,6 +174,20 @@ describe("createHostRunLedger — redaction", () => {
     // trail captures by fingerprint only.
     expect(ledger.recent().join(" ")).not.toContain("sk-live-abcdef123456");
     expect(ledger.recent().join(" ")).toContain("[REDACTED]");
+  });
+});
+
+describe("createHostRunLedger — capture policy", () => {
+  it("keeps no command text when the session's capture policy is `none`", () => {
+    const ledger = createHostRunLedger({ limit: 5 });
+    ledger.setCapture("none");
+    ledger.record(["systemctl", "restart", "my-private-service"]);
+
+    // The audit record for the same call carries neither fingerprint nor text, so the summary must not
+    // become the one place the operator can read what the policy declined to record.
+    expect(ledger.recent()).toEqual([]);
+    expect(ledger.summary()).toContain("not recorded");
+    expect(ledger.count()).toBe(1);
   });
 });
 

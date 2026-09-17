@@ -57,6 +57,7 @@ import { createSetupCli } from "../src/setup-cli.js";
 import { createAuditedHostRunner } from "../src/host-runner.js";
 import { createLifecycleGuard } from "../src/lifecycle.js";
 import { createHostRunLedger } from "../src/host-run-ledger.js";
+import { redactText } from "../src/policy.js";
 import { RuntimeError } from "../src/errors.js";
 import { renderExecutionContext } from "../src/execution-context.js";
 function composeRuntime(config, audit, sessionWorkspace, activation, 
@@ -261,6 +262,7 @@ hostVisibility) {
     const commandServices = {
         config,
         hostRuns: hostVisibility.ledger,
+        onWithheldHostAttempt: hostVisibility.onWithheldHostAttempt,
         targetStore,
         execution,
         registry,
@@ -274,6 +276,7 @@ hostVisibility) {
             sessionWorkspace,
             hostRunner,
             hostExecutionAllowed: config.hostExecution.allow,
+            onWithheldHostAttempt: hostVisibility.onWithheldHostAttempt,
         }),
         status: createDevcontainerStatusTool(() => {
             const snapshot = targetStore.snapshot();
@@ -420,6 +423,8 @@ export default function (pi) {
         const paths = defaultConfigPaths(ctx.cwd);
         const loaded = loadConfigWithDiagnostics(paths, { projectTrusted: ctx.isProjectTrusted() });
         const config = composeRuntimeConfig(ctx.cwd, loaded.config);
+        // The session's capture policy decides whether the visibility summary may hold command text at all.
+        hostRuns.setCapture(config.audit.commandCapture);
         const restoredIntent = restoreSelection(ctx);
         const activation = { decision: { active: false, reason: "no-evidence" } };
         // Honor audit.enabled and audit.directory: the configured directory is used
@@ -427,6 +432,14 @@ export default function (pi) {
         const audit = new JsonlAuditWriter(config.audit.directory ?? defaultAuditDirectory(), config.audit.retentionDays, config.audit.enabled);
         const rt = composeRuntime(config, audit, ctx.cwd, activation, {
             ledger: hostRuns,
+            onWithheldHostAttempt: (argv) => {
+                // The runner is not reached when configuration withholds the surface, so this path counts and
+                // announces the attempt itself — otherwise a withheld configuration would leave the operator
+                // with "no host commands this session" while the agent kept trying.
+                if (hostRuns.noteFirstRun(argv)) {
+                    ctx.ui.notify(`[devcontainer-manager] first host command attempt this session: ${argv.map((element) => redactText(element)).join(" ")} (audited)`, "warning");
+                }
+            },
             onFirstHostRun: (rendered) => {
                 // One notice per session, on the operator channel: a model reaching for the escape hatch
                 // should not require reading the audit log to notice. The runner hands over an already

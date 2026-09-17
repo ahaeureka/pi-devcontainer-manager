@@ -86,7 +86,13 @@ export class ExecutionService {
                 });
                 // Audited like the symmetric forward guard (which records `container-path-on-host`): the
                 // operation is a policy denial, not an authorized run that happened to fail.
-                this.audit(snapshot, ctx, { operation: request.operation, initiator: request.initiator, workspace: request.workspace }, { policyAuthorized: false, policyDenialReason: "host-path-on-container", outputTruncated: false, errorSummary: error.message });
+                this.audit(snapshot, ctx, {
+                    operation: request.operation,
+                    initiator: request.initiator,
+                    workspace: request.workspace,
+                    cmd: request.cmd,
+                    args: request.args,
+                }, { policyAuthorized: false, policyDenialReason: "host-path-on-container", outputTruncated: false, errorSummary: error.message });
                 throw error;
             }
         }

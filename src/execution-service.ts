@@ -209,7 +209,13 @@ export class ExecutionService {
         this.audit(
           snapshot,
           ctx,
-          { operation: request.operation, initiator: request.initiator, workspace: request.workspace },
+          {
+            operation: request.operation,
+            initiator: request.initiator,
+            workspace: request.workspace,
+            cmd: request.cmd,
+            args: request.args,
+          },
           { policyAuthorized: false, policyDenialReason: "host-path-on-container", outputTruncated: false, errorSummary: error.message },
         );
         throw error;

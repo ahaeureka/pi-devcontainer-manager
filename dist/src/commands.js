@@ -309,7 +309,7 @@ export function createCommandHandlers(services) {
         const chooseAmbiguousContainer = async (entry, ctx) => {
             const ids = entry.containerCandidates.map((c) => c.id);
             const refusal = `[ambiguous-candidate] Multiple running containers for \`${entry.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`;
-            const labels = entry.containerCandidates.map((c) => `${c.id.slice(0, 12)} — ${c.state}`);
+            const labels = entry.containerCandidates.map((c) => `${c.id.slice(0, 12)} — ${c.state}${c.image !== undefined ? ` — ${c.image}` : ""}`);
             if (labels.length === 0 || !ctx.hasUI)
                 return { ok: false, text: refusal };
             const picked = await ctx.ui.select(`Select the container for ${entry.workspacePath}`, labels, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
@@ -531,6 +531,9 @@ export function createCommandHandlers(services) {
     };
     handlers["host-exec"] = async (args, ctx) => {
         if (!services.config.hostExecution.allow) {
+            // A withheld attempt is exactly what the operator needs to see: count it before answering.
+            const attempted = parseHostExecArgv(args);
+            services.onWithheldHostAttempt?.(attempted.ok ? attempted.argv : [args.trim()]);
             return {
                 text: "[policy-denied] Host execution is disabled by policy.\n" +
                     "This installation withholds it by configuration: remove `hostExecution.allow: false` from the project file " +

@@ -77,6 +77,8 @@ export interface CommandServices {
     readonly hostRuns?: {
         summary(): string;
     };
+    /** Report a host attempt that configuration refused before the runner (so it is still visible). */
+    readonly onWithheldHostAttempt?: (argv: readonly string[]) => void;
     /**
      * Install (or upgrade) the Dev Containers CLI globally via npm. Dedicated
      * setup capability: fixed npm argv, always user-confirmed in the handler,

@@ -26,11 +26,17 @@ export function createHostRunLedger(options = {}) {
     let count = 0;
     const recent = [];
     let firstRunNoted = false;
+    // A capture policy of `none` means no command identity is kept anywhere — including here, or the
+    // ledger would become the one place the operator can read what the policy declined to record
+    // (adversarial review of the routing hardening).
+    let keepText = (options.capture ?? "fingerprint-only") !== "none";
     const remember = (argv) => {
         count += 1;
-        recent.push(redactArgv(argv));
-        while (recent.length > limit)
-            recent.shift();
+        if (keepText) {
+            recent.push(redactArgv(argv));
+            while (recent.length > limit)
+                recent.shift();
+        }
     };
     return {
         record: remember,
@@ -42,9 +48,16 @@ export function createHostRunLedger(options = {}) {
         },
         count: () => count,
         recent: () => [...recent],
+        setCapture: (mode) => {
+            keepText = mode !== "none";
+            if (!keepText)
+                recent.length = 0;
+        },
         summary: () => {
             if (count === 0)
                 return "no host commands in this session";
+            if (!keepText)
+                return `${count} host command ${count === 1 ? "attempt" : "attempts"} this session (command text not recorded)`.replace("command attempt this session", "command attempt this session");
             const plural = count === 1 ? "host command attempt" : "host command attempts";
             return `${count} ${plural} this session — most recent: ${recent.join(" | ")}`;
         },

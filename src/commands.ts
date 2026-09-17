@@ -67,6 +67,8 @@ export interface CommandServices {
   readonly generateToken?: () => string;
   /** Session-scoped host-run summary (`/devcontainer status`; the audit trail stays authoritative). */
   readonly hostRuns?: { summary(): string };
+  /** Report a host attempt that configuration refused before the runner (so it is still visible). */
+  readonly onWithheldHostAttempt?: (argv: readonly string[]) => void;
   /**
    * Install (or upgrade) the Dev Containers CLI globally via npm. Dedicated
    * setup capability: fixed npm argv, always user-confirmed in the handler,
@@ -453,7 +455,9 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     const ids = entry.containerCandidates.map((c) => c.id);
     const refusal =
       `[ambiguous-candidate] Multiple running containers for \`${entry.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`;
-    const labels = entry.containerCandidates.map((c) => `${c.id.slice(0, 12)} — ${c.state}`);
+    const labels = entry.containerCandidates.map(
+      (c) => `${c.id.slice(0, 12)} — ${c.state}${c.image !== undefined ? ` — ${c.image}` : ""}`,
+    );
     if (labels.length === 0 || !ctx.hasUI) return { ok: false, text: refusal };
     const picked = await ctx.ui.select(
       `Select the container for ${entry.workspacePath}`,
@@ -682,6 +686,9 @@ export function createCommandHandlers(services: CommandServices): Record<string,
 
   handlers["host-exec"] = async (args, ctx) => {
     if (!services.config.hostExecution.allow) {
+      // A withheld attempt is exactly what the operator needs to see: count it before answering.
+      const attempted = parseHostExecArgv(args);
+      services.onWithheldHostAttempt?.(attempted.ok ? attempted.argv : [args.trim()]);
       return {
         text:
           "[policy-denied] Host execution is disabled by policy.\n" +

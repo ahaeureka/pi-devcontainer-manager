@@ -78,6 +78,14 @@ export interface ToolOptions {
     };
     /** Whether the host escape hatch is allowed by policy (`hostExecution.allow`). */
     readonly hostExecutionAllowed: boolean;
+    /**
+     * Report a host attempt that policy refused BEFORE the runner.
+     *
+     * The runner's ledger sees only attempts that reach it, so a withheld configuration would leave the
+     * operator with "no host commands this session" while the agent kept trying (adversarial review of
+     * the routing hardening).
+     */
+    readonly onWithheldHostAttempt?: (argv: readonly string[]) => void;
 }
 /** Build the `devcontainer_exec` tool definition. */
 export declare function createDevcontainerExecTool(options: ToolOptions): ToolDefinitionLike<DevcontainerExecParams>;

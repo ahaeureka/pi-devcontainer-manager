@@ -1,67 +1,67 @@
 {
   "taskId": "routing-hardening",
   "result": "PASS",
-  "diffHash": "ddefc54f9d02988d0defece2ce65f02b40710ae757f1f57dc52da3ecc283590d",
+  "diffHash": "676cc007548f46c4983d2fe35c1b1c95f2af9b7e9dc6a94a5485c9a5dc9944cf",
   "acceptance": [
     {
       "id": "AC-1",
       "result": "PASS",
       "evidenceIds": [
-        "evidence-74d2489e-015d-4161-891d-41b9472f9417",
-        "evidence-d17cf594-2729-4000-ba3b-07b10e064926",
-        "evidence-d368176a-7e16-4628-8b2e-96f74d3fce3a"
+        "evidence-c5cc5dbc-d08d-47f7-bf16-cde2fadc9017",
+        "evidence-96d15c66-eefc-4429-a696-73d49fe19b76",
+        "evidence-9571a571-0de5-4741-96bc-bf41728ab0e2"
       ]
     },
     {
       "id": "AC-2",
       "result": "PASS",
       "evidenceIds": [
-        "evidence-74d2489e-015d-4161-891d-41b9472f9417",
-        "evidence-d17cf594-2729-4000-ba3b-07b10e064926",
-        "evidence-d368176a-7e16-4628-8b2e-96f74d3fce3a"
+        "evidence-c5cc5dbc-d08d-47f7-bf16-cde2fadc9017",
+        "evidence-96d15c66-eefc-4429-a696-73d49fe19b76",
+        "evidence-9571a571-0de5-4741-96bc-bf41728ab0e2"
       ]
     },
     {
       "id": "AC-3",
       "result": "PASS",
       "evidenceIds": [
-        "evidence-74d2489e-015d-4161-891d-41b9472f9417",
-        "evidence-d17cf594-2729-4000-ba3b-07b10e064926",
-        "evidence-d368176a-7e16-4628-8b2e-96f74d3fce3a"
+        "evidence-c5cc5dbc-d08d-47f7-bf16-cde2fadc9017",
+        "evidence-96d15c66-eefc-4429-a696-73d49fe19b76",
+        "evidence-9571a571-0de5-4741-96bc-bf41728ab0e2"
       ]
     },
     {
       "id": "AC-4",
       "result": "PASS",
       "evidenceIds": [
-        "evidence-74d2489e-015d-4161-891d-41b9472f9417",
-        "evidence-d17cf594-2729-4000-ba3b-07b10e064926",
-        "evidence-d368176a-7e16-4628-8b2e-96f74d3fce3a"
+        "evidence-c5cc5dbc-d08d-47f7-bf16-cde2fadc9017",
+        "evidence-96d15c66-eefc-4429-a696-73d49fe19b76",
+        "evidence-9571a571-0de5-4741-96bc-bf41728ab0e2"
       ]
     },
     {
       "id": "AC-5",
       "result": "PASS",
       "evidenceIds": [
-        "evidence-74d2489e-015d-4161-891d-41b9472f9417",
-        "evidence-d17cf594-2729-4000-ba3b-07b10e064926",
-        "evidence-d368176a-7e16-4628-8b2e-96f74d3fce3a"
+        "evidence-c5cc5dbc-d08d-47f7-bf16-cde2fadc9017",
+        "evidence-96d15c66-eefc-4429-a696-73d49fe19b76",
+        "evidence-9571a571-0de5-4741-96bc-bf41728ab0e2"
       ]
     },
     {
       "id": "AC-6",
       "result": "PASS",
       "evidenceIds": [
-        "evidence-74d2489e-015d-4161-891d-41b9472f9417",
-        "evidence-d17cf594-2729-4000-ba3b-07b10e064926",
-        "evidence-d368176a-7e16-4628-8b2e-96f74d3fce3a"
+        "evidence-c5cc5dbc-d08d-47f7-bf16-cde2fadc9017",
+        "evidence-96d15c66-eefc-4429-a696-73d49fe19b76",
+        "evidence-9571a571-0de5-4741-96bc-bf41728ab0e2"
       ]
     }
   ],
   "evidenceIds": [
-    "evidence-74d2489e-015d-4161-891d-41b9472f9417",
-    "evidence-d17cf594-2729-4000-ba3b-07b10e064926",
-    "evidence-d368176a-7e16-4628-8b2e-96f74d3fce3a"
+    "evidence-c5cc5dbc-d08d-47f7-bf16-cde2fadc9017",
+    "evidence-96d15c66-eefc-4429-a696-73d49fe19b76",
+    "evidence-9571a571-0de5-4741-96bc-bf41728ab0e2"
   ],
-  "revisionId": "revision-77f7f98ec983bc0b"
+  "revisionId": "revision-18abd4d1236368b8"
 }

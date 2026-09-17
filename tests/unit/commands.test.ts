@@ -185,12 +185,14 @@ describe("/devcontainer use", () => {
     });
     const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [ambiguous], diagnostics: [] })) });
     const ctx = makeCtx();
-    ctx.ui.select.mockResolvedValueOnce("aa12 — running");
+    // The label carries id, state and image (AC-4) — the operator sees what they are choosing between.
+    ctx.ui.select.mockResolvedValueOnce("aa12 — running — devcontainer:latest");
 
     const result = await handlers["use"]!("project-a", ctx);
 
     // The picker replaces the refusal, not the decision: the operator chooses, Docker order never does.
     expect(ctx.ui.select).toHaveBeenCalled();
+    expect(ctx.ui.select.mock.calls[0]?.[1]).toContain("aa12 — running — devcontainer:latest");
     expect(result.text).toContain("container `aa12`");
     expect(result.target?.candidateId).toBe("aa12");
   });
@@ -220,6 +222,39 @@ describe("/devcontainer use", () => {
     expect(result.text).toContain("[ambiguous-candidate]");
     expect(result.text).toContain("<container-id>");
     expect(result.target).toBeUndefined();
+  });
+
+  it("offers the container picker for an ambiguous workspace chosen from the workspace picker", async () => {
+    const ambiguous = configEntry({ workspacePath: "/ws/project-b", containers: [candidate("b1"), candidate("b2")] });
+    const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [entry, ambiguous], diagnostics: [] })) });
+    const ctx = makeCtx();
+    ctx.ui.select
+      .mockResolvedValueOnce("/ws/project-b [running]")
+      .mockResolvedValueOnce("b2 — running — devcontainer:latest");
+
+    const result = await handlers["use"]!("", ctx);
+
+    // Ambiguity is reachable from BOTH entry points: without this, the command bound an ambiguous
+    // selection and answered with a success-shaped message and no target (the first adversarial pass's
+    // major finding).
+    expect(ctx.ui.select).toHaveBeenCalledTimes(2);
+    expect(result.target?.candidateId).toBe("b2");
+    expect(result.text).toContain("container `b2`");
+  });
+
+  it("counts a host attempt that configuration withheld", async () => {
+    const attempts: string[][] = [];
+    const { handlers } = makeServices({
+      config: makeConfig({ hostExecution: { allow: false } }),
+      onWithheldHostAttempt: (argv) => void attempts.push([...argv]),
+    });
+
+    const result = await handlers["host-exec"]!("--argv hostname", makeCtx());
+
+    // A withheld configuration refuses before the runner, so the surface that refuses must report it —
+    // otherwise the operator sees "no host commands this session" while the agent keeps trying.
+    expect(result.text).toContain("[policy-denied]");
+    expect(attempts).toEqual([["hostname"]]);
   });
 
   it("asks via ui.select when multiple candidates match", async () => {

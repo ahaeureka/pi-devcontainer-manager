@@ -9,8 +9,17 @@ export interface HostRunLedger {
     recent(): readonly string[];
     /** One operator-facing line for `/devcontainer status`. */
     summary(): string;
+    /**
+     * Adopt the session's capture policy.
+     *
+     * `none` means no command identity is recorded ANYWHERE, so the summary may keep counting attempts
+     * but must not retain their text — otherwise the ledger becomes the one place the operator can read
+     * what the policy declined to record.
+     */
+    setCapture(mode: "none" | "fingerprint-only" | "redacted-text"): void;
 }
 export declare function createHostRunLedger(options?: {
     limit?: number;
+    capture?: "none" | "fingerprint-only" | "redacted-text";
 }): HostRunLedger;
 //# sourceMappingURL=host-run-ledger.d.ts.map

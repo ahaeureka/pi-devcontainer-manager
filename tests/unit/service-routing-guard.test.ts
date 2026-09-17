@@ -50,6 +50,9 @@ describe("reverse routing guard through the service", () => {
     // Symmetric with the forward guard's `container-path-on-host`: the record must not claim the
     // operation was authorized.
     expect(records.at(-1)).toMatchObject({ policyAuthorized: false, policyDenialReason: "host-path-on-container" });
+    // The symmetric forward guard fingerprints the argv, and so must this one: a refusal with no
+    // command identity cannot be correlated with what the operator asked for.
+    expect(records.at(-1)?.commandFingerprint).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("lets the container path through", async () => {

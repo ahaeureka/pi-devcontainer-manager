@@ -26,6 +26,13 @@ export interface ConfigCandidate {
 export interface RegistryCandidate {
     readonly id: string;
     readonly state: ContainerState;
+    /**
+     * The container's image, when discovery saw it.
+     *
+     * Optional because a candidate can come from a source that does not report one (a managed container
+     * listing); the operator-facing container picker prefers it when present.
+     */
+    readonly image?: string;
 }
 /** What every registry entry has, whatever was discovered for it. */
 interface RegistryEntryBase {

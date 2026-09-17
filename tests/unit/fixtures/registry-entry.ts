@@ -15,9 +15,14 @@ import type {
   RegistryContainerOnlyEntry,
 } from "../../../src/types.js";
 
-/** One container candidate; most tests only care about the id and whether it runs. */
-export function candidate(id: string, state: ContainerState = "running"): RegistryCandidate {
-  return { id, state };
+/**
+ * One container candidate; most tests only care about the id and whether it runs.
+ *
+ * Docker reports an image for every container, and the registry now carries it so the operator-facing
+ * container picker can name it (AC-4), so the default mirrors what a real listing produces.
+ */
+export function candidate(id: string, state: ContainerState = "running", image = "devcontainer:latest"): RegistryCandidate {
+  return { id, state, image };
 }
 
 export function configCandidate(

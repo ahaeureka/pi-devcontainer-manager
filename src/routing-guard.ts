@@ -24,6 +24,11 @@ export interface HostToContainerMapping {
   readonly containerVisiblePaths?: readonly string[];
 }
 
+/** Expand the devcontainer variable a `mounts` entry may use for the host workspace. */
+function expandVariables(path: string, hostPath?: string): string {
+  return hostPath === undefined ? path : path.replaceAll("${localWorkspaceFolder}", hostPath);
+}
+
 /** Normalize a path for comparison: strip trailing slashes (except a bare root). */
 function normalize(path: string): string {
   if (path.length > 1 && path.endsWith("/")) return path.replace(/\/+$/, "");
@@ -47,17 +52,21 @@ export function detectHostPathOnContainerSurface(
   // Same path on both sides: the argument is correct as written.
   if (host === container) return undefined;
   if (host.length === 0) return undefined;
-  // The container's own path space is never a mis-route — including when the configured container path
-  // happens to sit BENEATH the host path (then the guard's own remedy would otherwise be refused).
-  const containerSpace = container.length > 0 ? [container] : [];
-  const visible = [...containerSpace, ...(mapping.containerVisiblePaths ?? []).map(normalize)];
-  const isVisibleInContainer = (candidate: string): boolean =>
-    visible.some((path) => candidate === path || candidate.startsWith(`${path}/`));
+  const visible = (mapping.containerVisiblePaths ?? []).map((path) => normalize(expandVariables(path, mapping.hostPath)));
+  const under = (candidate: string, base: string): boolean => candidate === base || candidate.startsWith(`${base}/`);
+  const isSameFileOnBothSides = (candidate: string): boolean => visible.some((path) => under(candidate, path));
+  // A container path NESTED under the host path is the container's own workspace (mounting a subdirectory
+  // elsewhere), so a request for it is legitimate. The reverse — the workspace mounted at an ANCESTOR of
+  // the host path — makes every host-path request a different file inside the container, so it must be
+  // refused (adversarial review of the routing hardening: the blanket container-space exemption swallowed
+  // exactly that case).
+  const containerSpaceIsNestedUnderHost = container.length > host.length && under(container, host);
   for (const element of argv) {
     const candidate = normalize(element);
-    if (isVisibleInContainer(candidate)) continue;
-    if (candidate === host) return element;
-    if (candidate.startsWith(`${host}/`)) return element;
+    if (!under(candidate, host)) continue;
+    if (containerSpaceIsNestedUnderHost) continue;
+    if (isSameFileOnBothSides(candidate)) continue;
+    return element;
   }
   return undefined;
 }
