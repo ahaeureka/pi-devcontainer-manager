@@ -499,10 +499,10 @@ export function createCommandHandlers(services) {
         if (services.hostRunner === undefined) {
             return { text: "[unexpected] Host runner is not wired in this environment." };
         }
-        const argv = parseArgv(args);
-        if (argv.length === 0) {
-            return { text: "Usage: /devcontainer host-exec <argv...>\nRuns a command on the HOST machine (audited escape hatch)." };
-        }
+        const parsed = parseHostExecArgv(args);
+        if (!parsed.ok)
+            return { text: parsed.text };
+        const argv = parsed.argv;
         try {
             const result = await services.hostRunner.run(argv, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
             return {
@@ -572,15 +572,79 @@ function parseTail(args) {
         return Number(match[1]);
     return 100;
 }
-/** Minimal argv splitter for `/devcontainer host-exec` (whitespace + quotes). */
-export function parseArgv(input) {
-    const out = [];
-    const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
-    let match;
-    while ((match = re.exec(input)) !== null) {
-        out.push((match[1] ?? match[2] ?? match[3] ?? "").toString());
+const HOST_EXEC_USAGE = "Usage: /devcontainer host-exec --argv <value> [--argv <value> ...]\n" +
+    "  One --argv per argument, taken verbatim: no shell and no quote processing.\n" +
+    "  `--argv=<value>` is the same but keeps leading/internal spaces and is the only way to pass an\n" +
+    "  EMPTY argument. A value ends at the next --argv word (the whitespace before it is a separator),\n" +
+    "  so an argument that must contain ` --argv ` or must END in a space: use the devcontainer_host_exec\n" +
+    "  tool, whose `argv` array is exact.\n" +
+    "Runs the command on the HOST machine (audited escape hatch).";
+export function parseHostExecArgv(input) {
+    const trimmed = input.trim();
+    if (trimmed.length === 0)
+        return { ok: false, text: HOST_EXEC_USAGE };
+    const argv = [];
+    let rest = trimmed;
+    while (rest.length > 0) {
+        // A flag is `--argv` as a WHOLE word: followed by `=`, whitespace, or the end. Without the
+        // boundary check `--argverbose` was accepted and produced the argument `erbose`, i.e. a mangled
+        // command run on the host (review of this phase).
+        const flag = /^--argv(?==|\s|$)/.exec(rest);
+        if (flag === null) {
+            return {
+                ok: false,
+                text: `[policy-denied] Free-text arguments are not accepted here: \`${rest.split(/\s+/)[0]}\` would be ` +
+                    `reinterpreted before it runs on the host.\n${HOST_EXEC_USAGE}`,
+            };
+        }
+        rest = rest.slice(flag[0].length);
+        if (rest.startsWith("=")) {
+            // `--argv=<value>`: the value is everything after `=`, VERBATIM, up to the next `--argv` word
+            // (or the end). This is the only form that preserves leading/trailing spaces and the only way
+            // to pass an empty argument — and because it ends at the next flag word, a value that itself
+            // contains ` --argv ` must use the space form below.
+            const next = findNextArgvWord(rest.slice(1));
+            const rawValue = next.index === -1 ? rest.slice(1) : rest.slice(1, next.index + 1);
+            // Everything after `=` is verbatim, except the whitespace that separates it from the next
+            // flag (or the end): that run is the separator, not part of the value. Leading and internal
+            // spaces survive; trailing ones are the separator (the tool surface `devcontainer_host_exec`
+            // takes an argv array when an argument really must end in a space).
+            argv.push(rawValue.replace(/\s+$/, ""));
+            rest = next.index === -1 ? "" : rest.slice(1 + next.index);
+            continue;
+        }
+        // `--argv <value>`: the value runs to the next `--argv` word, with the surrounding separator
+        // whitespace removed (use the `=` form when the value's own whitespace matters).
+        if (rest.trim().length === 0) {
+            return { ok: false, text: `[policy-denied] --argv needs a value (use --argv= for an empty one).\n${HOST_EXEC_USAGE}` };
+        }
+        const next = findNextArgvWord(rest);
+        if (next.index === -1) {
+            argv.push(rest.trim());
+            rest = "";
+            continue;
+        }
+        const value = rest.slice(0, next.index).trim();
+        if (value.length === 0) {
+            return { ok: false, text: `[policy-denied] --argv needs a value (use --argv= for an empty one).\n${HOST_EXEC_USAGE}` };
+        }
+        argv.push(value);
+        rest = rest.slice(next.index);
     }
-    return out;
+    if (argv.length === 0)
+        return { ok: false, text: HOST_EXEC_USAGE };
+    return { ok: true, argv };
+}
+/** Locate the next `--argv` word (whitespace-preceded) in `text`, or -1 when there is none. */
+function findNextArgvWord(text) {
+    const re = /(?:^|\s)(--argv(?==|\s|$))/g;
+    let match;
+    while ((match = re.exec(text)) !== null) {
+        // The separator space is not part of the flag; a match at index 0 has none.
+        const flagStart = match.index + (match[0].length - match[1].length);
+        return { index: flagStart, match: match[1] };
+    }
+    return { index: -1, match: "" };
 }
 /** Format a typed error into command output (kind surfaced). */
 export function describeError(error) {

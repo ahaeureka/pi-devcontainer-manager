@@ -25,6 +25,8 @@
 
 - [[concepts/arch-review-p4-vocabulary-identity.md]] — Vocabulary and identity shapes (Phase 4 build notes)
 
+- [[concepts/arch-review-p5-public-surfaces.md]] — Public surfaces and the process boundary (Phase 5 build notes)
+
 ## Comparisons
 
 ## Queries

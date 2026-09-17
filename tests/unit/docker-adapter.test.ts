@@ -7,13 +7,17 @@ function fakeRunner(respond: (args: readonly string[]) => { stdout: string; exit
   return {
     async exec(file, args, options) {
       const response = respond(args);
-      const chunk = Buffer.from(response.stdout, "utf8");
-      options.onData?.(chunk);
+      // The process boundary carries its bounded streams now (L5-03): a fake that used to push into
+      // a callback supplies the fields instead, unless the caller asked to stream.
+      const out = Buffer.from(response.stdout, "utf8");
+      if (options.onData !== undefined) options.onData(out);
       return {
         exitCode: response.exitCode ?? 0,
         signal: null,
         durationMs: 1,
         truncated: false,
+        ...(options.onData === undefined ? { stdout: response.stdout } : {}),
+        ...(options.onStderr === undefined ? { stderr: (response as { stderr?: string }).stderr ?? "" } : {}),
       };
     },
   };

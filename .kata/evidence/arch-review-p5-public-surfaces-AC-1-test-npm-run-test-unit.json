@@ -1,0 +1,32 @@
+{
+  "id": "evidence-8af396eb-f7ca-48a7-abac-7e0a92cac513",
+  "taskId": "arch-review-p5-public-surfaces",
+  "checkId": "matrix:AC-1:test:npm run test:unit",
+  "checkSource": "matrix",
+  "name": "AC-1-test-npm-run-test-unit",
+  "kind": "test",
+  "command": "npm run test:unit",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-17T08:03:11.583Z",
+  "finishedAt": "2026-09-17T08:03:14.925Z",
+  "diffHash": "11a32221e1609b8f6fadde14bc7a1e0cd1b36e0d268f42249c0558aa4638e95d",
+  "log": "\n> pi-devcontainer-manager@1.0.0 test:unit\n> vitest --run tests/unit\n\n\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  37 passed (37)\n      Tests  459 passed (459)\n   Start at  16:03:12\n   Duration  2.71s (transform 26.08s, setup 0ms, import 34.51s, tests 4.68s, environment 8ms)\n\n",
+  "revisionId": "revision-351f29a987780dca",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "dcf6b8978022ec2912676421b9c1443e735ee3c391f5c1fc58aef973269ff838"
+  }
+}

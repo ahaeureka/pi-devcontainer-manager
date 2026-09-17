@@ -8,6 +8,26 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Behaviour change — `/devcontainer host-exec` takes structured argv.** The command used to accept
+  shell-like free text and split it with a narrow quote-aware regex, which silently reinterpreted
+  escaped quotes, concatenated segments and empty arguments on the one surface that then executes the
+  result on the host. It now takes one flag per argument, verbatim:
+
+  ```
+  /devcontainer host-exec --argv hostname
+  /devcontainer host-exec --argv printf --argv %s --argv hello world
+  /devcontainer host-exec --argv= --argv x        # the first argument is empty
+  ```
+
+  There is no quote or shell processing: **quotes are ordinary characters**, so `--argv 'x'` passes the
+  three characters `'x'` and not `x`. A value ends at the next `--argv` word, and the whitespace before
+  it is the separator (`--argv=a b` is the single argument `a b`; use `--argv=` when a value must be
+  empty or must keep leading spaces). An argument that must contain ` --argv ` or must end in a space
+  is only expressible through the `devcontainer_host_exec` tool, whose `argv` array is exact. The old
+  free-text form fails closed with the usage line, and a `--argv` without a value is refused. The
+  host runner still receives literal argv with no shell, the container-path guard still evaluates the
+  same arguments, and the audit record still fingerprints exactly what ran. `devcontainer_host_exec`
+  (the tool) already took a structured `argv` array and is unchanged.
 - A container identity is now bound, not accepted: `logs`, `stop` and `remove` verify the container
   they were asked to act on against the session's selected target and refuse anything else with a
   typed `policy-denied` **before** Docker runs, recording the refusal without ever writing the

@@ -46,26 +46,25 @@ function makeAdapter(runner: ProcessRunner, extra: Partial<{ devcontainerPath: s
   });
 }
 
-const ok = (exitCode: number): ProcessResult => ({
+/**
+ * A scripted run. `stdout`/`stderr` are the fields the process boundary now supplies (L5-03); the
+ * fake used to emit bytes through the `onData` callback it was handed.
+ */
+const ok = (exitCode: number, stdout = "", stderr = ""): ProcessResult => ({
   exitCode,
   signal: null,
   durationMs: 5,
   truncated: false,
+  stdout,
+  stderr,
 });
 
 describe("NodeDevcontainerAdapter.up", () => {
   it("passes fixed argv and parses the JSON document (trailing space tolerated)", async () => {
-    const { runner, calls } = fakeRunner([ok(0)]);
+    const { runner, calls } = fakeRunner([
+      ok(0, '{"outcome":"success","containerId":"abc123","remoteUser":"vscode","remoteWorkspaceFolder":"/workspaces/p"}\n '),
+    ]);
     const adapter = makeAdapter(runner);
-    const stdout = Buffer.from(
-      '{"outcome":"success","containerId":"abc123","remoteUser":"vscode","remoteWorkspaceFolder":"/workspaces/p"}\n ',
-    );
-    // Emulate the runner writing to onData before resolving.
-    const origExec = runner.exec.bind(runner);
-    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
-      options.onData?.(stdout);
-      return origExec(file, args, options);
-    };
 
     const result = await adapter.up("/ws/project-a", { dockerPath: "/usr/bin/docker" });
     expect(calls).toHaveLength(1);
@@ -76,49 +75,30 @@ describe("NodeDevcontainerAdapter.up", () => {
   });
 
   it("maps error outcome to devcontainer-cli-failure", async () => {
-    const { runner } = fakeRunner([{ ...ok(1), truncated: false }]);
+    const { runner } = fakeRunner([ok(1, '{"outcome":"error","message":"config invalid","description":"x"}\n ')]);
     const adapter = makeAdapter(runner);
-    const origExec = runner.exec.bind(runner);
-    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
-      options.onData?.(Buffer.from('{"outcome":"error","message":"config invalid","description":"x"}\n '));
-      return origExec(file, args, options);
-    };
     await expect(adapter.up("/ws")).rejects.toThrowError(/config invalid/);
   });
 
   it("maps daemon-unreachable stderr to daemon-unavailable when no structured JSON is present", async () => {
-    const { runner } = fakeRunner([{ ...ok(1), truncated: false }]);
+    const { runner } = fakeRunner([ok(1, "", "Cannot connect to the Docker daemon at unix:///var/run/docker.sock")]);
     const adapter = makeAdapter(runner);
-    const origExec = runner.exec.bind(runner);
-    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
-      options.onStderr?.(Buffer.from("Cannot connect to the Docker daemon at unix:///var/run/docker.sock"));
-      return origExec(file, args, options);
-    };
     await expect(adapter.up("/ws")).rejects.toMatchObject({ kind: "daemon-unavailable" });
   });
 
   it("prefers the structured error message over daemon stderr", async () => {
-    const { runner } = fakeRunner([{ ...ok(1), truncated: false }]);
+    const { runner } = fakeRunner([
+      ok(1, '{"outcome":"error","message":"docker daemon is not running"}\n ', "Cannot connect to the Docker daemon at unix:///var/run/docker.sock"),
+    ]);
     const adapter = makeAdapter(runner);
-    const origExec = runner.exec.bind(runner);
-    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
-      options.onData?.(Buffer.from('{"outcome":"error","message":"docker daemon is not running"}\n '));
-      options.onStderr?.(Buffer.from("Cannot connect to the Docker daemon at unix:///var/run/docker.sock"));
-      return origExec(file, args, options);
-    };
     await expect(adapter.up("/ws")).rejects.toMatchObject({ kind: "devcontainer-cli-failure", message: /docker daemon is not running/ });
   });
 });
 
 describe("NodeDevcontainerAdapter.build", () => {
   it("passes optional flags and parses imageName", async () => {
-    const { runner, calls } = fakeRunner([ok(0)]);
+    const { runner, calls } = fakeRunner([ok(0, '{"outcome":"success","imageName":"devcontainer:p"}\n ')]);
     const adapter = makeAdapter(runner);
-    const origExec = runner.exec.bind(runner);
-    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
-      options.onData?.(Buffer.from('{"outcome":"success","imageName":"devcontainer:p"}\n '));
-      return origExec(file, args, options);
-    };
     const result = await adapter.build("/ws", { noCache: true, imageName: "img:tag" });
     expect(calls[0]!.args).toContain("--no-cache");
     expect(calls[0]!.args).toContain("--image-name");
@@ -161,24 +141,18 @@ describe("NodeDevcontainerAdapter.exec", () => {
   });
 
   it("maps 'Dev container not found.' to target-stopped", async () => {
-    const { runner } = fakeRunner([{ exitCode: 1, signal: null, durationMs: 10, truncated: false }]);
+    const { runner } = fakeRunner([
+      { exitCode: 1, signal: null, durationMs: 10, truncated: false, stdout: "", stderr: "Dev container not found. Run devcontainer up to create it." },
+    ]);
     const adapter = makeAdapter(runner);
-    const origExec = runner.exec.bind(runner);
-    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
-      options.onStderr?.(Buffer.from("Dev container not found. Run devcontainer up to create it."));
-      return origExec(file, args, options);
-    };
     await expect(adapter.exec("/ws", "abc123", "ls", [])).rejects.toMatchObject({ kind: "target-stopped" });
   });
 
   it("maps 'is not running' to target-stopped", async () => {
-    const { runner } = fakeRunner([{ exitCode: 1, signal: null, durationMs: 10, truncated: false }]);
+    const { runner } = fakeRunner([
+      { exitCode: 1, signal: null, durationMs: 10, truncated: false, stdout: "", stderr: 'container "abc" is not running' },
+    ]);
     const adapter = makeAdapter(runner);
-    const origExec = runner.exec.bind(runner);
-    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
-      options.onStderr?.(Buffer.from('container "abc" is not running'));
-      return origExec(file, args, options);
-    };
     await expect(adapter.exec("/ws", "abc123", "ls", [])).rejects.toMatchObject({ kind: "target-stopped" });
   });
 

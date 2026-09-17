@@ -1,1 +1,11 @@
 {"taskId":"arch-review-p5-public-surfaces","from":null,"to":"intake","actor":{"id":"system","role":"system"},"at":"2026-09-17T07:32:23.992Z"}
+{"taskId":"arch-review-p5-public-surfaces","from":"intake","to":"plan","actor":{"id":"kata-designer","role":"designer"},"at":"2026-09-17T07:33:20.210Z"}
+{"taskId":"arch-review-p5-public-surfaces","from":"plan","to":"implement","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T07:46:35.251Z"}
+{"taskId":"arch-review-p5-public-surfaces","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T07:46:53.676Z"}
+{"taskId":"arch-review-p5-public-surfaces","from":"hardVerify","to":"review","actor":{"id":"kata-reviewer","role":"reviewer"},"at":"2026-09-17T08:02:09.519Z"}
+{"taskId":"arch-review-p5-public-surfaces","from":"review","to":"implement","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T08:02:29.475Z"}
+{"taskId":"arch-review-p5-public-surfaces","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T08:03:31.194Z"}
+{"taskId":"arch-review-p5-public-surfaces","from":"hardVerify","to":"review","actor":{"id":"kata-reviewer","role":"reviewer"},"at":"2026-09-17T08:04:15.016Z"}
+{"taskId":"arch-review-p5-public-surfaces","from":"review","to":"judge","actor":{"id":"kata-judge","role":"judge"},"at":"2026-09-17T08:04:30.649Z"}
+{"taskId":"arch-review-p5-public-surfaces","from":"judge","to":"distill","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T08:05:35.568Z"}
+{"taskId":"arch-review-p5-public-surfaces","from":"distill","to":"archive","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T08:05:35.574Z"}

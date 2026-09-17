@@ -1,0 +1,362 @@
+{
+  "protocolVersion": 1,
+  "id": "handoff-2b21fcee-ec6",
+  "taskId": "arch-review-p5-public-surfaces",
+  "createdAt": "2026-09-17T08:02:09.005Z",
+  "from": {
+    "role": "reviewer",
+    "platform": "pi"
+  },
+  "to": {
+    "role": "reviewer"
+  },
+  "phase": "hardVerify",
+  "repository": {
+    "head": "f8263827ecac293ea93f32045a1e7f593ab75023",
+    "branch": "feature/arch-review-p5-public-surfaces",
+    "diffHash": "dcf6b8978022ec2912676421b9c1443e735ee3c391f5c1fc58aef973269ff838",
+    "scope": {
+      "kind": "revision",
+      "revisionId": "revision-0b5329a3-63d0-4c64-9400-1581be2a457b",
+      "paths": [
+        "CHANGELOG.md",
+        "README.md",
+        "README.zh-CN.md",
+        "dist",
+        "docs",
+        "extensions",
+        "openspec",
+        "package.json",
+        "scripts",
+        "src",
+        "tests"
+      ],
+      "hash": "dcf6b8978022ec2912676421b9c1443e735ee3c391f5c1fc58aef973269ff838"
+    },
+    "worktreeRoot": "."
+  },
+  "task": {
+    "id": "arch-review-p5-public-surfaces",
+    "title": "One lifecycle owner for the session surface (L0-04): composition, activation and",
+    "phase": "intake",
+    "acceptance": [
+      {
+        "id": "AC-1",
+        "statement": "One lifecycle owner for the session surface (L0-04): composition, activation and surface registration are bound to a monotonic lifecycle generation that is re-checked after every await, so an asynchronous `session_start` that resumes after a reload, a second start, or a shutdown can no longer assign a stale runtime or register surfaces from a superseded activation decision; a superseded start dispatches nothing and its callbacks never dereference a newer or missing runtime."
+      },
+      {
+        "id": "AC-2",
+        "statement": "`/devcontainer host-exec` takes structured argv instead of shell-like free text (L2-04): the quote-splitting grammar is replaced by an interface whose arguments are unambiguous (including empty and space-containing ones), and the change is documented as a breaking change for the command surface with the migration shown."
+      },
+      {
+        "id": "AC-3",
+        "statement": "The host escape hatch's transport invariants survive the grammar change: argv still reaches the host runner as literal argv with no shell interpretation, the container-path guard still evaluates the same argv before any spawn, and the audit record still carries the fingerprint (or the configured capture) of exactly the argv that ran."
+      },
+      {
+        "id": "AC-4",
+        "statement": "The process boundary carries its bounded output (L5-03): `ProcessResult` exposes the bounded stdout/stderr it already knows how to bound whenever the caller supplied no streaming callbacks, callbacks continue to work for live streaming, and every adapter's hand-rolled chunk-collection block migrates to the fields — so a caller that forgets the callbacks can no longer receive a clean exit code with silently discarded output."
+      },
+      {
+        "id": "AC-5",
+        "statement": "Truncation and cap semantics are unchanged by that migration: the byte cap per stream still comes from the single sourced constants (`DEFAULT_MAX_OUTPUT_BYTES`, `LOGS_MAX_OUTPUT_BYTES`, or `config.maxOutputBytes`), the `truncated` flag keeps its meaning, the persisted full-output path still receives the complete text, and stream labelling (`--- stderr ---`) behaves exactly as before."
+      },
+      {
+        "id": "AC-6",
+        "statement": "No regression, and the review's contract invariants hold: the CLI still receives the HOST workspace path for `up`/`build`/`exec`, the argv contract is unchanged, discovery stays lazy/read-only/bounded, targets are never auto-started, `stop`/`remove` keep both gates, host execution stays withheld-able and audited with the same operation/initiator/capture defaults, `/devcontainer setup` is untouched, and the full gate set is green (`npm run typecheck`, `npx vitest run`, `verify-package.mjs --unit-tests`, a rebuilt `dist/` committed with the sources, the packed smoke run, `npm run install:local -- --check`)."
+      }
+    ],
+    "branch": "main",
+    "createdAt": "2026-09-17T07:32:23.992Z",
+    "updatedAt": "2026-09-17T07:32:23.992Z",
+    "workflowProfile": {
+      "version": 1,
+      "isolationMode": "git_flow",
+      "developmentMode": "tdd",
+      "reviewMode": "security",
+      "comet": {
+        "projectInit": "not_requested",
+        "openStatus": "acknowledged"
+      },
+      "gitFlow": {
+        "strategy": "manual",
+        "branch": "feature/arch-review-p5-public-surfaces",
+        "baseBranch": "main",
+        "status": "active"
+      }
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "statement": "One lifecycle owner for the session surface (L0-04): composition, activation and surface registration are bound to a monotonic lifecycle generation that is re-checked after every await, so an asynchronous `session_start` that resumes after a reload, a second start, or a shutdown can no longer assign a stale runtime or register surfaces from a superseded activation decision; a superseded start dispatches nothing and its callbacks never dereference a newer or missing runtime.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L0-04",
+        "confirmedAt": "2026-09-17T07:32:23.992Z"
+      },
+      {
+        "id": "REQ-2",
+        "statement": "`/devcontainer host-exec` takes structured argv instead of shell-like free text (L2-04): the quote-splitting grammar is replaced by an interface whose arguments are unambiguous (including empty and space-containing ones), and the change is documented as a breaking change for the command surface with the migration shown.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L2-04",
+        "confirmedAt": "2026-09-17T07:32:23.992Z"
+      },
+      {
+        "id": "REQ-3",
+        "statement": "The host escape hatch's transport invariants survive the grammar change: argv still reaches the host runner as literal argv with no shell interpretation, the container-path guard still evaluates the same argv before any spawn, and the audit record still carries the fingerprint (or the configured capture) of exactly the argv that ran.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraint 6, plus the guard/audit invariant in L2-04's own remedy.",
+        "confirmedAt": "2026-09-17T07:32:23.992Z"
+      },
+      {
+        "id": "REQ-4",
+        "statement": "The process boundary carries its bounded output (L5-03): `ProcessResult` exposes the bounded stdout/stderr it already knows how to bound whenever the caller supplied no streaming callbacks, callbacks continue to work for live streaming, and every adapter's hand-rolled chunk-collection block migrates to the fields — so a caller that forgets the callbacks can no longer receive a clean exit code with silently discarded output.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L5-03",
+        "confirmedAt": "2026-09-17T07:32:23.992Z"
+      },
+      {
+        "id": "REQ-5",
+        "statement": "Truncation and cap semantics are unchanged by that migration: the byte cap per stream still comes from the single sourced constants (`DEFAULT_MAX_OUTPUT_BYTES`, `LOGS_MAX_OUTPUT_BYTES`, or `config.maxOutputBytes`), the `truncated` flag keeps its meaning, the persisted full-output path still receives the complete text, and stream labelling (`--- stderr ---`) behaves exactly as before.",
+        "source": "src/runtime/process-runner.ts (the caps and the truncation contract) and the Phase 2 findings that established the labelling.",
+        "confirmedAt": "2026-09-17T07:32:23.992Z"
+      },
+      {
+        "id": "REQ-6",
+        "statement": "No regression, and the review's contract invariants hold: the CLI still receives the HOST workspace path for `up`/`build`/`exec`, the argv contract is unchanged, discovery stays lazy/read-only/bounded, targets are never auto-started, `stop`/`remove` keep both gates, host execution stays withheld-able and audited with the same operation/initiator/capture defaults, `/devcontainer setup` is untouched, and the full gate set is green (`npm run typecheck`, `npx vitest run`, `verify-package.mjs --unit-tests`, a rebuilt `dist/` committed with the sources, the packed smoke run, `npm run install:local -- --check`).",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraints 1-10, plus the repository's no-regression convention.",
+        "confirmedAt": "2026-09-17T07:32:23.992Z"
+      }
+    ],
+    "acceptanceMatrix": {
+      "version": 1,
+      "rows": [
+        {
+          "acceptanceId": "AC-1",
+          "designRefs": [
+            "design.md §3.1"
+          ],
+          "implementationPaths": [
+            "src/lifecycle.ts",
+            "extensions/index.ts"
+          ],
+          "testPaths": [
+            "tests/unit/lifecycle.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-2",
+          "designRefs": [
+            "design.md §3.2"
+          ],
+          "implementationPaths": [
+            "src/commands.ts"
+          ],
+          "testPaths": [
+            "tests/unit/commands.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-3",
+          "designRefs": [
+            "design.md §3.2"
+          ],
+          "implementationPaths": [
+            "src/host-runner.ts",
+            "src/commands.ts"
+          ],
+          "testPaths": [
+            "tests/unit/host-runner.test.ts",
+            "tests/unit/commands.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-4",
+          "designRefs": [
+            "design.md §3.3"
+          ],
+          "implementationPaths": [
+            "src/runtime/process-runner.ts",
+            "src/runtime/docker-adapter.ts",
+            "src/runtime/devcontainer-adapter.ts",
+            "src/runtime/docker-lifecycle.ts",
+            "src/runtime/capabilities.ts",
+            "src/host-runner.ts"
+          ],
+          "testPaths": [
+            "tests/unit/process-runner.test.ts",
+            "tests/unit/docker-adapter.test.ts",
+            "tests/unit/devcontainer-adapter.test.ts",
+            "tests/unit/docker-lifecycle.test.ts",
+            "tests/unit/host-runner.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-5",
+          "designRefs": [
+            "design.md §3.3"
+          ],
+          "implementationPaths": [
+            "src/runtime/process-runner.ts",
+            "src/tool-output.ts"
+          ],
+          "testPaths": [
+            "tests/unit/process-runner.test.ts",
+            "tests/unit/tool-output.test.ts"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            }
+          ],
+          "verificationLevel": "unit"
+        },
+        {
+          "acceptanceId": "AC-6",
+          "designRefs": [
+            "design.md §5"
+          ],
+          "implementationPaths": [
+            "dist",
+            "CHANGELOG.md",
+            "README.md",
+            "README.zh-CN.md"
+          ],
+          "testPaths": [
+            "tests/unit"
+          ],
+          "evidence": [
+            {
+              "kind": "test",
+              "command": "npm run test:unit"
+            },
+            {
+              "kind": "typecheck",
+              "command": "npm run typecheck"
+            },
+            {
+              "kind": "test",
+              "command": "node scripts/smoke-pi-package.mjs --no-model"
+            }
+          ],
+          "verificationLevel": "integration"
+        }
+      ]
+    },
+    "ownedPaths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ]
+  },
+  "context": {
+    "requiredReads": [
+      "AGENTS.md",
+      ".llmwiki/SCHEMA.md",
+      ".llmwiki/index.md",
+      ".llmwiki/log.md",
+      ".kata/tasks/arch-review-p5-public-surfaces/task.json",
+      ".kata/tasks/arch-review-p5-public-surfaces/current-state.json",
+      "openspec/changes/arch-review-p5-public-surfaces/design.md"
+    ],
+    "designRefs": [
+      "openspec/changes/arch-review-p5-public-surfaces/design.md"
+    ],
+    "sourceRefs": [
+      "AC-1",
+      "AC-2",
+      "AC-3",
+      "AC-4",
+      "AC-5",
+      "AC-6"
+    ],
+    "authoritativeWiki": [],
+    "excludedWiki": [
+      {
+        "id": "llmwiki-arch-review-p1-foundation",
+        "reason": "not-authoritative"
+      },
+      {
+        "id": "llmwiki-arch-review-p5-public-surfaces",
+        "reason": "not-authoritative"
+      }
+    ],
+    "evidencePaths": [
+      ".kata/evidence/arch-review-p5-public-surfaces-AC-1-test-npm-run-test-unit.json",
+      ".kata/evidence/arch-review-p5-public-surfaces-AC-1-typecheck-npm-run-typecheck.json",
+      ".kata/evidence/arch-review-p5-public-surfaces-AC-6-test-node-scripts-smoke-pi-package.mjs---no-model.json",
+      ".kata/evidence/arch-review-p5-public-surfaces-test.json",
+      ".kata/evidence/arch-review-p5-public-surfaces-typecheck.json"
+    ],
+    "priorArtifacts": [
+      ".kata/tasks/arch-review-p5-public-surfaces/review.json",
+      ".kata/tasks/arch-review-p5-public-surfaces/judge.json",
+      ".kata/tasks/arch-review-p5-public-surfaces/repair.json"
+    ]
+  },
+  "permissions": {
+    "allowedWrites": [
+      ".kata/tasks/arch-review-p5-public-surfaces/review.json"
+    ],
+    "guardInstructions": [
+      "You may only write review findings to review.json.",
+      "Check that acceptance criteria are met by the implementation.",
+      "Assign severity: blocking (must fix), major, minor, note.",
+      "Fresh evidence must be collected after any repair.",
+      "Work on feature/arch-review-p5-public-surfaces; do not start, finish, or switch Git Flow branches outside the recorded task action.",
+      "Security review: inspect trust boundaries, secrets, dependency changes, input validation, and authorization effects."
+    ]
+  },
+  "nextAction": "Perform reviewer work after verifying this handoff."
+}

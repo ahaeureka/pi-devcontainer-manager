@@ -38,19 +38,13 @@
     "reviewMode": "security",
     "comet": {
       "projectInit": "not_requested",
-      "openStatus": "required"
+      "openStatus": "acknowledged"
     },
     "gitFlow": {
       "strategy": "manual",
       "branch": "feature/arch-review-p5-public-surfaces",
       "baseBranch": "main",
-      "status": "pending_confirmation",
-      "command": [
-        "switch",
-        "-c",
-        "feature/arch-review-p5-public-surfaces",
-        "main"
-      ]
+      "status": "active"
     }
   },
   "requirements": [
@@ -90,5 +84,182 @@
       "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraints 1-10, plus the repository's no-regression convention.",
       "confirmedAt": "2026-09-17T07:32:23.992Z"
     }
+  ],
+  "acceptanceMatrix": {
+    "version": 1,
+    "rows": [
+      {
+        "acceptanceId": "AC-1",
+        "designRefs": [
+          "design.md §3.1"
+        ],
+        "implementationPaths": [
+          "src/lifecycle.ts",
+          "extensions/index.ts"
+        ],
+        "testPaths": [
+          "tests/unit/lifecycle.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-2",
+        "designRefs": [
+          "design.md §3.2"
+        ],
+        "implementationPaths": [
+          "src/commands.ts"
+        ],
+        "testPaths": [
+          "tests/unit/commands.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-3",
+        "designRefs": [
+          "design.md §3.2"
+        ],
+        "implementationPaths": [
+          "src/host-runner.ts",
+          "src/commands.ts"
+        ],
+        "testPaths": [
+          "tests/unit/host-runner.test.ts",
+          "tests/unit/commands.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-4",
+        "designRefs": [
+          "design.md §3.3"
+        ],
+        "implementationPaths": [
+          "src/runtime/process-runner.ts",
+          "src/runtime/docker-adapter.ts",
+          "src/runtime/devcontainer-adapter.ts",
+          "src/runtime/docker-lifecycle.ts",
+          "src/runtime/capabilities.ts",
+          "src/host-runner.ts"
+        ],
+        "testPaths": [
+          "tests/unit/process-runner.test.ts",
+          "tests/unit/docker-adapter.test.ts",
+          "tests/unit/devcontainer-adapter.test.ts",
+          "tests/unit/docker-lifecycle.test.ts",
+          "tests/unit/host-runner.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-5",
+        "designRefs": [
+          "design.md §3.3"
+        ],
+        "implementationPaths": [
+          "src/runtime/process-runner.ts",
+          "src/tool-output.ts"
+        ],
+        "testPaths": [
+          "tests/unit/process-runner.test.ts",
+          "tests/unit/tool-output.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-6",
+        "designRefs": [
+          "design.md §5"
+        ],
+        "implementationPaths": [
+          "dist",
+          "CHANGELOG.md",
+          "README.md",
+          "README.zh-CN.md"
+        ],
+        "testPaths": [
+          "tests/unit"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          },
+          {
+            "kind": "test",
+            "command": "node scripts/smoke-pi-package.mjs --no-model"
+          }
+        ],
+        "verificationLevel": "integration"
+      }
+    ]
+  },
+  "ownedPaths": [
+    "CHANGELOG.md",
+    "README.md",
+    "README.zh-CN.md",
+    "dist",
+    "docs",
+    "extensions",
+    "openspec",
+    "package.json",
+    "scripts",
+    "src",
+    "tests"
   ]
 }

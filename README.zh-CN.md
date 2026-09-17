@@ -151,7 +151,7 @@ bash "pytest -q"
 | `/devcontainer stop` | Docker stop——策略授权 + 一次性确认 |
 | `/devcontainer remove` | Docker `rm -f`——策略授权 + 一次性确认 |
 | `/devcontainer logs [--tail N]` | 有界 `docker logs`（默认 100 行）；受策略校验并被审计 |
-| `/devcontainer host-exec <argv...>` | 被审计的宿主机逃生口（**默认开启**；可用 `hostExecution.allow: false` 收紧） |
+| `/devcontainer host-exec --argv <value> [...]` | 被审计的宿主机逃生口（**默认开启**；可用 `hostExecution.allow: false` 收紧）。每个 `--argv` 恰好一个参数、无 shell 与引号处理；值的终点是下一个 `--argv`，`--argv=<value>` 可传空参数 |
 | `/devcontainer setup` | 全局安装/升级 Dev Containers CLI（需确认、被审计） |
 | `/devcontainer off` | 清除目标并把本会话交还宿主机（休眠）；**该 opt-out 会被持久化**，因此 `/reload` 不会恢复目标，直到你重新选择 |
 

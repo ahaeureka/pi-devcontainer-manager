@@ -1,7 +1,7 @@
 ---
 source_path: .kata/tasks/arch-review-p1-foundation/wiki/kata-task-conventions.md
-ingested: 2026-09-17T07:24:57.535Z
-sha256: 2e54dcca229d7c8e0e6d5503b8e7f4b0a768bafaa5155dc836d730898cb8a5f5
+ingested: 2026-09-17T08:07:39.776Z
+sha256: 2d80d95cfec49a194a56ac5a2c85cd468fb27b12b2ef227140b1804baedf11d1
 ---
 # Kata task conventions in this repository
 
@@ -167,3 +167,23 @@ reader throw for the whole directory, so the gates disagree with each other abou
 - Re-running `kata-cli review` (without `--approve`) RESETS `review.json` (findings and evidence
   dropped); the `--approve --review-evidence` run is the one that writes the record, and it only binds
   a revisionId when the evidence is readable.
+
+## 12. Repairing after a PASS: the route, and its receipts
+
+`hardVerify` cannot re-enter implement on its own — the repair entry there needs a repairable verify
+FAIL, which a PASS never provides. The working route:
+
+1. `kata-cli review --change <id> --confirm-host-model` moves the task into `review` (this RESETS
+   `review.json`; `status` is `pending` or `approved` only — `changes-requested` is rejected).
+2. Write a **blocking** finding into `review.json` describing the repair. When the work is a review
+   fix-up rather than a defect, say so in the message: the severity is what routes the repair, and the
+   record should not read as a defect report.
+3. `build --seal` now enters `implement` and **does not seal** (its own diagnostics say so). Run
+   `build --seal` a second time to create the new revision.
+4. Every mutation needs a current acknowledged receipt for the role matching the CURRENT phase, and
+   the phase only advances when the command succeeds — so re-orient/ack after each phase change
+   (reviewer to unblock `review`, implementer to unblock the seal).
+5. **Validate the new evidence envelopes immediately after sealing** (name pattern, kind enum,
+   required fields). The seal writes `name: ${acceptanceId}-${kind}-${command}`, which violates the
+   current `^[A-Za-z0-9_.-]+$` pattern for any multi-word command, and ONE bad envelope makes the
+   directory unreadable so every criterion reads `missing_test_evidence`.

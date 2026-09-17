@@ -1,0 +1,8 @@
+{
+  "taskId": "arch-review-p5-public-surfaces",
+  "boundary": "review_gate",
+  "createdAt": "2026-09-17T08:03:43.199Z",
+  "choice": "continue_current",
+  "approvedAt": "2026-09-17T08:04:14.395Z",
+  "consumedAt": "2026-09-17T08:04:15.021Z"
+}

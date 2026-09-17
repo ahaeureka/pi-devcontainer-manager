@@ -1,0 +1,30 @@
+{
+  "id": "evidence-97e944c2-ff3c-42a5-85dc-eabd32129f77",
+  "taskId": "arch-review-p5-public-surfaces",
+  "checkSource": "fallback",
+  "name": "typecheck",
+  "kind": "typecheck",
+  "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/typescript/lib/tsc.js --noEmit",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-17T08:03:11.575Z",
+  "finishedAt": "2026-09-17T08:03:18.780Z",
+  "diffHash": "11a32221e1609b8f6fadde14bc7a1e0cd1b36e0d268f42249c0558aa4638e95d",
+  "revisionId": "revision-351f29a987780dca",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "dcf6b8978022ec2912676421b9c1443e735ee3c391f5c1fc58aef973269ff838"
+  }
+}

@@ -313,3 +313,56 @@ describe("toSpawnError", () => {
     expect(mapped.kind).toBe("unexpected");
   });
 });
+
+describe("ProcessResult output (L5-03)", () => {
+  const runner = new NodeProcessRunner();
+
+  it("carries both bounded streams when the caller supplied no callbacks", async () => {
+    const result = await runner.exec("node", ["-e", "process.stdout.write('out'); process.stderr.write('err')"], {
+      cwd: process.cwd(),
+      env: { PATH: process.env.PATH ?? "" },
+    });
+
+    // The sharp edge the review found: without callbacks the bytes used to be discarded while the
+    // caller still received a clean exit code.
+    expect(result.stdout).toBe("out");
+    expect(result.stderr).toBe("err");
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("omits the field for a stream the caller is streaming", async () => {
+    const chunks: Buffer[] = [];
+    const result = await runner.exec("node", ["-e", "process.stdout.write('out'); process.stderr.write('err')"], {
+      cwd: process.cwd(),
+      env: { PATH: process.env.PATH ?? "" },
+      onData: (chunk) => chunks.push(chunk),
+    });
+
+    expect(Buffer.concat(chunks).toString("utf8")).toBe("out");
+    // Streaming means the caller already has the bytes; duplicating them would double the memory for
+    // the largest outputs.
+    expect(result.stdout).toBeUndefined();
+    expect(result.stderr).toBe("err");
+  });
+
+  it("reports an empty stream as an empty string, so 'no output' and 'not captured' differ", async () => {
+    const result = await runner.exec("node", ["-e", "process.exit(0)"], {
+      cwd: process.cwd(),
+      env: { PATH: process.env.PATH ?? "" },
+    });
+
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("");
+  });
+
+  it("still caps a captured stream and still flags truncation", async () => {
+    const result = await runner.exec(
+      "node",
+      ["-e", "process.stdout.write('x'.repeat(200))"],
+      { cwd: process.cwd(), env: { PATH: process.env.PATH ?? "" }, maxOutputBytes: 32 },
+    );
+
+    expect(result.stdout).toHaveLength(32);
+    expect(result.truncated).toBe(true);
+  });
+});

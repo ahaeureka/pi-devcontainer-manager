@@ -86,6 +86,7 @@ import {
 import { evaluatePolicy, commandIdentity } from "../src/policy.js";
 import { createSetupCli } from "../src/setup-cli.js";
 import { createAuditedHostRunner } from "../src/host-runner.js";
+import { createLifecycleGuard } from "../src/lifecycle.js";
 import type { EffectiveConfig } from "../src/types.js";
 import { RuntimeError } from "../src/errors.js";
 import { renderExecutionContext } from "../src/execution-context.js";
@@ -485,8 +486,14 @@ function restoreSelection(ctx: ExtensionContext): SelectionIntent | undefined {
 export default function (pi: ExtensionAPI): void {
   // Lazy composition: heavy work only on session_start / reload.
   let runtime: Runtime | undefined;
+  // One owner for the session surface (review finding L0-04): a start opens a generation before its
+  // first await and re-checks after each one, so a superseded start cannot overwrite `runtime`,
+  // register surfaces from a stale activation decision, or notify for a session that is gone.
+  const lifecycle = createLifecycleGuard();
 
   pi.on("session_start", async (_event, ctx) => {
+    const generation = lifecycle.begin();
+    const superseded = (): boolean => !lifecycle.isCurrent(generation);
     const paths = defaultConfigPaths(ctx.cwd);
     const loaded = loadConfigWithDiagnostics(paths, { projectTrusted: ctx.isProjectTrusted() });
     const config = composeRuntimeConfig(ctx.cwd, loaded.config);
@@ -501,7 +508,9 @@ export default function (pi: ExtensionAPI): void {
       config.audit.enabled,
     );
     const rt = composeRuntime(config, audit, ctx.cwd, activation);
-    runtime = rt;
+    // The runtime assignment is a surface mutation like any other, so it goes through the guard (a
+    // start that is already superseded — e.g. by a command-path activation change — applies nothing).
+    if (!lifecycle.ifCurrent(generation, () => void (runtime = rt))) return;
 
     // Activation is decided BEFORE any execution surface is registered. In a
     // workspace that is not a DevContainer project the extension must leave Pi's
@@ -523,6 +532,7 @@ export default function (pi: ExtensionAPI): void {
       // when every cheaper one missed. Its failure modes (no daemon, timeout) mean
       // "no evidence": the decision fails toward dormancy, never toward takeover.
       evidence.workspaceHasRunningContainer = await probeRunningContainer(rt, ctx.cwd);
+      if (superseded()) return;
       decision = decideActivation(evidence);
     }
     activation.decision = decision;
@@ -533,6 +543,7 @@ export default function (pi: ExtensionAPI): void {
     // refires on /reload and session switches; same-name re-registration replaces
     // the prior definitions.
     const surfaces = surfacesFor(decision);
+    if (!lifecycle.ifCurrent(generation, () => undefined)) return;
     if (surfaces.containerTools) registerDevcontainerTools(pi, () => runtime);
     if (surfaces.bashReplacement) registerBashReplacement(pi, () => runtime);
     if (!decision.active) {
@@ -553,18 +564,21 @@ export default function (pi: ExtensionAPI): void {
         // without a manual re-`use`. The selected CONFIGURATION travels with it, so the mapping,
         // the prompt context and the host-path guard are built from the configuration the
         // operator chose rather than the workspace's primary one (L1-04).
-        await runtime.reconcileSelection({
+        await rt.reconcileSelection({
           workspaceKey: record.workspaceKey,
           ...(record.candidateId !== undefined ? { candidateId: record.candidateId } : {}),
           ...(record.version === 2 && record.configPath !== undefined ? { configPath: record.configPath } : {}),
         });
-        const restoredStatus = runtime.targetStore.snapshot().status;
+        if (superseded()) return;
+        const restoredStatus = rt.targetStore.snapshot().status;
         ctx.ui.notify(`Restored DevContainer selection ${record.workspaceKey} (${restoredStatus}).`, "info");
       }
     }
   });
 
   pi.on("session_shutdown", async () => {
+    // Invalidate anything in flight so a start that resumes after this shutdown cannot take over.
+    lifecycle.invalidate();
     runtime = undefined;
   });
 
@@ -654,9 +668,14 @@ export default function (pi: ExtensionAPI): void {
         const storeStatus = rt!.targetStore.snapshot().status;
         const bindable = storeStatus === "selected-valid" || storeStatus === "selected-stopped";
         if ((verb === "use" || verb === "up") && result.target !== undefined && bindable) {
-          engageDevcontainerSurfaces(pi, rt!, () => runtime);
+          engageDevcontainerSurfaces(pi, rt!, () => runtime, () => lifecycle.invalidate());
         }
-        if (verb === "off") rt!.activation.decision = { active: false, reason: "opted-out" };
+        if (verb === "off") {
+          // A command-path activation change must also stop an in-flight start from re-applying the
+          // decision it probed: the session surface is no longer what that start assumed.
+          lifecycle.invalidate();
+          rt!.activation.decision = { active: false, reason: "opted-out" };
+        }
       };
       await run(args);
     },
@@ -707,8 +726,16 @@ function registerBashReplacement(pi: ExtensionAPI, getRuntime: () => Runtime | u
  * registry per turn); if a host cannot observe that, `/reload` makes it
  * authoritative.
  */
-function engageDevcontainerSurfaces(pi: ExtensionAPI, rt: Runtime, getRuntime: () => Runtime | undefined): void {
+function engageDevcontainerSurfaces(
+  pi: ExtensionAPI,
+  rt: Runtime,
+  getRuntime: () => Runtime | undefined,
+  onEngage: () => void,
+): void {
   if (rt.config.activation === "never" || rt.activation.decision.active) return;
+  // An explicit engage changes the activation decision, so any start still in flight must not
+  // re-apply the decision it probed (the guard's generation is bumped by the closure that owns it).
+  onEngage();
   rt.activation.decision = { active: true, reason: "explicit-selection" };
   registerDevcontainerTools(pi, getRuntime);
   registerBashReplacement(pi, getRuntime);
@@ -813,7 +840,7 @@ async function showVerbPicker(
       "stop - stop selected container (confirmed)",
       "remove - delete selected container (confirmed)",
       "logs [--tail N] - container logs",
-      "host-exec <argv...> - HOST escape hatch (policy-gated)",
+      "host-exec --argv <value> - HOST escape hatch (audited; one --argv per argument)",
       "setup - install/upgrade the Dev Containers CLI",
       "off - return this session to the host (dormant)",
     ],

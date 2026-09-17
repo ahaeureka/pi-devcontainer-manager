@@ -1,0 +1,29 @@
+{
+  "id": "llmwiki-arch-review-p5-public-surfaces",
+  "statement": "Public surfaces and the process boundary (Phase 5 build notes)",
+  "scope": [
+    "concepts/arch-review-p5-public-surfaces.md"
+  ],
+  "kind": "llmwiki-summary",
+  "sourceRefs": [
+    ".llmwiki/raw/docs/arch-review-p5-public-surfaces.md",
+    ".llmwiki/concepts/arch-review-p5-public-surfaces.md"
+  ],
+  "sourceHashes": {
+    ".llmwiki/raw/docs/arch-review-p5-public-surfaces.md": "6debfdc46f6e354924dafbfc5dedba3c9a20649e8aee23318cac20f87cb73a08",
+    ".llmwiki/concepts/arch-review-p5-public-surfaces.md": "de7e888975a8cc0ecfb2f1e4f78e30518255d7de176548afd7bf207668897e63"
+  },
+  "validationTaskId": "llmwiki-ingest",
+  "evidenceIds": [
+    "llmwiki-6debfdc46f6e"
+  ],
+  "status": "verified",
+  "lastVerifiedAt": "2026-09-17T08:07:39.889Z",
+  "createdAt": "2026-09-17T08:07:39.655Z",
+  "updatedAt": "2026-09-17T08:07:39.892Z",
+  "approvalEvent": {
+    "approvedBy": "geebytes",
+    "role": "distiller",
+    "approvedAt": "2026-09-17T08:07:39.889Z"
+  }
+}

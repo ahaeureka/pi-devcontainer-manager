@@ -1,0 +1,32 @@
+{
+  "id": "evidence-17cfd5a1-96a1-4c75-9cc0-f5c41983283e",
+  "taskId": "arch-review-p5-public-surfaces",
+  "checkId": "matrix:AC-1:typecheck:npm run typecheck",
+  "checkSource": "matrix",
+  "name": "AC-1-typecheck-npm-run-typecheck",
+  "kind": "typecheck",
+  "command": "npm run typecheck",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-17T08:03:11.586Z",
+  "finishedAt": "2026-09-17T08:03:18.794Z",
+  "diffHash": "11a32221e1609b8f6fadde14bc7a1e0cd1b36e0d268f42249c0558aa4638e95d",
+  "log": "\n> pi-devcontainer-manager@1.0.0 typecheck\n> tsc --noEmit -p tsconfig.json\n\n",
+  "revisionId": "revision-351f29a987780dca",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "dcf6b8978022ec2912676421b9c1443e735ee3c391f5c1fc58aef973269ff838"
+  }
+}

@@ -94,15 +94,14 @@ export class NodeCapabilityService implements CapabilityService {
   }
 
   private async probeExecutable(path: string): Promise<{ present: boolean; version?: string }> {
-    const stdout: Buffer[] = [];
     try {
       const result = await this.runner.exec(path, ["--version"], {
         cwd: process.cwd(),
         env: { PATH: process.env.PATH ?? "" },
-        onData: (chunk) => stdout.push(chunk),
       });
       if (result.exitCode === null) return { present: false };
-      const version = Buffer.concat(stdout).toString("utf8").trim().split(/\s+/).pop();
+      // The boundary captured the stream (L5-03): no callback, no hand-rolled collection.
+      const version = (result.stdout ?? "").trim().split(/\s+/).pop();
       return version ? { present: true, version } : { present: true };
     } catch {
       return { present: false };

@@ -1,0 +1,24 @@
+{
+  "fromPhase": "review",
+  "reason": "review_findings",
+  "baselineRevisionId": "revision-0b5329a3-63d0-4c64-9400-1581be2a457b",
+  "baselineManifestHash": "11191816c53b142cff89705318764dcffb38e4e0db44a883790f7d3d028a2dbf",
+  "findings": [
+    {
+      "id": "finding-tree-moved-after-seal",
+      "acceptanceId": "AC-2",
+      "severity": "blocking",
+      "message": "PROCESS, not a defect: the independent adversarial review of revision-0b5329a3 produced eight findings (no blocking defects) and closing them edited task-owned paths, so the tree no longer matches the sealed revision and its evidence no longer describes it; the next revision must carry the fixes and be re-verified.",
+      "path": "src/commands.ts"
+    }
+  ],
+  "taskId": "arch-review-p5-public-surfaces",
+  "toPhase": "implement",
+  "actor": {
+    "id": "kata-agent",
+    "role": "implementer"
+  },
+  "createdAt": "2026-09-17T08:02:29.475Z",
+  "resolvedAt": "2026-09-17T08:03:31.192Z",
+  "resolvedRevisionId": "revision-351f29a987780dca"
+}

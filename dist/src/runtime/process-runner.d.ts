@@ -6,6 +6,18 @@ export interface ProcessResult {
     readonly signal: string | null;
     readonly durationMs: number;
     readonly truncated: boolean;
+    /**
+     * The bounded stdout/stderr this run captured, when the caller did NOT supply a callback for that
+     * stream.
+     *
+     * Before this existed the result carried no output at all: bytes were reachable only through
+     * `onData`/`onStderr`, so every consumer re-implemented the same chunk collection and a caller that
+     * forgot the callbacks received a clean exit code with silently discarded output (review finding
+     * L5-03). A stream the caller IS streaming is deliberately absent — the caller already has the
+     * bytes, and duplicating them would double the memory for the largest outputs.
+     */
+    readonly stdout?: string;
+    readonly stderr?: string;
 }
 export interface ProcessRunnerOptions {
     readonly cwd: string;

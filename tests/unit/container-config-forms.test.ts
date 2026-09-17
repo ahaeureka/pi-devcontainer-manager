@@ -158,7 +158,16 @@ function makeAdapter(runner: ProcessRunner) {
   return new NodeDevcontainerAdapter(runner, { devcontainerPath: "devcontainer", env: { PATH: "/usr/bin" }, cwd: "/ws" });
 }
 
-const ok = (exitCode: number): ProcessResult => ({ exitCode, signal: null, durationMs: 5, truncated: false });
+// The boundary supplies the bounded streams now (L5-03); a fake that used to push bytes into a
+// callback returns them on the result instead.
+const ok = (exitCode: number, stdout = "", stderr = ""): ProcessResult => ({
+  exitCode,
+  signal: null,
+  durationMs: 5,
+  truncated: false,
+  stdout,
+  stderr,
+});
 
 /**
  * AC-2: a *named* configuration is only resolvable when the CLI is told which
@@ -167,17 +176,10 @@ const ok = (exitCode: number): ProcessResult => ({ exitCode, signal: null, durat
  */
 describe("adapter argv — named configuration", () => {
   function adapterEmitting(stdout: string) {
-    const { runner, calls } = fakeRunner([ok(0), ok(0)]);
-    const adapter = makeAdapter(runner);
-    const original = runner.exec.bind(runner);
-    let first = true;
-    (runner as unknown as { exec: ProcessRunner["exec"] }).exec = (file, args, options) => {
-      // Only the first call is assumed to print a JSON document.
-      if (first) options.onData?.(Buffer.from(stdout));
-      first = false;
-      return original(file, args, options);
-    };
-    return { adapter, calls };
+    // The boundary supplies the bounded stream now (L5-03): the first scripted result carries the
+    // JSON document instead of the test pushing it into a callback.
+    const { runner, calls } = fakeRunner([ok(0, stdout), ok(0)]);
+    return { adapter: makeAdapter(runner), calls };
   }
 
   it("adds --config to up when a named configuration is selected", async () => {

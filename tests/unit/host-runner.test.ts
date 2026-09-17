@@ -46,9 +46,16 @@ function harness(
     async exec(file, args, execOptions) {
       calls.push({ file, args, options: execOptions });
       if (options.exec !== undefined) return options.exec(file, args, execOptions);
-      execOptions.onData?.(Buffer.from("host-out\n", "utf8"));
-      execOptions.onStderr?.(Buffer.from("host-err\n", "utf8"));
-      return { exitCode: 0, signal: null, durationMs: 1, truncated: false };
+      if (execOptions.onData !== undefined) execOptions.onData(Buffer.from("host-out\n", "utf8"));
+      if (execOptions.onStderr !== undefined) execOptions.onStderr(Buffer.from("host-err\n", "utf8"));
+      return {
+        exitCode: 0,
+        signal: null,
+        durationMs: 1,
+        truncated: false,
+        ...(execOptions.onData === undefined ? { stdout: "host-out\n" } : {}),
+        ...(execOptions.onStderr === undefined ? { stderr: "host-err\n" } : {}),
+      };
     },
   };
   const host = createAuditedHostRunner({

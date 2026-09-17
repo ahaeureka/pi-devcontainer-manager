@@ -68,8 +68,6 @@ export function createSetupCli(deps) {
     return async (options) => {
         const startedAt = process.hrtime.bigint();
         const elapsedMs = () => Number(process.hrtime.bigint() - startedAt) / 1e6;
-        const stdoutChunks = [];
-        const stderrChunks = [];
         const argv = [...SETUP_ARGV];
         let runResult;
         try {
@@ -79,8 +77,6 @@ export function createSetupCli(deps) {
                 maxOutputBytes: deps.config.maxOutputBytes,
                 timeoutMs: INSTALL_TIMEOUT_MS,
                 ...(options?.signal !== undefined ? { signal: options.signal } : {}),
-                onData: (chunk) => stdoutChunks.push(chunk),
-                onStderr: (chunk) => stderrChunks.push(chunk),
             });
         }
         catch (error) {
@@ -90,7 +86,7 @@ export function createSetupCli(deps) {
             const reason = error instanceof Error ? error.message : String(error);
             return failure(reason, writeRecord(argv, elapsedMs(), null, false, reason));
         }
-        const stderr = Buffer.concat(stderrChunks).toString("utf8").trim();
+        const stderr = (runResult.stderr ?? "").trim();
         if (runResult.exitCode !== 0) {
             // A signal-killed child resolves with `exitCode: null`, and `signal` is the only field that
             // says what happened — reporting it as "exited null" helped nobody.
@@ -100,7 +96,6 @@ export function createSetupCli(deps) {
             return failure(reason, writeRecord(argv, elapsedMs(), runResult.exitCode, runResult.truncated, reason));
         }
         // Verify the freshly installed CLI is resolvable on PATH.
-        const versionChunks = [];
         let reason;
         let version;
         try {
@@ -109,10 +104,9 @@ export function createSetupCli(deps) {
                 env: { ...deps.env },
                 maxOutputBytes: PROBE_MAX_OUTPUT_BYTES,
                 timeoutMs: PROBE_TIMEOUT_MS,
-                onData: (chunk) => versionChunks.push(chunk),
             });
             if (probe.exitCode === 0) {
-                version = Buffer.concat(versionChunks).toString("utf8").trim().split(/\s+/).pop() || undefined;
+                version = (probe.stdout ?? "").trim().split(/\s+/).pop() || undefined;
             }
             else {
                 reason = `npm install succeeded but \`${deps.config.devcontainerPath} --version\` failed (exit ${probe.exitCode}); check PATH.`;
