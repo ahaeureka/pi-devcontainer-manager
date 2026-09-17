@@ -1,13 +1,13 @@
 {
-  "revisionId": "revision-a7379c7b00ec4380",
+  "revisionId": "revision-d48c4ad5369ab489",
   "findings": [
     {
-      "id": "finding-tree-moved-after-rev12-verify",
+      "id": "finding-segment-class-closed",
       "taskId": "routing-hardening",
-      "acceptanceId": "AC-1",
+      "acceptanceId": "AC-2",
       "severity": "blocking",
-      "message": "PROCESS, not a defect: the rev-12 verify node returned two majors — my previous edit to the free-text refusal never applied (a silent no-op replace: the lesson I had just written into the wiki), and the URL rule required a non-empty username so `redis://:hunter2@cache:6379` rendered its password — plus two minors (raw-string same-path exemption, stale setCapture contract). All fixed in this revision, together with the REAL cause of the flaky real-Docker suites (vitest runs test FILES in parallel and both Docker suites use the same fixture containers). Re-sealing.",
-      "path": "src/commands.ts"
+      "message": "PROCESS: the rev-13 verify node found the SIXTH instance of the same failure mode (a fix on one surface, not its mirror: findContainerPath still built `/` + `/` so the HOST guard was inert for a root container path; displayProgram rendered a whole-command-line argv[0] and a URL's post-authority `@user:pass` tail; redactText consumed only up to the first `@`). All fixed in this revision by removing the class: one shared `isAtOrUnder`/`isSamePath` predicate, an enforced program rendering (first token, authority host only), and the deletion of the ledger's dead capture plumbing. Re-sealing.",
+      "path": "src/workspace-path.ts"
     }
   ],
   "status": "pending"
