@@ -44,13 +44,7 @@
       "strategy": "manual",
       "branch": "feature/arch-review-p5-public-surfaces",
       "baseBranch": "main",
-      "status": "pending_confirmation",
-      "command": [
-        "switch",
-        "-c",
-        "feature/arch-review-p5-public-surfaces",
-        "main"
-      ]
+      "status": "active"
     }
   },
   "requirements": [
