@@ -75,7 +75,8 @@ export function createAuditedHostRunner(deps) {
                 }
                 // A mapping that keeps the path is not a mis-route: the same path exists on both sides (the mirror
                 // mount idiom), exactly like the reverse guard's exemption (adversarial review).
-                const violation = mapping !== undefined && mapping.containerPath !== mapping.hostPath
+                const sameSpot = (left, right) => left.replace(/\/+$/, "") === right.replace(/\/+$/, "");
+                const violation = mapping !== undefined && !sameSpot(mapping.containerPath, mapping.hostPath)
                     ? findContainerPath(argv, mapping.containerPath)
                     : undefined;
                 if (violation !== undefined) {

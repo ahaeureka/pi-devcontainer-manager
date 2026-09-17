@@ -117,7 +117,7 @@ export function redactText(text) {
     // The password class allows `/`: a password containing a slash used to stop the match at it and leave the
     // credential in the text (`https://alice:/hunter2@host` was returned unchanged), which matters because the
     // in-session visibility renders `redactText`'s output (adversarial review).
-    out = out.replace(/(\w+:\/\/)[^/\s:@]+:[^\s@]*@/g, "$1[REDACTED]@");
+    out = out.replace(/(\w+:\/\/)[^\s/@]*:[^\s@]*@/g, "$1[REDACTED]@");
     return out;
 }
 /**
@@ -137,8 +137,11 @@ export function displayProgram(argv) {
     // scheme prefix to see them. A URL-shaped name is then rendered as its HOST only — a program name is a
     // word, and after redaction the remaining userinfo has no value worth showing (adversarial review).
     const redactedWhole = redactText(first);
+    // A URL-shaped name renders as its HOST only — never its userinfo. Taking the part before the first `/`
+    // was not enough (`redis://:hunter2@cache:6379` has no slash and kept the password), so the userinfo is
+    // dropped explicitly (adversarial review).
     const base = redactedWhole.includes("://")
-        ? (redactedWhole.split("://")[1]?.split("/")[0] ?? redactedWhole.split("://")[1] ?? "(no command)")
+        ? ((redactedWhole.split("://")[1] ?? "").split("@").pop() ?? "").split("/")[0] ?? "(no command)"
         : (redactedWhole.split("/").pop() ?? redactedWhole);
     const redacted = base.replace(/[\u0000-\u001f\u007f]/g, "").trim();
     if (redacted.length === 0)

@@ -264,6 +264,19 @@ describe("/devcontainer use", () => {
     expect(selectionFor(stoppedPrimary, "bb22")).toMatchObject({ status: "selected-valid", candidate: { id: "bb22", status: "running" } });
   });
 
+  it("echoes only the FIRST token of a refused free-text command", async () => {
+    // Host execution must be GRANTED for the grammar check to be reached at all.
+    const { handlers } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }) });
+
+    const result = await handlers["host-exec"]!("mysql -p s3cretpw db", makeCtx());
+
+    // The refusal used to echo the whole remaining input, so an unflagged secret appeared in the text the
+    // operator reads (adversarial review).
+    expect(result.text).toContain("[policy-denied]");
+    expect(result.text).toContain("`mysql`");
+    expect(result.text).not.toContain("s3cretpw");
+  });
+
   it("counts a host attempt that configuration withheld, by program name", async () => {
     const attempts: string[] = [];
     const { handlers } = makeServices({

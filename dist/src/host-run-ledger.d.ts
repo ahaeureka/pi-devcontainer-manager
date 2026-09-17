@@ -27,9 +27,9 @@ export interface HostRunLedger {
     /**
      * Adopt the session's capture policy.
      *
-     * `none` means no command identity is recorded ANYWHERE, so the summary may keep counting attempts
-     * but must not retain their text — otherwise the ledger becomes the one place the operator can read
-     * what the policy declined to record.
+     * The policy governs command TEXT, which this ledger never holds; the count and the PROGRAM names are
+     * kept under every policy (a program name is not command text, and hiding it made the visibility claim
+     * false under `commandCapture: "none"`). Kept as the session wiring's hook.
      */
     setCapture(mode: "none" | "fingerprint-only" | "redacted-text"): void;
     /** Start a new session: the summary and the one-shot notice are per session, not per process. */

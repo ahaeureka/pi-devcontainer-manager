@@ -265,13 +265,19 @@ describe("displayProgram — credential shapes the audit rules know", () => {
 
 describe("the URL rule spans a slash in the password", () => {
   it("redacts every URL credential shape the audit rule used to miss", () => {
+    // An EMPTY username was the last hole: the rule required a non-empty user, so `redis://:hunter2@host`
+    // was returned unchanged and the URL branch rendered the password (adversarial review).
+    expect(redactText("redis://:hunter2@cache:6379")).not.toContain("hunter2");
+    expect(displayProgram(["redis://:hunter2@cache:6379"])).toBe("cache:6379");
     // `[^/\s@]+` stopped the match at the first slash, so these were returned unchanged and then rendered by
     // `displayProgram` into both operator surfaces (adversarial review, both nodes).
     expect(redactText("https://alice:/hunter2@host")).not.toContain("hunter2");
     expect(displayProgram(["https://alice:/hunter2@host"])).not.toContain("hunter2");
     expect(displayProgram(["postgres://alice:my/password@db.example.test"])).not.toContain("password@");
     // A URL-shaped name renders as its host, never its userinfo.
-    expect(displayProgram(["postgres://alice:s3cretpw@db.example.test"])).toBe("[REDACTED]@db.example.test");
+    // A URL-shaped name renders as its HOST only: no userinfo, in any shape.
+    expect(displayProgram(["postgres://alice:s3cretpw@db.example.test"])).toBe("db.example.test");
+    expect(displayProgram(["https://host/path"])).toBe("host");
   });
 });
 
