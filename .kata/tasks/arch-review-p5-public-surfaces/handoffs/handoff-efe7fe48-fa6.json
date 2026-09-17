@@ -1,0 +1,165 @@
+{
+  "protocolVersion": 1,
+  "id": "handoff-efe7fe48-fa6",
+  "taskId": "arch-review-p5-public-surfaces",
+  "createdAt": "2026-09-17T07:33:20.221Z",
+  "from": {
+    "role": "designer"
+  },
+  "to": {
+    "role": "implementer"
+  },
+  "phase": "plan",
+  "repository": {
+    "head": "ff1020f90e3f33e3de4c48894ab732939d38dd77",
+    "branch": "feature/arch-review-p5-public-surfaces",
+    "diffHash": "6e26d1742e137e985668b7849c1e39b808fbd2379a925149729ffab0722d69ba",
+    "scope": {
+      "kind": "task_context",
+      "paths": [
+        ".kata/tasks/arch-review-p5-public-surfaces/task.json",
+        ".kata/tasks/arch-review-p5-public-surfaces/current-state.json"
+      ],
+      "hash": "6e26d1742e137e985668b7849c1e39b808fbd2379a925149729ffab0722d69ba"
+    },
+    "worktreeRoot": "."
+  },
+  "task": {
+    "id": "arch-review-p5-public-surfaces",
+    "title": "One lifecycle owner for the session surface (L0-04): composition, activation and",
+    "phase": "intake",
+    "acceptance": [
+      {
+        "id": "AC-1",
+        "statement": "One lifecycle owner for the session surface (L0-04): composition, activation and surface registration are bound to a monotonic lifecycle generation that is re-checked after every await, so an asynchronous `session_start` that resumes after a reload, a second start, or a shutdown can no longer assign a stale runtime or register surfaces from a superseded activation decision; a superseded start dispatches nothing and its callbacks never dereference a newer or missing runtime."
+      },
+      {
+        "id": "AC-2",
+        "statement": "`/devcontainer host-exec` takes structured argv instead of shell-like free text (L2-04): the quote-splitting grammar is replaced by an interface whose arguments are unambiguous (including empty and space-containing ones), and the change is documented as a breaking change for the command surface with the migration shown."
+      },
+      {
+        "id": "AC-3",
+        "statement": "The host escape hatch's transport invariants survive the grammar change: argv still reaches the host runner as literal argv with no shell interpretation, the container-path guard still evaluates the same argv before any spawn, and the audit record still carries the fingerprint (or the configured capture) of exactly the argv that ran."
+      },
+      {
+        "id": "AC-4",
+        "statement": "The process boundary carries its bounded output (L5-03): `ProcessResult` exposes the bounded stdout/stderr it already knows how to bound whenever the caller supplied no streaming callbacks, callbacks continue to work for live streaming, and every adapter's hand-rolled chunk-collection block migrates to the fields — so a caller that forgets the callbacks can no longer receive a clean exit code with silently discarded output."
+      },
+      {
+        "id": "AC-5",
+        "statement": "Truncation and cap semantics are unchanged by that migration: the byte cap per stream still comes from the single sourced constants (`DEFAULT_MAX_OUTPUT_BYTES`, `LOGS_MAX_OUTPUT_BYTES`, or `config.maxOutputBytes`), the `truncated` flag keeps its meaning, the persisted full-output path still receives the complete text, and stream labelling (`--- stderr ---`) behaves exactly as before."
+      },
+      {
+        "id": "AC-6",
+        "statement": "No regression, and the review's contract invariants hold: the CLI still receives the HOST workspace path for `up`/`build`/`exec`, the argv contract is unchanged, discovery stays lazy/read-only/bounded, targets are never auto-started, `stop`/`remove` keep both gates, host execution stays withheld-able and audited with the same operation/initiator/capture defaults, `/devcontainer setup` is untouched, and the full gate set is green (`npm run typecheck`, `npx vitest run`, `verify-package.mjs --unit-tests`, a rebuilt `dist/` committed with the sources, the packed smoke run, `npm run install:local -- --check`)."
+      }
+    ],
+    "branch": "main",
+    "createdAt": "2026-09-17T07:32:23.992Z",
+    "updatedAt": "2026-09-17T07:32:23.992Z",
+    "workflowProfile": {
+      "version": 1,
+      "isolationMode": "git_flow",
+      "developmentMode": "tdd",
+      "reviewMode": "security",
+      "comet": {
+        "projectInit": "not_requested",
+        "openStatus": "acknowledged"
+      },
+      "gitFlow": {
+        "strategy": "manual",
+        "branch": "feature/arch-review-p5-public-surfaces",
+        "baseBranch": "main",
+        "status": "active"
+      }
+    },
+    "requirements": [
+      {
+        "id": "REQ-1",
+        "statement": "One lifecycle owner for the session surface (L0-04): composition, activation and surface registration are bound to a monotonic lifecycle generation that is re-checked after every await, so an asynchronous `session_start` that resumes after a reload, a second start, or a shutdown can no longer assign a stale runtime or register surfaces from a superseded activation decision; a superseded start dispatches nothing and its callbacks never dereference a newer or missing runtime.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L0-04",
+        "confirmedAt": "2026-09-17T07:32:23.992Z"
+      },
+      {
+        "id": "REQ-2",
+        "statement": "`/devcontainer host-exec` takes structured argv instead of shell-like free text (L2-04): the quote-splitting grammar is replaced by an interface whose arguments are unambiguous (including empty and space-containing ones), and the change is documented as a breaking change for the command surface with the migration shown.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L2-04",
+        "confirmedAt": "2026-09-17T07:32:23.992Z"
+      },
+      {
+        "id": "REQ-3",
+        "statement": "The host escape hatch's transport invariants survive the grammar change: argv still reaches the host runner as literal argv with no shell interpretation, the container-path guard still evaluates the same argv before any spawn, and the audit record still carries the fingerprint (or the configured capture) of exactly the argv that ran.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraint 6, plus the guard/audit invariant in L2-04's own remedy.",
+        "confirmedAt": "2026-09-17T07:32:23.992Z"
+      },
+      {
+        "id": "REQ-4",
+        "statement": "The process boundary carries its bounded output (L5-03): `ProcessResult` exposes the bounded stdout/stderr it already knows how to bound whenever the caller supplied no streaming callbacks, callbacks continue to work for live streaming, and every adapter's hand-rolled chunk-collection block migrates to the fields — so a caller that forgets the callbacks can no longer receive a clean exit code with silently discarded output.",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L5-03",
+        "confirmedAt": "2026-09-17T07:32:23.992Z"
+      },
+      {
+        "id": "REQ-5",
+        "statement": "Truncation and cap semantics are unchanged by that migration: the byte cap per stream still comes from the single sourced constants (`DEFAULT_MAX_OUTPUT_BYTES`, `LOGS_MAX_OUTPUT_BYTES`, or `config.maxOutputBytes`), the `truncated` flag keeps its meaning, the persisted full-output path still receives the complete text, and stream labelling (`--- stderr ---`) behaves exactly as before.",
+        "source": "src/runtime/process-runner.ts (the caps and the truncation contract) and the Phase 2 findings that established the labelling.",
+        "confirmedAt": "2026-09-17T07:32:23.992Z"
+      },
+      {
+        "id": "REQ-6",
+        "statement": "No regression, and the review's contract invariants hold: the CLI still receives the HOST workspace path for `up`/`build`/`exec`, the argv contract is unchanged, discovery stays lazy/read-only/bounded, targets are never auto-started, `stop`/`remove` keep both gates, host execution stays withheld-able and audited with the same operation/initiator/capture defaults, `/devcontainer setup` is untouched, and the full gate set is green (`npm run typecheck`, `npx vitest run`, `verify-package.mjs --unit-tests`, a rebuilt `dist/` committed with the sources, the packed smoke run, `npm run install:local -- --check`).",
+        "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraints 1-10, plus the repository's no-regression convention.",
+        "confirmedAt": "2026-09-17T07:32:23.992Z"
+      }
+    ]
+  },
+  "context": {
+    "requiredReads": [
+      "AGENTS.md",
+      ".llmwiki/SCHEMA.md",
+      ".llmwiki/index.md",
+      ".llmwiki/log.md",
+      ".kata/tasks/arch-review-p5-public-surfaces/task.json",
+      ".kata/tasks/arch-review-p5-public-surfaces/current-state.json",
+      "openspec/changes/arch-review-p5-public-surfaces/design.md"
+    ],
+    "designRefs": [
+      "openspec/changes/arch-review-p5-public-surfaces/design.md"
+    ],
+    "sourceRefs": [
+      "AC-1",
+      "AC-2",
+      "AC-3",
+      "AC-4",
+      "AC-5",
+      "AC-6"
+    ],
+    "authoritativeWiki": [],
+    "excludedWiki": [
+      {
+        "id": "llmwiki-arch-review-p1-foundation",
+        "reason": "not-authoritative"
+      }
+    ],
+    "evidencePaths": [],
+    "priorArtifacts": [
+      ".kata/tasks/arch-review-p5-public-surfaces/review.json",
+      ".kata/tasks/arch-review-p5-public-surfaces/judge.json",
+      ".kata/tasks/arch-review-p5-public-surfaces/repair.json"
+    ]
+  },
+  "permissions": {
+    "allowedWrites": [
+      "src/",
+      "tests/",
+      "docs/"
+    ],
+    "guardInstructions": [
+      "Write only to src/, tests/, and task-owned .kata paths.",
+      "All acceptance criteria must have stable AC-[0-9]+ ids before implement.",
+      "Do not modify .kata/schemas/, docs/superpowers/rules/, or wiki/verified/.",
+      "Work on feature/arch-review-p5-public-surfaces; do not start, finish, or switch Git Flow branches outside the recorded task action.",
+      "Use TDD: write a focused failing test, verify RED, implement the minimum, then verify GREEN."
+    ]
+  },
+  "nextAction": "Perform implementer work after verifying this handoff."
+}

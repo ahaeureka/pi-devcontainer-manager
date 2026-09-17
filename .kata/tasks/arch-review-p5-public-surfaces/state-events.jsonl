@@ -1,1 +1,2 @@
 {"taskId":"arch-review-p5-public-surfaces","from":null,"to":"intake","actor":{"id":"system","role":"system"},"at":"2026-09-17T07:32:23.992Z"}
+{"taskId":"arch-review-p5-public-surfaces","from":"intake","to":"plan","actor":{"id":"kata-designer","role":"designer"},"at":"2026-09-17T07:33:20.210Z"}

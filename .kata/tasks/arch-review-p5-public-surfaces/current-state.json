@@ -1,9 +1,9 @@
 {
   "taskId": "arch-review-p5-public-surfaces",
-  "phase": "intake",
+  "phase": "plan",
   "actor": {
-    "id": "system",
-    "role": "system"
+    "id": "kata-designer",
+    "role": "designer"
   },
-  "updatedAt": "2026-09-17T07:32:23.992Z"
+  "updatedAt": "2026-09-17T07:33:20.210Z"
 }
