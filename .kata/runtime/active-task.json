@@ -1,0 +1,9 @@
+{
+  "taskId": "arch-review-p5-public-surfaces",
+  "role": "designer",
+  "phase": "intake",
+  "platform": "pi",
+  "branch": "main",
+  "origin": "workflow",
+  "activatedAt": "2026-09-17T07:32:24.030Z"
+}
