@@ -9,6 +9,19 @@
 import { describe, expect, it } from "vitest";
 import { detectHostPathOnContainerSurface } from "../../src/routing-guard.js";
 import { createHostRunLedger } from "../../src/host-run-ledger.js";
+import { createAuditedHostRunner } from "../../src/host-runner.js";
+import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
+
+function makeConfig(overrides: Partial<EffectiveConfig> = {}): EffectiveConfig {
+  return {
+    version: 1, dockerPath: "docker", devcontainerPath: "devcontainer", routeMode: "container-required",
+    allowedWorkspaceRoots: ["/ws"], environmentAllowlist: [], maxTimeoutSeconds: 900, maxOutputBytes: 1024,
+    discovery: { maxDepth: 3, excludedDirectories: [".git"] },
+    audit: { enabled: true, retentionDays: 90, commandCapture: "fingerprint-only" },
+    destructive: { allowStop: false, allowRemove: false }, hostExecution: { allow: true },
+    ...overrides,
+  };
+}
 
 describe("detectHostPathOnContainerSurface", () => {
   const mapping = { hostPath: "/host/proj", containerPath: "/workspaces/proj" };
@@ -63,6 +76,67 @@ describe("detectHostPathOnContainerSurface", () => {
   it("says nothing when the mapping mounts the host path at the same path", () => {
     // There the host path IS the container path, so using it is correct.
     expect(detectHostPathOnContainerSurface(["cat", "/ws/x"], { hostPath: "/ws", containerPath: "/ws" })).toBeUndefined();
+  });
+});
+
+describe("the notice and the ledger agree on redaction", () => {
+  it("a host runner with a ledger announces a REDACTED first attempt, once", async () => {
+    const notices: string[] = [];
+    const ledger = createHostRunLedger({ limit: 5 });
+    const records: AuditRecord[] = [];
+    const host = createAuditedHostRunner({
+      runner: {
+        async exec() {
+          return { exitCode: 0, signal: null, durationMs: 1, truncated: false, stdout: "", stderr: "" };
+        },
+      },
+      config: makeConfig(),
+      audit: { write: (record) => void records.push(record) },
+      sessionWorkspace: "/ws",
+      env: { PATH: "/usr/bin" },
+      targetStoreWorkspaceKey: () => undefined,
+      guardMappingFor: async () => undefined,
+      ledger,
+      onFirstHostRun: (rendered) => void notices.push(rendered),
+    });
+
+    await host.run(["curl", "-H", "Authorization: Bearer sk-live-abcdef123456", "https://e.test"]);
+    await host.run(["hostname"]);
+
+    // The notice is the operator-facing rendering: it must not be the one place a credential appears
+    // in plaintext while the ledger and the audit trail redact it (adversarial review of the routing
+    // hardening).
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).not.toContain("sk-live-abcdef123456");
+    expect(ledger.recent().join(" ")).not.toContain("sk-live-abcdef123456");
+    expect(records[0]?.commandText).toBeUndefined();
+    expect(ledger.count()).toBe(2);
+  });
+
+  it("counts a refused attempt too, and still announces only the first", async () => {
+    const notices: unknown[] = [];
+    const ledger = createHostRunLedger({ limit: 5 });
+    const records: AuditRecord[] = [];
+    const host = createAuditedHostRunner({
+      runner: { async exec() { return { exitCode: 0, signal: null, durationMs: 1, truncated: false, stdout: "", stderr: "" }; } },
+      config: makeConfig({ hostExecution: { allow: false } }),
+      audit: { write: (record) => void records.push(record) },
+      sessionWorkspace: "/ws",
+      env: { PATH: "/usr/bin" },
+      targetStoreWorkspaceKey: () => undefined,
+      guardMappingFor: async () => undefined,
+      ledger,
+      onFirstHostRun: (rendered) => void notices.push(rendered),
+    });
+
+    await expect(host.run(["hostname"])).rejects.toMatchObject({ kind: "policy-denied" });
+    await expect(host.run(["hostname"])).rejects.toMatchObject({ kind: "policy-denied" });
+
+    // A refused attempt is what the operator needs to see; it is counted, announced once, and recorded
+    // as a denial.
+    expect(ledger.count()).toBe(2);
+    expect(notices).toHaveLength(1);
+    expect(records.every((record) => record.policyAuthorized === false)).toBe(true);
   });
 });
 

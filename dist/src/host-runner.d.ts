@@ -50,11 +50,18 @@ export interface AuditedHostRunnerDeps {
      * counted, and the FIRST one of the session is reported through the operator UI.
      */
     readonly ledger?: {
+        /** Counts the attempt and reports whether it is the session's first. */
         noteFirstRun(argv: readonly string[]): boolean;
-        record(argv: readonly string[]): void;
     };
-    /** Called once per session, with the argv of the first host run. */
-    readonly onFirstHostRun?: (argv: readonly string[]) => void;
+    /**
+     * Called once per session with the REDACTED rendering of the first host attempt.
+     *
+     * Redaction happens here, not in the callback: the audit trail and the ledger both redact, and a
+     * notice is the third rendering of the same argv — the boundary that already knows the rules is the
+     * only place that can guarantee none of the three leaks (adversarial review of the routing
+     * hardening found the notice emitting a bearer token verbatim).
+     */
+    readonly onFirstHostRun?: (rendered: string) => void;
 }
 /** The shape `CommandServices.hostRunner` expects. */
 export interface AuditedHostRunner {

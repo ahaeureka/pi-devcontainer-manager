@@ -84,7 +84,9 @@ export class ExecutionService {
                     message: `Container command references the HOST path ${offending}; inside the container this workspace is ${mapping.containerPath}.`,
                     remedy: "Use the container path for container work, or devcontainer_host_exec for the host.",
                 });
-                this.audit(snapshot, ctx, { operation: request.operation, initiator: request.initiator, workspace: request.workspace }, { outputTruncated: false, errorSummary: error.message });
+                // Audited like the symmetric forward guard (which records `container-path-on-host`): the
+                // operation is a policy denial, not an authorized run that happened to fail.
+                this.audit(snapshot, ctx, { operation: request.operation, initiator: request.initiator, workspace: request.workspace }, { policyAuthorized: false, policyDenialReason: "host-path-on-container", outputTruncated: false, errorSummary: error.message });
                 throw error;
             }
         }
@@ -394,8 +396,10 @@ export class ExecutionService {
             initiator: request.initiator,
             ...this.workspaceIdentity(ctx, request),
             ...(targetId !== undefined ? { targetId } : {}),
-            policyAuthorized: snapshot.authorized,
-            ...(snapshot.denialReason !== undefined ? { policyDenialReason: snapshot.denialReason } : {}),
+            policyAuthorized: extra.policyAuthorized ?? snapshot.authorized,
+            ...((extra.policyDenialReason ?? snapshot.denialReason) !== undefined
+                ? { policyDenialReason: extra.policyDenialReason ?? snapshot.denialReason }
+                : {}),
             ...(extra.durationMs !== undefined ? { durationMs: extra.durationMs } : {}),
             ...(extra.exitCode !== undefined ? { exitCode: extra.exitCode } : {}),
             outputTruncated: extra.outputTruncated ?? false,

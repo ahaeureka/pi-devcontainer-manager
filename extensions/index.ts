@@ -145,8 +145,8 @@ function composeRuntime(
    * extension closure (it is per session), so it is passed in rather than created here.
    */
   hostVisibility: {
-    ledger: { noteFirstRun(argv: readonly string[]): boolean; record(argv: readonly string[]): void; summary(): string };
-    onFirstHostRun: (argv: readonly string[]) => void;
+    ledger: { noteFirstRun(argv: readonly string[]): boolean; summary(): string };
+    onFirstHostRun: (rendered: string) => void;
   },
 ): Runtime {
   const runner = new NodeProcessRunner();
@@ -290,8 +290,9 @@ function composeRuntime(
     return {
       hostPath: facts.mapping.hostPath,
       containerPath: facts.mapping.containerPath,
-      // `exactOptionalPropertyTypes`: only present when the configuration declares such mounts.
-      ...(facts.containerOnlyMounts !== undefined ? { containerVisiblePaths: facts.containerOnlyMounts } : {}),
+      // Only mounts whose source and target are the SAME path are the same file on both sides; the
+      // reverse guard must not excuse a target-only shadow of the host path.
+      ...(facts.samePathMounts !== undefined ? { containerVisiblePaths: facts.samePathMounts } : {}),
     };
   };
 
@@ -543,10 +544,12 @@ export default function (pi: ExtensionAPI): void {
     );
     const rt = composeRuntime(config, audit, ctx.cwd, activation, {
       ledger: hostRuns,
-      onFirstHostRun: (argv) => {
+      onFirstHostRun: (rendered) => {
         // One notice per session, on the operator channel: a model reaching for the escape hatch
-        // should not require reading the audit log to notice.
-        ctx.ui.notify(`[devcontainer-manager] first host command this session: ${argv.join(" ")} (audited)`, "warning");
+        // should not require reading the audit log to notice. The runner hands over an already
+        // REDACTED rendering, so this notice cannot be the one place a credential appears in plaintext.
+        // "Attempt", because a refused command never ran but is exactly what the operator must see.
+        ctx.ui.notify(`[devcontainer-manager] first host command attempt this session: ${rendered} (audited)`, "warning");
       },
     });
     // The runtime assignment is a surface mutation like any other, so it goes through the guard (a

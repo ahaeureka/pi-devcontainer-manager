@@ -299,6 +299,28 @@ export function createCommandHandlers(services) {
             established = await applySelection(services, selectionFor(entry, candidateId, resolved.configPath), ctx);
             return undefined;
         };
+        /**
+       * Offer the container choice for an ambiguous workspace, or return the refusal.
+       *
+       * Extracted because ambiguity is reachable from TWO places — a bare `/devcontainer use` whose only
+       * match is ambiguous, and a workspace picked from the picker (adversarial review of the routing
+       * hardening: the second path bound an ambiguous selection and reported success with no target).
+       */
+        const chooseAmbiguousContainer = async (entry, ctx) => {
+            const ids = entry.containerCandidates.map((c) => c.id);
+            const refusal = `[ambiguous-candidate] Multiple running containers for \`${entry.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`;
+            const labels = entry.containerCandidates.map((c) => `${c.id.slice(0, 12)} — ${c.state}`);
+            if (labels.length === 0 || !ctx.hasUI)
+                return { ok: false, text: refusal };
+            const picked = await ctx.ui.select(`Select the container for ${entry.workspacePath}`, labels, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
+            if (picked === undefined)
+                return { ok: false, text: refusal };
+            const index = labels.indexOf(picked);
+            const chosen = index === -1 ? undefined : entry.containerCandidates[index];
+            if (chosen === undefined)
+                return { ok: false, text: refusal };
+            return { ok: true, id: chosen.id };
+        };
         const withTarget = (text) => established !== undefined ? { text, target: established } : { text };
         // An explicit CONTAINER id selects that candidate of an ambiguous workspace
         // (the only way to resolve 2+ running containers for one workspace).
@@ -323,27 +345,16 @@ export function createCommandHandlers(services) {
         if (candidates.length === 1) {
             const only = candidates[0];
             if (only.ambiguous === true) {
-                const ids = only.containerCandidates.map((c) => c.id);
-                const refusal = `[ambiguous-candidate] Multiple running containers for \`${only.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`;
                 // Offer the choice instead of only describing it. Docker result order still never decides:
                 // the operator picks, and a cancelled picker keeps the refusal (command-routing assessment
                 // §4.3).
-                const labels = only.containerCandidates.map((c) => `${c.id.slice(0, 12)} — ${c.state}`);
-                // Same convention as every other prompt in this file: without a UI there is nobody to ask, so
-                // the refusal is the answer (print/json runs must not hang or throw).
-                if (labels.length === 0 || !ctx.hasUI)
-                    return { text: refusal };
-                const picked = await ctx.ui.select(`Select the container for ${only.workspacePath}`, labels, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
-                if (picked === undefined)
-                    return { text: refusal };
-                const index = labels.indexOf(picked);
-                const chosen = index === -1 ? undefined : only.containerCandidates[index];
-                if (chosen === undefined)
-                    return { text: refusal };
-                const failure = await select(only, chosen.id);
+                const choice = await chooseAmbiguousContainer(only, ctx);
+                if (choice.ok === false)
+                    return { text: choice.text };
+                const failure = await select(only, choice.id);
                 if (failure !== undefined)
                     return { text: failure };
-                return withTarget(`Selected \`${only.workspacePath}\` → container \`${chosen.id}\`.`);
+                return withTarget(`Selected \`${only.workspacePath}\` → container \`${choice.id}\`.`);
             }
             const failure = await select(only, primaryCandidate(only)?.id);
             if (failure !== undefined)
@@ -358,7 +369,18 @@ export function createCommandHandlers(services) {
         if (idx === -1)
             return { text: "[unexpected] Unknown selection." };
         const picked = candidates[idx];
-        const pickedFailure = await select(picked, picked.ambiguous ? undefined : primaryCandidate(picked)?.id);
+        // A workspace picked from the picker can itself be ambiguous: without this, the command bound an
+        // ambiguous selection and answered with a success-shaped message and no target.
+        if (picked.ambiguous) {
+            const choice = await chooseAmbiguousContainer(picked, ctx);
+            if (choice.ok === false)
+                return { text: choice.text };
+            const ambiguousFailure = await select(picked, choice.id);
+            if (ambiguousFailure !== undefined)
+                return { text: ambiguousFailure };
+            return withTarget(`Selected \`${picked.workspacePath}\` → container \`${choice.id}\`.`);
+        }
+        const pickedFailure = await select(picked, primaryCandidate(picked)?.id);
         if (pickedFailure !== undefined)
             return { text: pickedFailure };
         return withTarget(`Selected \`${picked.workspacePath}\` (${containerStateOf(picked) ?? "config-only"}).\nRun /devcontainer up if it is not running.`);

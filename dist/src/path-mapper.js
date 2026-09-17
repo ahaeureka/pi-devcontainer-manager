@@ -144,11 +144,13 @@ export function readConfigFacts(configDir, text) {
         ? config.mounts.filter((entry) => typeof entry === "string")
         : [];
     const containerOnly = containerOnlyMounts(mounts, workspaceMount, mapping);
+    const samePath = samePathMounts(mounts);
     return {
         kind: "ok",
         facts: {
             ...(mapping !== undefined ? { mapping } : {}),
             ...(containerOnly !== undefined ? { containerOnlyMounts: containerOnly } : {}),
+            ...(samePath !== undefined ? { samePathMounts: samePath } : {}),
         },
     };
 }
@@ -174,5 +176,24 @@ export function containerOnlyMounts(mounts, workspaceMount, mapping) {
         seen.add(target);
     }
     return seen.size === 0 ? undefined : [...seen];
+}
+/**
+ * The `mounts` entries that put the SAME path on both sides (`source` === `target`).
+ *
+ * A devcontainer mount is a `source=<host>,target=<container>[,type=...]` triple; when the two paths
+ * are identical the file is genuinely the same on both sides, which is the only case the reverse
+ * routing guard may excuse. Keying on the target alone would excuse a mount whose source is somewhere
+ * else entirely (adversarial review of the routing hardening).
+ */
+export function samePathMounts(mounts) {
+    const paths = [];
+    for (const mount of mounts) {
+        const parts = mount.split(",");
+        const source = parts.find((part) => part.trim().startsWith("source="))?.trim().slice("source=".length);
+        const target = parts.find((part) => part.trim().startsWith("target="))?.trim().slice("target=".length);
+        if (source !== undefined && target !== undefined && source.length > 0 && source === target)
+            paths.push(target);
+    }
+    return paths.length > 0 ? paths : undefined;
 }
 //# sourceMappingURL=path-mapper.js.map
