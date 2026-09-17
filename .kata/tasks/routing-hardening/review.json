@@ -1,5 +1,14 @@
 {
-  "revisionId": "revision-774184d3af8447ff",
-  "findings": [],
+  "revisionId": "revision-a7379c7b00ec4380",
+  "findings": [
+    {
+      "id": "finding-tree-moved-after-rev12-verify",
+      "taskId": "routing-hardening",
+      "acceptanceId": "AC-1",
+      "severity": "blocking",
+      "message": "PROCESS, not a defect: the rev-12 verify node returned two majors — my previous edit to the free-text refusal never applied (a silent no-op replace: the lesson I had just written into the wiki), and the URL rule required a non-empty username so `redis://:hunter2@cache:6379` rendered its password — plus two minors (raw-string same-path exemption, stale setCapture contract). All fixed in this revision, together with the REAL cause of the flaky real-Docker suites (vitest runs test FILES in parallel and both Docker suites use the same fixture containers). Re-sealing.",
+      "path": "src/commands.ts"
+    }
+  ],
   "status": "pending"
 }
