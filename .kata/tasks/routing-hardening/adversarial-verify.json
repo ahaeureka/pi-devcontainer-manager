@@ -1,0 +1,102 @@
+{
+  "node": "verify",
+  "status": "recorded",
+  "revisionId": "revision-616b95364eab0640",
+  "executedInFreshContext": true,
+  "contextNote": "Fresh sub-agent context with no history of authoring this change: I read the brief only as a claim list, then inspected the sealed tree directly (HEAD 107e9a6, clean working tree, .kata/tasks/routing-hardening/current-revision.json == revision-616b95364eab0640) rather than continuing any prior reasoning. Probes ran by executing the committed build (dist/src/*.js) with `node --input-type=module -e` (a /tmp scratch file was denied by policy, so every counterexample is a reproducible one-liner), by comparing the pre-revision implementation extracted with `git show 8e6b491:src/path-mapper.ts`, and by running the repo's own gates (typecheck, test:unit, vitest run, build + git status). No repository file was modified or created; scratch state was discarded.",
+  "briefSha256": "690fe19a0ef1d9b036ab48d0ed252d3d3bd76b7210fd95241ccd39d35833c3ce",
+  "verdict": "defects_found",
+  "attempts": [
+    {
+      "hypothesis": "AC-1: a credential-bearing argv[0] still reaches an operator surface (ledger/status and the withheld notice) through displayProgram's own rules.",
+      "method": "Executed the committed dist/src/policy.js displayProgram over 59 token templates x 3 credentials, then a targeted battery of exactly the shapes the brief lists (@ before ://, two @, scheme-less userinfo with a port, Windows path, redacts-to-placeholder, empty host part, @ only at the end, whitespace-only), then brute-forced all 32768 tokens of length <=5 over the alphabet {a,@,/,:,.,1,-,space}.",
+      "outcome": "confirmed",
+      "evidence": "Reaches both surfaces (ledger + notice) under the DEFAULT capture mode: displayProgram([\"https://alice:hunter2/@db.example.test\"]) === \"alice:hunter2\"; displayProgram([\"x@y://alice:hunter2\"]) === \"alice:hunter2\"; displayProgram([\"postgres://admin:P/w0rd@db.internal\"]) === \"admin:P\"; displayProgram([\"deployer@db.example.test:hunter2\"]) === \"db.example.test:hunter2\". The shapes the brief enumerates are otherwise safe: \"alice:hunter2@host:5432\" -> \"host:5432\"; \"a@b@c:hunter2@host\" -> \"host\"; \"C:\\\\alice:hunter2@host\" -> \"host\"; \"token=abc\" -> \"token=[REDACTED]\"; \"alice:hunter2@/x\" -> \"(no command)\"; \"alice:hunter2@\" -> \"(no command)\"; whitespace-only / control-only / empty argv -> \"(no command)\". The 32768-token brute force produced 0 renders containing \"@\" or \"/\", so the rendered string is always an @-less, /-less word. NOTE: The renderer's *shape* is what the doc claims; the doc's *scope* statements are what fails (see F1)."
+    },
+    {
+      "hypothesis": "Brief (a): some surface - runner, withheld, status, notice, audit errorSummary, host-exec refusal, diagnostics - still interpolates raw input instead of displayProgram or a typed message.",
+      "method": "Enumerated every ctx.ui.notify call in extensions/index.ts and every RuntimeError message in src/, read each call site's argument, and followed every errorSummary/commandText write into the audit writer.",
+      "outcome": "confirmed",
+      "evidence": "All the surfaces this change owns render or redact correctly: withheld notice and ledger call displayProgram (extensions/index.ts:571, src/host-run-ledger.ts:45), the runner hands over displayProgram(argv) (src/host-runner.ts:112), the free-text refusal renders displayProgram (src/commands.ts:836), the audit writer redacts errorSummary and commandText on the way out (src/audit.ts:31-32). One operator-channel surface still interpolates raw input: `Unknown /devcontainer verb: ${verb}` (extensions/index.ts:715 / dist/extensions/index.js:592) -> finding F3 (nit). src/host-runner.ts:177 and src/execution-service.ts:204 do interpolate the offending argv element, but into typed policy-denied messages (allowed by the brief; the audit copy is redacted) and both predate this revision. NOTE: Not a leak of this revision's class, but not 'none' either."
+    },
+    {
+      "hypothesis": "Brief (c): the segment predicate is unified but some consumer still hand-rolls prefix/segment math.",
+      "method": "grep for startsWith(`${...}`), slice(x.length) and indexOf(...)===0 across src/, extensions/ and dist/ (excluding .map files).",
+      "outcome": "confirmed",
+      "evidence": "isAtOrUnder is now the only prefix/segment PREDICATE (src/workspace-path.ts:69-73; the remaining startsWith hits are dot-file checks, source=/target= parsing and --argv=). But the JOIN stayed private: `${mapping.containerPath}${candidate.slice(host.length)}` (src/path-mapper.ts:103) assumes the base is not a bare root -> finding F2. NOTE: The unification is real; the concatenation it guards is not."
+    },
+    {
+      "hypothesis": "Inverse direction of the last nit: hostToContainer's delegation to isAtOrUnder is behaviour-preserving.",
+      "method": "Ran the pre-revision implementation (git show 8e6b491:src/path-mapper.ts, reconstructed and executed inline) against the current dist function on a root-host mapping and on an ordinary mapping.",
+      "outcome": "confirmed",
+      "evidence": "hostToContainer(\"/etc/passwd\", {hostPath:\"/\", containerPath:\"/workspaces/proj\"}): OLD -> undefined; NEW -> \"/workspaces/projetc/passwd\". hostToContainer(\"/data/ws/x\", {hostPath:\"/data/ws\", containerPath:\"/app\"}) -> \"/app/x\" in both. Reachable through buildPathMapping with workspaceMount \"source=/,target=/workspace,type=bind\" (or a config at /.devcontainer/devcontainer.json); the codebase itself treats {hostPath:\"/\"} as legitimate (tests/unit/routing-guards.test.ts:310) and no test exercises hostToContainer with a root host side -> finding F2. NOTE: A 'nit' fix changed behaviour for the root case."
+    },
+    {
+      "hypothesis": "AC-6: the gate set is not green, or dist/ is stale relative to src/.",
+      "method": "npm run typecheck; npm run test:unit; npx vitest run; npm run build followed by git status --porcelain.",
+      "outcome": "refuted",
+      "evidence": "typecheck exit 0; test:unit 39 files / 500 tests pass; npx vitest run 42 files / 516 tests pass; a fresh `npm run build` left the committed dist byte-identical (git status --porcelain empty), so the recorded gate evidence and 'a rebuilt dist/ committed with the sources' both hold at HEAD 107e9a6."
+    },
+    {
+      "hypothesis": "AC-2/AC-3: the reverse guard misses an intended hit, or fires on a substring / flag value instead of a real segment boundary.",
+      "method": "15-case battery against the committed dist/src/routing-guard.js: host path exact + nested, sibling prefix /data/wsx, substring /data/w, a flag value, the container path itself, no mapping, host==container, container nested under host, a host file outside a nested container, container an ancestor of host, same-path mounts (shallow and deep), trailing slashes; plus findContainerPath with a \"/\" base.",
+      "outcome": "refuted",
+      "evidence": "Hits only where a hit is required (/data/ws, /data/ws/src/a.ts, /data/ws/, /data/ws/other/x in the nested case, /data/ws/x when the container path is an ancestor); every required skip returned undefined (no mapping, host==container, container path, sibling prefix, substring, flag value, same-path mount); findContainerPath([\"cat\",\"/etc/passwd\"], \"/\") returns \"/etc/passwd\", i.e. the root base is no longer inert."
+    },
+    {
+      "hypothesis": "AC-4: the picker lets Docker's listing order decide, or binds a candidate whose recorded state is not its own.",
+      "method": "Read the candidate ordering (src/runtime/host-discovery.ts:367-377), selectionFor's state lookup (src/commands.ts:216-218) and the three picker tests (tests/unit/commands.test.ts:182, 212, 228); ran the suite that contains them.",
+      "outcome": "refuted",
+      "evidence": "Both candidate lists are sorted running-first by a stable sort before `ambiguous` is computed; selectionFor resolves state from the picked candidate's own entry; both entry points (bare ambiguous workspace, workspace chosen from the picker) go through chooseAmbiguousContainer; cancellation keeps the refusal; the explicit `/devcontainer use <container-id>` path still works (all covered by passing tests)."
+    },
+    {
+      "hypothesis": "AC-1/AC-5: the withheld path's notice overstates what happened, or fires more than once per session.",
+      "method": "Traced noteFirstRun/onWithheldHostAttempt through src/commands.ts:694-698, src/tools.ts:225-228, extensions/index.ts:565-575 and the ledger; compared the notice text with what is actually written, and the slash-command grammar with the tool's schema.",
+      "outcome": "confirmed",
+      "evidence": "The text is accurate (a withheld attempt leaves no host-exec record; the runner path says `audited` only when audit.enabled) and the one-shot flag makes it once per session. But a bare `/devcontainer host-exec` with no argv counts as an attempt and can fire `first host command attempt this session: (no command)`, while the same invocation on an ALLOWED path counts nothing (parseHostExecArgv fails -> usage text, no ledger call, no runner); the tool path cannot produce this because argv has minItems: 1 (src/tools.ts:44) -> finding F4 (nit)."
+    },
+    {
+      "hypothesis": "The rev-15 blocking leak (withheld notice interpolating raw input, double render) is really closed.",
+      "method": "Read both call sites and their rendering, and verified why a raw token must be passed (displayProgram([\"(no command)\"]) === \"(no\").",
+      "outcome": "refuted",
+      "evidence": "Both entry points hand over a RAW single token (src/commands.ts:698 `attempted.argv[0] ?? args.trim().split(/\\s+/)[0] ?? \"\"`, src/tools.ts:228 `params.argv[0] ?? \"\"`), and each consumer renders exactly once: the built withheld notice (dist/extensions/index.js:451) and the ledger (dist/src/host-run-ledger.js:13) both call displayProgram; the runner notice is rendered upstream (dist/src/host-runner.js:35). displayProgram([\"(no command)\"]) === \"(no\" confirms the double render is gone and cannot be reintroduced from these call sites."
+    },
+    {
+      "hypothesis": "Brief (d): docs/security.md's residual-scope sentence is exact.",
+      "method": "Compared docs/security.md:153-177 against the renderer and against a brute-force search for any render containing \"@\" or \"/\".",
+      "outcome": "confirmed",
+      "evidence": "The literal \"no @ or /\" clause holds (0/32768 renders contained either character), but 'renders the HOST of whatever that token looks like', 'those three gaps matter only under \"redacted-text\"' and 'which is not a shape a command line produces in practice' do not: a URL-shaped argv[0] whose credential sits before the first `/` puts the user:pass pair on both operator surfaces under the default capture mode (`https://alice:hunter2/@db.example.test` -> `alice:hunter2`) -> finding F1."
+    }
+  ],
+  "findings": [
+    {
+      "id": "verify-f1-residual-scope-overstated",
+      "taskId": "routing-hardening",
+      "severity": "minor",
+      "message": "docs/security.md's 'What the redaction covers, and what it does not' paragraph states that the in-session rendering 'renders the HOST of whatever that token looks like - the authority between `://` and the first `/` (its userinfo dropped)', that the redaction gaps 'matter only under \"redacted-text\"', and that a credential 'can therefore only reach the operator surfaces by being spelled as a program NAME with no `@` or `/` at all ..., which is not a shape a command line produces in practice'. The renderer emits the pre-slash authority VERBATIM whenever that authority contains no `@`, so a URL-shaped argv[0] with a credential in front of a slash (or with no `@` in the authority at all) puts the credential pair on BOTH operator surfaces under the DEFAULT capture mode (fingerprint-only, no command text recorded): displayProgram([\"https://alice:hunter2/@db.example.test\"]) === \"alice:hunter2\", displayProgram([\"x@y://alice:hunter2\"]) === \"alice:hunter2\", displayProgram([\"postgres://admin:P/w0rd@db.internal\"]) === \"admin:P\" (the slash-in-the-password shape the paragraph itself calls out), displayProgram([\"deployer@db.example.test:hunter2\"]) === \"db.example.test:hunter2\"; the leaked value appears in `/devcontainer status` via the ledger and in the one-shot withheld/runner notice. The rendered string is always @-less and /-less (0 of 32768 brute-forced tokens produced a render containing either character), so the code matches AC-1's own definition of the render (the authority between `://` and the first `/`) and this is a documentation-accuracy defect rather than a renderer regression: the paragraph's 'renders the HOST', 'matter only under redacted-text' and 'not a shape a command line produces in practice' clauses need narrowing (or the renderer needs to shave a `user:pass`-shaped authority). The same overstatement appears in CHANGELOG.md ('without creating a place a credential could be rendered'), while src/host-run-ledger.ts itself concedes the truth ('a program name CAN be credential-shaped').",
+      "path": "docs/security.md"
+    },
+    {
+      "id": "verify-f2-hosttocontainer-root-host-corrupt",
+      "taskId": "routing-hardening",
+      "severity": "minor",
+      "message": "The nit fix in b02dadf ('hostToContainer still hand-rolled the prefix math - the last private segment implementation. It delegates to the shared predicate now') changed behaviour for a mapping whose host side is the filesystem root. hostToContainer('/etc/passwd', {hostPath:'/', containerPath:'/workspaces/proj'}) now returns '/workspaces/projetc/passwd': the root base passes isAtOrUnder, but `${mapping.containerPath}${candidate.slice(host.length)}` (src/path-mapper.ts:103) then slices off the leading separator and the container path has no trailing slash to spare ('/workspaces/proj' + 'etc/passwd'). The pre-revision implementation (git show 8e6b491:src/path-mapper.ts, executed inline) returned undefined for the same call, i.e. 'no mapping' - the safe answer that leaves the host path unchanged. Reachability is narrow but real: buildPathMapping accepts workspaceMount 'source=/,target=/workspace,type=bind' (or a config at /.devcontainer/devcontainer.json), the codebase itself treats {hostPath:'/'} as a legitimate mapping (tests/unit/routing-guards.test.ts:310), and no test covers hostToContainer with a root host side. Impact is presentation-only rather than a routing decision: extensions/index.ts:280 resolveContainerWorkspace feeds ExecOutcome.presentedWorkspace, so a root-mounted workspace at /srv/proj is shown to the agent as '/workspacesrv/proj'. The guard predicate stays shared; only the join needs the root case handled (or path-segment joining instead of a slice).",
+      "path": "src/path-mapper.ts"
+    },
+    {
+      "id": "verify-f3-unknown-verb-echoes-raw-input",
+      "taskId": "routing-hardening",
+      "severity": "nit",
+      "message": "The only operator-channel surface in this change's blast radius that still interpolates raw input is the unknown-verb diagnostic: extensions/index.ts:715 (dist/extensions/index.js:592) notifies `Unknown /devcontainer verb: ${verb}` with `verb` being the raw first token of the command arguments (lowercased). Every neighbouring surface now routes through the enforced renderer (the withheld notice at extensions/index.ts:571, the free-text refusal at src/commands.ts:836), so a token of exactly the shape this change is about (e.g. `/devcontainer https://alice:hunter2@host`) is echoed verbatim here. It is the operator's own typing and pre-existing (not introduced by this revision), hence a nit - but it is the one remaining raw echo, and `displayProgram([verb])` (or a static message naming the verb picker) would close it.",
+      "path": "extensions/index.ts"
+    },
+    {
+      "id": "verify-f4-withheld-counts-a-non-attempt",
+      "taskId": "routing-hardening",
+      "severity": "nit",
+      "message": "On the WITHHELD path a bare `/devcontainer host-exec` with no argv is counted as a host-command attempt and can consume the session's one-shot first-attempt notice: src/commands.ts:694-698 calls onWithheldHostAttempt(parseHostExecArgv(args).ok ? argv[0] : args.trim().split(/\\s+/)[0] ?? \"\") before any grammar check, so `args === \"\"` yields the empty program, the ledger counts 1 and the notice reads 'first host command attempt this session: (no command)'. The same invocation with host execution ALLOWED is not an attempt at all (parseHostExecArgv fails, the usage text is returned, no ledger call, no runner), and the tool surface cannot produce it because argv declares minItems: 1 (src/tools.ts:44) - so the slash-command path over-reports the AC-1 attempt count exactly where a configuration withholds the surface. Cheap fix: treat a failing parse with empty args like the allowed path (usage, no count).",
+      "path": "src/commands.ts"
+    }
+  ],
+  "createdAt": "2026-09-17T23:26:17+08:00"
+}
