@@ -428,16 +428,65 @@ describe("/devcontainer host-exec", () => {
   it("runs argv on the host when allowed", async () => {
     const { handlers, hostRunner } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }) });
     const ctx = makeCtx();
-    const result = await handlers["host-exec"]!("hostname", ctx);
+    const result = await handlers["host-exec"]!("--argv hostname", ctx);
     expect(hostRunner!.run).toHaveBeenCalledWith(["hostname"], undefined);
     expect(result.text).toBe("host-out");
   });
 
-  it("preserves quoted arguments via parseArgv", async () => {
+  it("takes one verbatim argument per --argv flag", async () => {
     const { handlers, hostRunner } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }) });
-    const ctx = makeCtx();
-    await handlers["host-exec"]!("printf \"hello world\"", ctx);
-    expect(hostRunner!.run).toHaveBeenCalledWith(["printf", "hello world"], undefined);
+
+    await handlers["host-exec"]!("--argv printf --argv %s --argv a b", makeCtx());
+
+    // One flag, one argument — spaces inside a value are NOT split, and no quote processing happens.
+    expect(hostRunner!.run).toHaveBeenCalledWith(["printf", "%s", "a b"], undefined);
+  });
+
+  it("expresses an empty argument with the `=` form", async () => {
+    const { handlers, hostRunner } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }) });
+
+    await handlers["host-exec"]!("--argv= --argv x", makeCtx());
+
+    expect(hostRunner!.run).toHaveBeenCalledWith(["", "x"], undefined);
+  });
+
+  it("keeps a value that contains quotes literally", async () => {
+    const { handlers, hostRunner } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }) });
+
+    await handlers["host-exec"]!("--argv=he said \"hi\"", makeCtx());
+
+    // The caller's shell removed the quotes it wanted removed; what arrives is the value.
+    expect(hostRunner!.run).toHaveBeenCalledWith(['he said "hi"'], undefined);
+  });
+
+  it("refuses the old free-text form and shows the migration", async () => {
+    const { handlers, hostRunner } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }) });
+
+    const result = await handlers["host-exec"]!("hostname --flag", makeCtx());
+
+    // Shell-like text on a surface that executes the result on the host is exactly what the review
+    // found ambiguous, so the old form fails closed and names the new one.
+    expect(result.text).toContain("[policy-denied]");
+    expect(result.text).toContain("--argv");
+    expect(hostRunner.run).not.toHaveBeenCalled();
+  });
+
+  it("refuses a --argv flag with no value", async () => {
+    const { handlers, hostRunner } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }) });
+
+    const result = await handlers["host-exec"]!("--argv", makeCtx());
+
+    expect(result.text).toContain("[policy-denied]");
+    expect(hostRunner.run).not.toHaveBeenCalled();
+  });
+
+  it("explains itself when called with no arguments at all", async () => {
+    const { handlers, hostRunner } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }) });
+
+    const result = await handlers["host-exec"]!("", makeCtx());
+
+    expect(result.text).toContain("--argv");
+    expect(hostRunner.run).not.toHaveBeenCalled();
   });
 
   it("keeps stderr when the host command also wrote stdout", async () => {
@@ -448,7 +497,7 @@ describe("/devcontainer host-exec", () => {
     };
     const { handlers } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }), hostRunner });
 
-    const result = await handlers["host-exec"]!("hostname", makeCtx());
+    const result = await handlers["host-exec"]!("--argv hostname", makeCtx());
 
     expect(result.text).toContain("host-out");
     expect(result.text).toContain("--- stderr ---");
@@ -461,7 +510,7 @@ describe("/devcontainer host-exec", () => {
     };
     const { handlers } = makeServices({ config: makeConfig({ hostExecution: { allow: true } }), hostRunner });
 
-    const result = await handlers["host-exec"]!("hostname", makeCtx());
+    const result = await handlers["host-exec"]!("--argv hostname", makeCtx());
 
     expect(result.text).toBe("only-stderr\n");
   });
@@ -828,7 +877,7 @@ describe("/devcontainer host-exec denial remedy (AC-4)", () => {
     const hostRunner = { run: vi.fn() };
     const { handlers } = makeServices({ hostRunner });
 
-    const result = await handlers["host-exec"]!("hostname", makeCtx());
+    const result = await handlers["host-exec"]!("--argv hostname", makeCtx());
 
     expect(result.text).toContain("[policy-denied]");
     expect(result.text).toContain("hostExecution.allow: false");

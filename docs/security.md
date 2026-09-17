@@ -83,6 +83,9 @@ Instead:
   withholdable from either configuration file) and audited.
 - Before each turn the agent receives the current target, the workspace's
   host↔container mapping, and the surface rules, so it chooses explicitly.
+- `/devcontainer host-exec` takes **one `--argv` per argument**, verbatim: there is no shell-like
+  parsing to reinterpret on a surface whose arguments are executed on the host (the tool twin
+  `devcontainer_host_exec` has always taken a structured `argv` array).
 - `devcontainer_host_exec` **refuses** an argv that targets a container-only
   path, when the selected workspace's configuration declares a
   `workspaceFolder`/`workspaceMount` to compare against (a reliable check: literal
