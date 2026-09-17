@@ -31,6 +31,7 @@ import type { DevcontainerAdapter, ExecResult } from "./runtime/devcontainer-ada
 import type { DockerLifecycleAdapter, LifecycleConfirmation, LifecycleResult } from "./runtime/docker-lifecycle.js";
 import type { DockerContainer } from "./runtime/docker-adapter.js";
 import { isWithinWorkspace } from "./workspace-path.js";
+import { detectHostPathOnContainerSurface, type HostToContainerMapping } from "./routing-guard.js";
 
 export interface ExecRequest {
   readonly operation: "container-exec" | "routed-bash" | "user-bash";
@@ -100,6 +101,14 @@ export interface ExecutionServiceOptions {
   readonly config: EffectiveConfig;
   readonly targetStore: TargetStore;
   readonly devcontainer: DevcontainerAdapter;
+  /**
+   * The selected workspace's host<->container mapping, when the configuration declares one.
+   *
+   * Injected because resolving it means reading a configuration off disk through the registry; used by
+   * the REVERSE routing guard so a `devcontainer_exec` that names the HOST workspace path fails closed
+   * instead of being reinterpreted inside the container.
+   */
+  readonly mappingFor?: (workspaceKey: string) => Promise<HostToContainerMapping | undefined>;
   readonly dockerLifecycle: DockerLifecycleAdapter;
   readonly audit: AuditWriter;
   /** ISO-8601 string clock for audit timestamps. */
@@ -167,6 +176,29 @@ export class ExecutionService {
         { outputTruncated: false, errorSummary: this.asAuditError(error).message },
       );
       throw error;
+    }
+    // REVERSE routing guard: this is the STRUCTURED container surface, so every element of its argv is
+    // known verbatim. A request that names the HOST workspace path is about to be handed to the
+    // container, where that path either does not exist or exists for a different reason — refuse it
+    // and name the container path to use instead. Routed-shell text is deliberately NOT inspected: the
+    // Phase-5 review established that a heuristic over shell text cannot be made safe.
+    if (request.operation === "container-exec" && this.options.mappingFor !== undefined) {
+      const mapping = await this.options.mappingFor(ctx.workspaceKey);
+      const offending = detectHostPathOnContainerSurface([request.cmd, ...request.args], mapping);
+      if (offending !== undefined && mapping !== undefined) {
+        const error = new RuntimeError({
+          kind: "policy-denied",
+          message: `Container command references the HOST path ${offending}; inside the container this workspace is ${mapping.containerPath}.`,
+          remedy: "Use the container path for container work, or devcontainer_host_exec for the host.",
+        });
+        this.audit(
+          snapshot,
+          ctx,
+          { operation: request.operation, initiator: request.initiator, workspace: request.workspace },
+          { outputTruncated: false, errorSummary: error.message },
+        );
+        throw error;
+      }
     }
     // Target/workspace integrity: the Dev Containers CLI would receive
     // `--workspace-folder <request.workspace>` while the container id comes from

@@ -46,6 +46,18 @@ export interface AuditedHostRunnerDeps {
   readonly targetStoreWorkspaceKey: () => string | undefined;
   /** Injectable clock for deterministic audit timestamps. */
   readonly clock?: () => string;
+  /**
+   * Session-scoped visibility for host runs (command-routing assessment section 4.1).
+   *
+   * The audit trail stays authoritative; this makes drift visible while it happens: every attempt is
+   * counted, and the FIRST one of the session is reported through the operator UI.
+   */
+  readonly ledger?: {
+    noteFirstRun(argv: readonly string[]): boolean;
+    record(argv: readonly string[]): void;
+  };
+  /** Called once per session, with the argv of the first host run. */
+  readonly onFirstHostRun?: (argv: readonly string[]) => void;
 }
 
 /** The shape `CommandServices.hostRunner` expects. */
@@ -84,8 +96,14 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
         });
       }
 
+      const note = (): void => {
+        if (deps.ledger === undefined) return;
+        if (deps.ledger.noteFirstRun(argv)) deps.onFirstHostRun?.(argv);
+      };
+
       const snapshot = evaluatePolicy(config, { operation: "host-exec", initiator: "host-escape" });
       if (!snapshot.authorized) {
+        note();
         // A refusal is an attempt: it is recorded before it is reported, so an operator asking "why
         // did nothing happen" finds the answer in the same place as every other host run.
         deps.audit.write(
@@ -112,6 +130,7 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
         const mapping = await deps.guardMappingFor(selection);
         const violation = mapping !== undefined ? findContainerPath(argv, mapping.containerPath) : undefined;
         if (violation !== undefined) {
+          note();
           deps.audit.write(
             record(argv, {
               policyAuthorized: false,
@@ -151,6 +170,7 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
       } catch (error) {
         // A failed or timed-out host run is auditable too: the promise rejects before the success
         // record below, so the failure would otherwise leave no trace.
+        note();
         deps.audit.write(
           record(argv, {
             policyAuthorized: true,
@@ -162,6 +182,7 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
         throw error;
       }
 
+      note();
       deps.audit.write(
         record(argv, {
           policyAuthorized: true,

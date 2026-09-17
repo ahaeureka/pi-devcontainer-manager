@@ -44,13 +44,7 @@
       "strategy": "manual",
       "branch": "feature/routing-hardening",
       "baseBranch": "main",
-      "status": "pending_confirmation",
-      "command": [
-        "switch",
-        "-c",
-        "feature/routing-hardening",
-        "main"
-      ]
+      "status": "active"
     }
   },
   "requirements": [

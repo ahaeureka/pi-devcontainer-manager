@@ -24,8 +24,15 @@ export function createAuditedHostRunner(deps) {
                     remedy: "Pass the command to run, for example `hostname`.",
                 });
             }
+            const note = () => {
+                if (deps.ledger === undefined)
+                    return;
+                if (deps.ledger.noteFirstRun(argv))
+                    deps.onFirstHostRun?.(argv);
+            };
             const snapshot = evaluatePolicy(config, { operation: "host-exec", initiator: "host-escape" });
             if (!snapshot.authorized) {
+                note();
                 // A refusal is an attempt: it is recorded before it is reported, so an operator asking "why
                 // did nothing happen" finds the answer in the same place as every other host run.
                 deps.audit.write(record(argv, {
@@ -48,6 +55,7 @@ export function createAuditedHostRunner(deps) {
                 const mapping = await deps.guardMappingFor(selection);
                 const violation = mapping !== undefined ? findContainerPath(argv, mapping.containerPath) : undefined;
                 if (violation !== undefined) {
+                    note();
                     deps.audit.write(record(argv, {
                         policyAuthorized: false,
                         policyDenialReason: "container-path-on-host",
@@ -82,6 +90,7 @@ export function createAuditedHostRunner(deps) {
             catch (error) {
                 // A failed or timed-out host run is auditable too: the promise rejects before the success
                 // record below, so the failure would otherwise leave no trace.
+                note();
                 deps.audit.write(record(argv, {
                     policyAuthorized: true,
                     durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6,
@@ -90,6 +99,7 @@ export function createAuditedHostRunner(deps) {
                 }));
                 throw error;
             }
+            note();
             deps.audit.write(record(argv, {
                 policyAuthorized: true,
                 durationMs: Number(process.hrtime.bigint() - startedAt) / 1e6,

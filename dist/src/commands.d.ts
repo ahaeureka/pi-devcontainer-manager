@@ -73,6 +73,10 @@ export interface CommandServices {
     };
     /** Per-action confirmation token generator (defaults to crypto). */
     readonly generateToken?: () => string;
+    /** Session-scoped host-run summary (`/devcontainer status`; the audit trail stays authoritative). */
+    readonly hostRuns?: {
+        summary(): string;
+    };
     /**
      * Install (or upgrade) the Dev Containers CLI globally via npm. Dedicated
      * setup capability: fixed npm argv, always user-confirmed in the handler,
@@ -117,7 +121,9 @@ export declare function displayCommandResult(result: CommandResult, notify: (mes
 /** Generate a fresh opaque confirmation token for a destructive action. */
 export declare function generateConfirmationToken(): string;
 /** Render the selection + registry state as a compact status block. */
-export declare function renderStatus(snapshot: TargetStoreSnapshot, entries: readonly import("./types.js").RegistryEntry[], config: EffectiveConfig): string;
+export declare function renderStatus(snapshot: TargetStoreSnapshot, entries: readonly import("./types.js").RegistryEntry[], config: EffectiveConfig, hostRuns?: {
+    summary(): string;
+}): string;
 /** Resolve a selection state back into the store, or return an error text. */
 export declare function applySelection(services: CommandServices, target: TargetSelection, ctx: CommandContextLike): Promise<EstablishedTarget | undefined>;
 /**

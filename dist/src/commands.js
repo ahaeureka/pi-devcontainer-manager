@@ -26,7 +26,7 @@ function tokenFor(services) {
     return services.generateToken !== undefined ? services.generateToken() : generateConfirmationToken();
 }
 /** Render the selection + registry state as a compact status block. */
-export function renderStatus(snapshot, entries, config) {
+export function renderStatus(snapshot, entries, config, hostRuns) {
     const lines = [];
     lines.push(`**DevContainer target:** ${snapshot.status}`);
     if (snapshot.workspaceKey !== undefined)
@@ -44,6 +44,8 @@ export function renderStatus(snapshot, entries, config) {
     }
     lines.push("");
     lines.push(`route: \`${config.routeMode}\` · maxTimeout: ${config.maxTimeoutSeconds}s · maxOutput: ${(config.maxOutputBytes / 1024).toFixed(0)}KiB`);
+    if (hostRuns !== undefined)
+        lines.push(`host runs: ${hostRuns.summary()}`);
     return lines.join("\n");
 }
 /** Resolve a selection state back into the store, or return an error text. */
@@ -263,7 +265,7 @@ export function createCommandHandlers(services) {
         }
         const { entries } = await services.registry();
         const snapshot = services.targetStore.snapshot();
-        return { text: renderStatus(snapshot, entries, services.config) };
+        return { text: renderStatus(snapshot, entries, services.config, services.hostRuns) };
     };
     handlers["status"] = async (_args, _ctx) => {
         const { entries } = await services.registry();
@@ -322,9 +324,24 @@ export function createCommandHandlers(services) {
             const only = candidates[0];
             if (only.ambiguous === true) {
                 const ids = only.containerCandidates.map((c) => c.id);
-                return {
-                    text: `[ambiguous-candidate] Multiple running containers for \`${only.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`,
-                };
+                const refusal = `[ambiguous-candidate] Multiple running containers for \`${only.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`;
+                // Offer the choice instead of only describing it. Docker result order still never decides:
+                // the operator picks, and a cancelled picker keeps the refusal (command-routing assessment
+                // §4.3).
+                const labels = only.containerCandidates.map((c) => `${c.id.slice(0, 12)} — ${c.state}`);
+                if (labels.length === 0)
+                    return { text: refusal };
+                const picked = await ctx.ui.select(`Select the container for ${only.workspacePath}`, labels, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
+                if (picked === undefined)
+                    return { text: refusal };
+                const index = labels.indexOf(picked);
+                const chosen = index === -1 ? undefined : only.containerCandidates[index];
+                if (chosen === undefined)
+                    return { text: refusal };
+                const failure = await select(only, chosen.id);
+                if (failure !== undefined)
+                    return { text: failure };
+                return withTarget(`Selected \`${only.workspacePath}\` → container \`${chosen.id}\`.`);
             }
             const failure = await select(only, primaryCandidate(only)?.id);
             if (failure !== undefined)

@@ -176,6 +176,39 @@ describe("/devcontainer use", () => {
     expect(targetStore.select).not.toHaveBeenCalled();
   });
 
+  it("offers a container picker when the matched workspace is ambiguous", async () => {
+    const ambiguous = configEntry({
+      workspacePath: "/ws/project-a",
+      containers: [candidate("aa11"), candidate("aa12")],
+    });
+    const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [ambiguous], diagnostics: [] })) });
+    const ctx = makeCtx();
+    ctx.ui.select.mockResolvedValueOnce("aa12 — running");
+
+    const result = await handlers["use"]!("project-a", ctx);
+
+    // The picker replaces the refusal, not the decision: the operator chooses, Docker order never does.
+    expect(ctx.ui.select).toHaveBeenCalled();
+    expect(result.text).toContain("container `aa12`");
+    expect(result.target?.candidateId).toBe("aa12");
+  });
+
+  it("keeps the refusal when the container picker is cancelled", async () => {
+    const ambiguous = configEntry({
+      workspacePath: "/ws/project-a",
+      containers: [candidate("aa11"), candidate("aa12")],
+    });
+    const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [ambiguous], diagnostics: [] })) });
+    const ctx = makeCtx();
+    ctx.ui.select.mockResolvedValueOnce(undefined);
+
+    const result = await handlers["use"]!("project-a", ctx);
+
+    expect(result.text).toContain("[ambiguous-candidate]");
+    expect(result.text).toContain("<container-id>");
+    expect(result.target).toBeUndefined();
+  });
+
   it("asks via ui.select when multiple candidates match", async () => {
     const entryB: RegistryEntry = {
       ...configEntry({

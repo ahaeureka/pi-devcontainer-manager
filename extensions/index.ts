@@ -87,6 +87,7 @@ import { evaluatePolicy, commandIdentity } from "../src/policy.js";
 import { createSetupCli } from "../src/setup-cli.js";
 import { createAuditedHostRunner } from "../src/host-runner.js";
 import { createLifecycleGuard } from "../src/lifecycle.js";
+import { createHostRunLedger } from "../src/host-run-ledger.js";
 import type { EffectiveConfig } from "../src/types.js";
 import { RuntimeError } from "../src/errors.js";
 import { renderExecutionContext } from "../src/execution-context.js";
@@ -139,6 +140,14 @@ function composeRuntime(
   audit: JsonlAuditWriter,
   sessionWorkspace: string,
   activation: ActivationState,
+  /**
+   * Session-scoped host-run visibility and the one-shot notice callback: the ledger lives in the
+   * extension closure (it is per session), so it is passed in rather than created here.
+   */
+  hostVisibility: {
+    ledger: { noteFirstRun(argv: readonly string[]): boolean; record(argv: readonly string[]): void; summary(): string };
+    onFirstHostRun: (argv: readonly string[]) => void;
+  },
 ): Runtime {
   const runner = new NodeProcessRunner();
   const capabilities = new NodeCapabilityService(runner, {
@@ -267,6 +276,16 @@ function composeRuntime(
     return hostToContainer(entry.workspacePath, mapping) ?? undefined;
   };
 
+  /** Read the selected workspace's host<->container mapping (shared by both routing guards). */
+  const readMapping = async (workspaceKey: string) => {
+    const { entries } = await registry();
+    const key = canonicalWorkspaceKey(workspaceKey);
+    const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
+    const configPath = entry !== undefined ? configPathOf(entry) : undefined;
+    if (entry === undefined || configPath === undefined) return undefined;
+    return readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, configPath), reportUnparsableConfig).mapping;
+  };
+
   const execution = new ExecutionService({
     config,
     targetStore,
@@ -275,6 +294,7 @@ function composeRuntime(
     audit,
     autoSelect,
     resolveContainerWorkspace,
+    mappingFor: readMapping,
   });
   const bashOperations = createRoutedBashOperations({
     execution,
@@ -300,6 +320,8 @@ function composeRuntime(
     sessionWorkspace,
     env,
     targetStoreWorkspaceKey: () => targetStore.snapshot().workspaceKey,
+    ledger: hostVisibility.ledger,
+    onFirstHostRun: hostVisibility.onFirstHostRun,
     guardMappingFor: async (workspaceKey) => {
       const { entries } = await registry();
       const key = canonicalWorkspaceKey(workspaceKey);
@@ -320,6 +342,7 @@ function composeRuntime(
 
   const commandServices: CommandServices = {
     config,
+    hostRuns: hostVisibility.ledger,
     targetStore,
     execution,
     registry,
@@ -490,6 +513,8 @@ export default function (pi: ExtensionAPI): void {
   // first await and re-checks after each one, so a superseded start cannot overwrite `runtime`,
   // register surfaces from a stale activation decision, or notify for a session that is gone.
   const lifecycle = createLifecycleGuard();
+  // Session-scoped host-run visibility: the ledger is the summary, the audit trail is the record.
+  const hostRuns = createHostRunLedger({ limit: 5 });
 
   pi.on("session_start", async (_event, ctx) => {
     const generation = lifecycle.begin();
@@ -507,7 +532,14 @@ export default function (pi: ExtensionAPI): void {
       config.audit.retentionDays,
       config.audit.enabled,
     );
-    const rt = composeRuntime(config, audit, ctx.cwd, activation);
+    const rt = composeRuntime(config, audit, ctx.cwd, activation, {
+      ledger: hostRuns,
+      onFirstHostRun: (argv) => {
+        // One notice per session, on the operator channel: a model reaching for the escape hatch
+        // should not require reading the audit log to notice.
+        ctx.ui.notify(`[devcontainer-manager] first host command this session: ${argv.join(" ")} (audited)`, "warning");
+      },
+    });
     // The runtime assignment is a surface mutation like any other, so it goes through the guard (a
     // start that is already superseded — e.g. by a command-path activation change — applies nothing).
     if (!lifecycle.ifCurrent(generation, () => void (runtime = rt))) return;

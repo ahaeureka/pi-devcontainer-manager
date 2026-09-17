@@ -8,6 +8,21 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Behaviour change — the container surfaces refuse a host path.** `devcontainer_exec` now fails
+  closed (`policy-denied`, naming the container path to use) when an argv element IS the host workspace
+  path or lies beneath it, and the workspace's configuration mounts it somewhere else. Before this, such
+  a command ran in the container against whatever that path means there — a different file, or nothing
+  at all. Routed-shell text (`bash`, `!`/`!!`) is deliberately NOT inspected: the detection is reliable
+  on literal argv and would be a guess over shell text. No mapping, or a mapping that keeps the host
+  path, means no refusal.
+- **`/devcontainer use` offers a container picker when a workspace has several running containers**,
+  instead of only refusing with the candidate ids. Docker result order still never decides the target —
+  you pick, and cancelling keeps the refusal. The explicit `/devcontainer use <container-id>` path is
+  unchanged.
+- Host runs are now visible in-session: `/devcontainer status` reports how many host commands the
+  session has run and the most recent ones, and the first one of a session is announced on the operator
+  channel. The audit trail remains the authoritative record; the escape hatch still needs only the
+  policy grant (see `docs/security.md` for why that asymmetry with `stop`/`remove` is deliberate).
 - **Behaviour change — `/devcontainer host-exec` takes structured argv.** The command used to accept
   shell-like free text and split it with a narrow quote-aware regex, which silently reinterpreted
   escaped quotes, concatenated segments and empty arguments on the one surface that then executes the
