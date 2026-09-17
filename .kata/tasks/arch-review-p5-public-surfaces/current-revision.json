@@ -1,0 +1,19 @@
+{
+  "id": "revision-0b5329a3-63d0-4c64-9400-1581be2a457b",
+  "taskId": "arch-review-p5-public-surfaces",
+  "ownedPaths": [
+    "CHANGELOG.md",
+    "README.md",
+    "README.zh-CN.md",
+    "dist",
+    "docs",
+    "extensions",
+    "openspec",
+    "package.json",
+    "scripts",
+    "src",
+    "tests"
+  ],
+  "manifestHash": "11191816c53b142cff89705318764dcffb38e4e0db44a883790f7d3d028a2dbf",
+  "createdAt": "2026-09-17T07:46:35.292Z"
+}

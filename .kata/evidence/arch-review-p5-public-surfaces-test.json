@@ -1,0 +1,31 @@
+{
+  "id": "evidence-cd018967-1d99-43b6-9e59-303914018d94",
+  "taskId": "arch-review-p5-public-surfaces",
+  "checkSource": "fallback",
+  "name": "test",
+  "kind": "test",
+  "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/vitest/dist/cli.js run",
+  "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
+  "exitCode": 0,
+  "startedAt": "2026-09-17T07:46:35.299Z",
+  "finishedAt": "2026-09-17T07:46:50.412Z",
+  "diffHash": "01ee32cae42f82acf2121b92883983f4d2b475c7184fe1623cc070ac0aa8e21b",
+  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n\n Test Files  40 passed (40)\n      Tests  469 passed (469)\n   Start at  15:46:35\n   Duration  14.69s (transform 22.82s, setup 0ms, import 32.76s, tests 36.63s, environment 9ms)\n\n",
+  "revisionId": "revision-0b5329a3-63d0-4c64-9400-1581be2a457b",
+  "scope": {
+    "paths": [
+      "CHANGELOG.md",
+      "README.md",
+      "README.zh-CN.md",
+      "dist",
+      "docs",
+      "extensions",
+      "openspec",
+      "package.json",
+      "scripts",
+      "src",
+      "tests"
+    ],
+    "hash": "11191816c53b142cff89705318764dcffb38e4e0db44a883790f7d3d028a2dbf"
+  }
+}

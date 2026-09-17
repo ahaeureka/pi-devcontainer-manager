@@ -248,5 +248,18 @@
         "verificationLevel": "integration"
       }
     ]
-  }
+  },
+  "ownedPaths": [
+    "CHANGELOG.md",
+    "README.md",
+    "README.zh-CN.md",
+    "dist",
+    "docs",
+    "extensions",
+    "openspec",
+    "package.json",
+    "scripts",
+    "src",
+    "tests"
+  ]
 }
