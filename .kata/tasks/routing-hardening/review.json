@@ -1,13 +1,13 @@
 {
-  "revisionId": "revision-08fd4eb173c0da96",
+  "revisionId": "revision-aede85a60a62e379",
   "findings": [
     {
-      "id": "finding-tree-moved-after-verify-pass",
+      "id": "finding-tree-moved-after-node-passes",
       "taskId": "routing-hardening",
       "acceptanceId": "AC-1",
       "severity": "blocking",
-      "message": "PROCESS, not a defect: the verify-node adversarial pass on revision-08fd4eb1 returned one major and one minor (fixed in 1ab2c7f) — the visibility redacted each argv ELEMENT while the audit trail redacts the JOINED command line (so `--password s3cr3t` reached the operator notice verbatim), and a withheld attempt claimed `(audited)` while leaving no audit record. Re-sealing so both node records match the tree.",
-      "path": "src/host-run-ledger.ts"
+      "message": "PROCESS, not a defect: BOTH node passes on revision-aede85a6 returned findings (one major, three minors, one nit; all in the visibility, none in the guards) and are fixed in this revision — joining before redacting was not always stronger (`redactText`'s scheme rule orphans a value when the next element starts with a scheme word, so a standalone `Bearer <token>` element leaked), `(audited)` was claimed for attempts that persist nothing (withheld, or `audit.enabled: false`), the regression test did not pin the notice fix, the new tools test omitted a required option, and the CHANGELOG overstated the redaction. Re-sealing so both node records can match the tree.",
+      "path": "src/policy.ts"
     }
   ],
   "status": "pending"
