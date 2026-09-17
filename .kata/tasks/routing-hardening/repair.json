@@ -1,15 +1,15 @@
 {
   "fromPhase": "review",
   "reason": "review_findings",
-  "baselineRevisionId": "revision-586ce6277d60330b",
-  "baselineManifestHash": "8907a93be1dc8638fc9c039820636b8cd0149625590727130b125a7e54c4d8b8",
+  "baselineRevisionId": "revision-4e7ae40d8ae49bf8",
+  "baselineManifestHash": "b37e88005f562db60f3912636b697dbfe70a38734c6a4cb8cbb81eff4c3697bb",
   "findings": [
     {
-      "id": "finding-visibility-contracted",
+      "id": "finding-tree-moved-after-rev9-nodes",
       "acceptanceId": "AC-1",
       "severity": "blocking",
-      "message": "PROCESS + deliberate contraction, not a defect: the last five passes' ten findings (four credential-exposing) were all in the rendered command line, and two of those were introduced by fixes for the previous one, so the visibility now keeps a count and the PROGRAM names and stores no command text at all. REQ-1/AC-1 are amended accordingly and the reason is recorded here and in docs/security.md. Re-sealing.",
-      "path": "src/host-run-ledger.ts"
+      "message": "PROCESS, not a defect: both node passes of the contracted revision agreed on four items, fixed together here — argv[0] was an unredacted and uncapped channel (a credential-shaped program name was reproduced, and the notice path had no length cap), a test still imported the deleted redaction helper, comments still described the deleted redaction, and docs/security.md listed the audit trail as covering attempts a configuration withholds (which never reach the runner and are not audited). `displayProgram` now enforces the rendering in one place.",
+      "path": "src/policy.ts"
     }
   ],
   "taskId": "routing-hardening",
@@ -18,7 +18,7 @@
     "id": "kata-agent",
     "role": "implementer"
   },
-  "createdAt": "2026-09-17T12:39:49.771Z",
-  "resolvedAt": "2026-09-17T12:40:36.657Z",
-  "resolvedRevisionId": "revision-4e7ae40d8ae49bf8"
+  "createdAt": "2026-09-17T12:55:53.272Z",
+  "resolvedAt": "2026-09-17T12:56:42.035Z",
+  "resolvedRevisionId": "revision-ba5cb248ba524d61"
 }
