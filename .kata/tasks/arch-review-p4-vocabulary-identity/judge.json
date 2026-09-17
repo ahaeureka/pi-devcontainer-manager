@@ -1,37 +1,38 @@
 {
-  "fromPhase": "judge",
-  "reason": "judge_fail",
-  "scopes": [
+  "taskId": "arch-review-p4-vocabulary-identity",
+  "result": "FAIL",
+  "diffHash": "c7ec06fab40c22f3c53fd3d8c685441f81ff40f8fa30a4650c4e2a7627e93e89",
+  "acceptance": [
     {
       "id": "AC-1",
+      "result": "FAIL",
       "repairScope": "missing_test_evidence"
     },
     {
       "id": "AC-2",
+      "result": "FAIL",
       "repairScope": "missing_test_evidence"
     },
     {
       "id": "AC-3",
+      "result": "FAIL",
       "repairScope": "missing_test_evidence"
     },
     {
       "id": "AC-4",
+      "result": "FAIL",
       "repairScope": "missing_test_evidence"
     },
     {
       "id": "AC-5",
+      "result": "FAIL",
       "repairScope": "missing_test_evidence"
     },
     {
       "id": "AC-6",
+      "result": "FAIL",
       "repairScope": "missing_test_evidence"
     }
   ],
-  "taskId": "arch-review-p4-vocabulary-identity",
-  "toPhase": "implement",
-  "actor": {
-    "id": "kata-agent",
-    "role": "implementer"
-  },
-  "createdAt": "2026-09-17T07:16:09.442Z"
+  "evidenceIds": []
 }

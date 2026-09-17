@@ -1,0 +1,59 @@
+{
+  "obligations": [
+    {
+      "id": "obligation-7d952931-5309-4a05-8894-731fb27a8a98",
+      "taskId": "arch-review-p4-vocabulary-identity",
+      "source": "judge",
+      "acceptanceId": "AC-1",
+      "severity": "blocking",
+      "message": "Judge FAIL for AC-1",
+      "createdAt": "2026-09-17T07:11:12.001Z"
+    },
+    {
+      "id": "obligation-4f38b207-099a-43b2-bf9f-8bcdcc28f450",
+      "taskId": "arch-review-p4-vocabulary-identity",
+      "source": "judge",
+      "acceptanceId": "AC-2",
+      "severity": "blocking",
+      "message": "Judge FAIL for AC-2",
+      "createdAt": "2026-09-17T07:11:12.001Z"
+    },
+    {
+      "id": "obligation-5dd9b200-fc89-4d0c-9d07-761ee56879a3",
+      "taskId": "arch-review-p4-vocabulary-identity",
+      "source": "judge",
+      "acceptanceId": "AC-3",
+      "severity": "blocking",
+      "message": "Judge FAIL for AC-3",
+      "createdAt": "2026-09-17T07:11:12.001Z"
+    },
+    {
+      "id": "obligation-b81a01d9-a2e3-4478-808e-b8d83e2a77b2",
+      "taskId": "arch-review-p4-vocabulary-identity",
+      "source": "judge",
+      "acceptanceId": "AC-4",
+      "severity": "blocking",
+      "message": "Judge FAIL for AC-4",
+      "createdAt": "2026-09-17T07:11:12.001Z"
+    },
+    {
+      "id": "obligation-4cc6fe24-8e83-4743-a0d0-d1e8ae452460",
+      "taskId": "arch-review-p4-vocabulary-identity",
+      "source": "judge",
+      "acceptanceId": "AC-5",
+      "severity": "blocking",
+      "message": "Judge FAIL for AC-5",
+      "createdAt": "2026-09-17T07:11:12.001Z"
+    },
+    {
+      "id": "obligation-7c3de96c-ab73-4ed2-8116-0929660fc814",
+      "taskId": "arch-review-p4-vocabulary-identity",
+      "source": "judge",
+      "acceptanceId": "AC-6",
+      "severity": "blocking",
+      "message": "Judge FAIL for AC-6",
+      "createdAt": "2026-09-17T07:11:12.001Z"
+    }
+  ],
+  "updatedAt": "2026-09-17T07:11:12.002Z"
+}

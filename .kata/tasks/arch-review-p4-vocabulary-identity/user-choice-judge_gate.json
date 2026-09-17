@@ -1,5 +1,7 @@
 {
   "taskId": "arch-review-p4-vocabulary-identity",
   "boundary": "judge_gate",
-  "createdAt": "2026-09-17T07:08:26.462Z"
+  "createdAt": "2026-09-17T07:08:26.462Z",
+  "choice": "continue_current",
+  "approvedAt": "2026-09-17T07:11:11.351Z"
 }
