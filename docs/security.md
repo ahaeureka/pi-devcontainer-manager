@@ -175,9 +175,12 @@ command requires the policy grant and leaves an audit record, but **no per-actio
 since the host-execution default change that grant ships enabled. This is a decision, not an oversight:
 the surface is driven by the agent, so an interactive confirmation would either stall an autonomous run
 or degrade into a confirmation the operator clicks through. The compensating controls are the audit
-trail (every attempt, including refusals and failures), the in-session visibility added for host runs
-(`/devcontainer status` reports the session's host command attempts — every attempt counts, including a
-refused one — and the first one of a session is announced on the operator channel), the container-path guard, and `hostExecution.allow: false` in either
+trail (every attempt that reaches the runner, including refusals and failures — an attempt a
+configuration withholds is refused before it and is visible only through the in-session summary), the
+in-session visibility added for host runs
+(`/devcontainer status` reports the session's host command attempts and the programs they named — every
+attempt counts, including one a configuration withheld, and the first of a session is announced on the
+operator channel), the container-path guard, and `hostExecution.allow: false` in either
 configuration file, which withdraws the surface entirely.
 
 

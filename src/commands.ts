@@ -13,6 +13,7 @@
  * adapts Pi's `ExtensionCommandContext` to them.
  */
 import type { ExecutionService, LifecycleServiceResult, UpBuildOutcome } from "./execution-service.js";
+import { displayProgram } from "./policy.js";
 import type { TargetStore, TargetStoreSnapshot, TargetSelection } from "./target-store.js";
 import type { DockerContainer } from "./runtime/docker-adapter.js";
 import type { SelectionIntent, SelectionRecord } from "./selection-state.js";
@@ -693,8 +694,7 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     if (!services.config.hostExecution.allow) {
       // A withheld attempt is exactly what the operator needs to see: count it before answering.
       const attempted = parseHostExecArgv(args);
-      const program = attempted.ok ? attempted.argv[0] : args.trim().split(/\s+/)[0];
-      services.onWithheldHostAttempt?.((program ?? "(no command)").split("/").pop() ?? "(no command)");
+      services.onWithheldHostAttempt?.(displayProgram(attempted.ok ? attempted.argv : [args.trim().split(/\s+/)[0] ?? ""]));
       return {
         text:
           "[policy-denied] Host execution is disabled by policy.\n" +

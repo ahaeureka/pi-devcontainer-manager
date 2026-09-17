@@ -17,6 +17,7 @@ import { commandIdentity } from "./policy.js";
 import { RuntimeError } from "./errors.js";
 import { findContainerPath, type PathMapping } from "./path-mapper.js";
 import type { ProcessRunner } from "./runtime/process-runner.js";
+import { displayProgram } from "./policy.js";
 
 export interface AuditedHostRunResult {
   readonly exitCode: number | null;
@@ -57,21 +58,13 @@ export interface AuditedHostRunnerDeps {
     noteFirstRun(argv: readonly string[]): boolean;
   };
   /**
-   * Called once per session with the REDACTED rendering of the first host attempt.
+   * Called once per session with the PROGRAM the first host attempt named.
    *
-   * Redaction happens here, not in the callback: the audit trail and the ledger both redact, and a
-   * notice is the third rendering of the same argv — the boundary that already knows the rules is the
-   * only place that can guarantee none of the three leaks (adversarial review of the routing
-   * hardening found the notice emitting a bearer token verbatim).
+   * Not a command line: the visibility deliberately carries no command text at all, so there is no
+   * redaction left to get wrong — the rendering is `displayProgram(argv)` (basename, redacted, capped,
+   * never blank), and this is the only string the notice and the ledger ever show.
    */
-  readonly onFirstHostRun?: (rendered: string) => void;
-}
-
-/** The program an argv names, for operator-facing text (never the command line itself). */
-export function programName(argv: readonly string[]): string {
-  const first = argv[0];
-  if (first === undefined) return "(no command)";
-  return first.split("/").pop() ?? first;
+  readonly onFirstHostRun?: (program: string) => void;
 }
 
 /** The shape `CommandServices.hostRunner` expects. */
@@ -114,8 +107,8 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
         if (deps.ledger === undefined) return;
         if (deps.ledger.noteFirstRun(argv)) {
           // The program, not the command line: see the ledger's note (no rendered argv anywhere in the
-          // visibility, so there is no redaction to get wrong).
-          deps.onFirstHostRun?.(programName(argv));
+          // visibility). `displayProgram` is the enforced rendering, not an assumption about argv[0].
+          deps.onFirstHostRun?.(displayProgram(argv));
         }
       };
 

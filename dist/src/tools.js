@@ -20,6 +20,7 @@
  * shape matches Pi's `ToolDefinition`.
  */
 import { Type } from "typebox";
+import { displayProgram } from "./policy.js";
 import { RuntimeError, errorKindOf } from "./errors.js";
 import { executeWithTimeout, resolveTimeoutMs } from "./bash-router.js";
 import { combineCommandOutput, formatToolOutput } from "./tool-output.js";
@@ -150,7 +151,7 @@ export function createDevcontainerHostExecTool(options) {
         execute: async (_toolCallId, params, signal, _onUpdate, _ctx) => {
             if (!options.hostExecutionAllowed) {
                 // The PROGRAM, not the command line (see the ledger's note: the visibility renders no argv).
-                options.onWithheldHostAttempt?.(params.argv[0]?.split("/").pop() ?? "(no command)");
+                options.onWithheldHostAttempt?.(displayProgram(params.argv));
                 throw new RuntimeError({
                     kind: "policy-denied",
                     message: "Host execution is disabled by policy.",

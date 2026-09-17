@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { detectHostPathOnContainerSurface } from "../../src/routing-guard.js";
 import { createHostRunLedger } from "../../src/host-run-ledger.js";
-import { redactCommandLine, redactText } from "../../src/policy.js";
+import { displayProgram } from "../../src/policy.js";
 import { createAuditedHostRunner } from "../../src/host-runner.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
 
@@ -181,6 +181,20 @@ describe("the visibility renders NO command text at all", () => {
     expect(ledger.recent()).toEqual([]);
     expect(ledger.summary()).toContain("not recorded");
     expect(ledger.count()).toBe(1);
+  });
+});
+
+describe("displayProgram — the visibility's only rendering", () => {
+  it("redacts a credential-shaped argv[0], caps a long one, and never returns blank", () => {
+    // A program name CAN be credential-shaped (adversarial review built this exact argv):
+    expect(displayProgram(["Authorization: Bearer sk-live-abcdef123456"])).not.toContain("sk-live-abcdef123456");
+    // A pathological argument must not flood the operator channel or the status block:
+    expect(displayProgram([`/${"x".repeat(5000)}`]).length).toBeLessThanOrEqual(64);
+    // An empty argv[0] renders as a name, not as blank space:
+    expect(displayProgram([""])).toBe("(no command)");
+    expect(displayProgram([])).toBe("(no command)");
+    // And an ordinary program keeps its basename:
+    expect(displayProgram(["/usr/bin/docker", "ps"])).toBe("docker");
   });
 });
 

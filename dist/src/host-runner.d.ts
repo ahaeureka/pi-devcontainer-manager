@@ -54,17 +54,14 @@ export interface AuditedHostRunnerDeps {
         noteFirstRun(argv: readonly string[]): boolean;
     };
     /**
-     * Called once per session with the REDACTED rendering of the first host attempt.
+     * Called once per session with the PROGRAM the first host attempt named.
      *
-     * Redaction happens here, not in the callback: the audit trail and the ledger both redact, and a
-     * notice is the third rendering of the same argv — the boundary that already knows the rules is the
-     * only place that can guarantee none of the three leaks (adversarial review of the routing
-     * hardening found the notice emitting a bearer token verbatim).
+     * Not a command line: the visibility deliberately carries no command text at all, so there is no
+     * redaction left to get wrong — the rendering is `displayProgram(argv)` (basename, redacted, capped,
+     * never blank), and this is the only string the notice and the ledger ever show.
      */
-    readonly onFirstHostRun?: (rendered: string) => void;
+    readonly onFirstHostRun?: (program: string) => void;
 }
-/** The program an argv names, for operator-facing text (never the command line itself). */
-export declare function programName(argv: readonly string[]): string;
 /** The shape `CommandServices.hostRunner` expects. */
 export interface AuditedHostRunner {
     run(argv: readonly string[], options?: {

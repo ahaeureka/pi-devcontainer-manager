@@ -1,11 +1,4 @@
-/** The program an argv names (`""` for an empty argv — nothing ran). */
-function programOf(argv) {
-    const first = argv[0];
-    if (first === undefined)
-        return "";
-    const base = first.split("/").pop() ?? first;
-    return base.slice(0, 64);
-}
+import { displayProgram } from "./policy.js";
 export function createHostRunLedger(options = {}) {
     const limit = Math.max(1, options.limit ?? 5);
     let count = 0;
@@ -23,7 +16,7 @@ export function createHostRunLedger(options = {}) {
             // fixes for the previous one), so the visibility keeps the signal an operator needs — how many
             // host commands, and which tools — and stores no command text at all. A program name cannot be
             // a credential, and the authoritative record is the audit trail, which keeps its own policy.
-            recent.push(programOf(argv));
+            recent.push(displayProgram(argv));
             while (recent.length > limit)
                 recent.shift();
         }

@@ -144,3 +144,20 @@ export function redactText(text: string): string {
   out = out.replace(/(\w+:\/\/)[^/\s:@]+:[^/\s@]+@/g, "$1[REDACTED]@");
   return out;
 }
+
+/**
+ * Render an argv as the PROGRAM it names, for operator-facing text.
+ *
+ * This is the only thing the in-session visibility shows, so it is enforced here rather than assumed:
+ * basename of `argv[0]`, redacted with the audit rules (a program name CAN be credential-shaped —
+ * `argv[0]="Authorization: Bearer sk-live-…"` was reproduced by adversarial review), capped so a
+ * pathological argument cannot flood the operator channel or the status block, and never blank.
+ */
+export function displayProgram(argv: readonly string[]): string {
+  const first = argv[0];
+  if (first === undefined) return "(no command)";
+  const base = first.split("/").pop() ?? first;
+  const redacted = redactText(base).replace(/[\u0000-\u001f\u007f]/g, "");
+  if (redacted.length === 0) return "(no command)";
+  return redacted.slice(0, 64);
+}

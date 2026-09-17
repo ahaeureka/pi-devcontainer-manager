@@ -1,3 +1,4 @@
+import { displayProgram } from "./policy.js";
 import { RuntimeError, errorKindOf } from "./errors.js";
 import { isWorkspaceAllowed, isEnvironmentAllowed } from "./policy.js";
 import { combineCommandOutput } from "./tool-output.js";
@@ -538,8 +539,7 @@ export function createCommandHandlers(services) {
         if (!services.config.hostExecution.allow) {
             // A withheld attempt is exactly what the operator needs to see: count it before answering.
             const attempted = parseHostExecArgv(args);
-            const program = attempted.ok ? attempted.argv[0] : args.trim().split(/\s+/)[0];
-            services.onWithheldHostAttempt?.((program ?? "(no command)").split("/").pop() ?? "(no command)");
+            services.onWithheldHostAttempt?.(displayProgram(attempted.ok ? attempted.argv : [args.trim().split(/\s+/)[0] ?? ""]));
             return {
                 text: "[policy-denied] Host execution is disabled by policy.\n" +
                     "This installation withholds it by configuration: remove `hostExecution.allow: false` from the project file " +

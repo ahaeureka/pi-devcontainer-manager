@@ -2,13 +2,7 @@ import { evaluatePolicy } from "./policy.js";
 import { commandIdentity } from "./policy.js";
 import { RuntimeError } from "./errors.js";
 import { findContainerPath } from "./path-mapper.js";
-/** The program an argv names, for operator-facing text (never the command line itself). */
-export function programName(argv) {
-    const first = argv[0];
-    if (first === undefined)
-        return "(no command)";
-    return first.split("/").pop() ?? first;
-}
+import { displayProgram } from "./policy.js";
 export function createAuditedHostRunner(deps) {
     const now = deps.clock ?? (() => new Date().toISOString());
     const { config } = deps;
@@ -36,8 +30,8 @@ export function createAuditedHostRunner(deps) {
                     return;
                 if (deps.ledger.noteFirstRun(argv)) {
                     // The program, not the command line: see the ledger's note (no rendered argv anywhere in the
-                    // visibility, so there is no redaction to get wrong).
-                    deps.onFirstHostRun?.(programName(argv));
+                    // visibility). `displayProgram` is the enforced rendering, not an assumption about argv[0].
+                    deps.onFirstHostRun?.(displayProgram(argv));
                 }
             };
             const snapshot = evaluatePolicy(config, { operation: "host-exec", initiator: "host-escape" });
