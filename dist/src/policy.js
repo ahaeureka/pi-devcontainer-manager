@@ -97,6 +97,25 @@ export function commandIdentity(parts, capture) {
  *  - credentials embedded in URLs (`scheme://user:pass@host`)
  */
 const SECRET_KEY = "(?:api[_-]?key|access[_-]?key|private[_-]?key|token|secret|password|passwd|credential|credentials|authorization|auth)";
+/**
+ * Redact a command LINE that arrived as argv, without losing either idiom.
+ *
+ * Neither single pass is complete, which two adversarial passes established in sequence:
+ *
+ * - Redacting the JOINED line is what the audit trail does, and it is the only form that sees
+ *   `--password s3cr3t` (rule 3 needs the flag and its value in one string).
+ * - Redacting each ELEMENT first is the only form that sees an element that is entirely a scheme
+ *   value (`"Bearer sk-live-…"`), because on the joined line the scheme word of the NEXT element can
+ *   pair with a preceding value token and orphan that element's own value
+ *   (`["curl","-H","Bearer","Bearer sk-live-T"]` → `curl -H Bearer sk-live-T` if only joined).
+ *
+ * So do both, in that order: element-wise first (which cannot introduce a leak, only remove tokens),
+ * then the joined result. The second pass can only redact more, never less.
+ */
+export function redactCommandLine(argv) {
+    const perElement = argv.map((element) => redactText(element)).join(" ");
+    return redactText(perElement);
+}
 export function redactText(text) {
     let out = text;
     // 1. Auth schemes: "Bearer <token>" / "Basic <b64>" / "Token <t>".

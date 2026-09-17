@@ -2,7 +2,7 @@ import { evaluatePolicy } from "./policy.js";
 import { commandIdentity } from "./policy.js";
 import { RuntimeError } from "./errors.js";
 import { findContainerPath } from "./path-mapper.js";
-import { redactText } from "./policy.js";
+import { redactCommandLine } from "./policy.js";
 export function createAuditedHostRunner(deps) {
     const now = deps.clock ?? (() => new Date().toISOString());
     const { config } = deps;
@@ -29,8 +29,7 @@ export function createAuditedHostRunner(deps) {
                 if (deps.ledger === undefined)
                     return;
                 if (deps.ledger.noteFirstRun(argv)) {
-                    // JOIN then redact, like the audit trail: per-element redaction misses `--password s3cr3t`.
-                    deps.onFirstHostRun?.(redactText(argv.join(" ")));
+                    deps.onFirstHostRun?.(redactCommandLine(argv));
                 }
             };
             const snapshot = evaluatePolicy(config, { operation: "host-exec", initiator: "host-escape" });

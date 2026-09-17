@@ -150,6 +150,22 @@ extension keeps them separate:
 | `devcontainer_host_exec` / `/devcontainer host-exec` | `hostExecution.allow` (granted by default; a configuration can withhold it with `false`) | Audited with `operation: "host-exec"`, `initiator: "host-escape"` |
 | `/devcontainer setup` | **none** — not gated by `hostExecution.allow` | Interactive confirmation naming the exact command; fixed argv (`npm install -g @devcontainers/cli`), audited as `operation: "setup"`, 300 s timeout |
 
+### What the redaction covers, and what it does not
+
+`redactText` (shared by the audit records and the in-session host-run summary) hides: an auth scheme value
+(`Bearer`/`Basic`/`Token <value>`, quoted or bare), a secret-named key/value pair (`password=…`, `token: …`),
+a secret-named flag (`--password …`, `--api-key=…`), and credentials embedded in a URL
+(`scheme://user:pass@host`). Command lines that arrive as argv are redacted element-wise **and** joined, so
+neither `mysql --password s3cr3t` nor a standalone `Bearer <token>` element survives either form.
+
+It does **not** hide a bare `-u user:pass` pair (`curl -u alice:hunter2 https://…`) or an unflagged secret
+that appears as a plain positional argument. Two consequences worth knowing:
+
+- With the default `audit.commandCapture: "fingerprint-only"`, no command text is recorded anywhere, so this
+  is not a persistence concern; it matters under `"redacted-text"` and for the in-session summary.
+- A redaction rule that guessed at unflagged secrets would redact ordinary arguments too, so extending it is
+  a policy decision rather than a bug fix, and belongs in its own change.
+
 ### How the host escape hatch is gated (a deliberate asymmetry)
 
 `stop`/`remove` require a policy grant **and** a fresh per-action confirmation token. An arbitrary host

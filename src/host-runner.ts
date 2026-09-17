@@ -17,7 +17,7 @@ import { commandIdentity } from "./policy.js";
 import { RuntimeError } from "./errors.js";
 import { findContainerPath, type PathMapping } from "./path-mapper.js";
 import type { ProcessRunner } from "./runtime/process-runner.js";
-import { redactText } from "./policy.js";
+import { redactCommandLine } from "./policy.js";
 
 export interface AuditedHostRunResult {
   readonly exitCode: number | null;
@@ -107,8 +107,7 @@ export function createAuditedHostRunner(deps: AuditedHostRunnerDeps): AuditedHos
       const note = (): void => {
         if (deps.ledger === undefined) return;
         if (deps.ledger.noteFirstRun(argv)) {
-          // JOIN then redact, like the audit trail: per-element redaction misses `--password s3cr3t`.
-          deps.onFirstHostRun?.(redactText(argv.join(" ")));
+          deps.onFirstHostRun?.(redactCommandLine(argv));
         }
       };
 

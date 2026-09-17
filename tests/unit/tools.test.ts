@@ -315,12 +315,9 @@ describe("host-exec denial remedy (AC-4)", () => {
 describe("devcontainer_host_exec — a withheld attempt is reported", () => {
   it("reports the attempt when configuration withholds host execution", async () => {
     const attempts: string[][] = [];
-    const tool = createDevcontainerHostExecTool({
-      execution: {} as never,
-      sessionWorkspace: "/ws",
-      hostExecutionAllowed: false,
-      onWithheldHostAttempt: (argv) => void attempts.push([...argv]),
-    });
+    const tool = createDevcontainerHostExecTool(
+      makeOptions({ hostExecutionAllowed: false, onWithheldHostAttempt: (argv) => void attempts.push([...argv]) }),
+    );
 
     await expect(
       (tool.execute as unknown as (id: string, params: unknown, signal?: AbortSignal) => Promise<unknown>)(

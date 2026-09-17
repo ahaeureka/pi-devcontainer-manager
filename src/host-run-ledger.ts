@@ -1,4 +1,4 @@
-import { redactText } from "./policy.js";
+import { redactCommandLine, redactText } from "./policy.js";
 
 /**
  * A bounded, session-scoped ledger of host runs.
@@ -20,11 +20,9 @@ import { redactText } from "./policy.js";
  * of this change demonstrated `curl -H "authorization: Bearer sk-live-…"` landing here verbatim).
  */
 function redactArgv(argv: readonly string[]): string {
-  // JOIN first, then redact — exactly what the audit trail does (`commandIdentity` joins and the
-  // writer applies `redactText`). Redacting each element separately loses the flag-with-value rules,
-  // which need the flag and its value in one string: `--password s3cr3t` as two arguments would be
-  // redacted in the audit record and printed verbatim here (verify-node adversarial pass).
-  return redactText(argv.join(" "));
+  // One shared, two-pass rule (`redactCommandLine`): element-wise first, then joined — the only way to
+  // cover both `--password s3cr3t` AND an element that is entirely a scheme value. See its doc comment.
+  return redactCommandLine(argv);
 }
 
 export interface HostRunLedger {

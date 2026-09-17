@@ -20,9 +20,12 @@ to [Semantic Versioning](https://semver.org/).
   you pick, and cancelling keeps the refusal. The explicit `/devcontainer use <container-id>` path is
   unchanged.
 - Host runs are now visible in-session: `/devcontainer status` reports how many host command attempts
-  the session has made and the most recent ones (redacted with the same rules the audit trail uses, so a
-  credential cannot reach the status text), and the first one of a session is announced on the operator
-  channel. The audit trail remains the authoritative record; the escape hatch still needs only the
+  the session has made and the most recent ones — rendered through the same redaction the audit trail
+  applies (`redactCommandLine`: element-wise then joined, so both `--password s3cr3t` and a standalone
+  `Bearer <token>` element are hidden) — and the first one of a session is announced on the operator
+  channel, with the notice stating whether a record was written at all (a withheld attempt, or
+  `audit.enabled: false`, leaves none and says so). The redaction covers the credential shapes the audit
+  trail covers; see `docs/security.md` for the shapes it does not (a bare `-u user:pass` pair). The audit trail remains the authoritative record; the escape hatch still needs only the
   policy grant (see `docs/security.md` for why that asymmetry with `stop`/`remove` is deliberate).
 - **Behaviour change — `/devcontainer host-exec` takes structured argv.** The command used to accept
   shell-like free text and split it with a narrow quote-aware regex, which silently reinterpreted

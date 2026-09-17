@@ -88,7 +88,7 @@ import { createSetupCli } from "../src/setup-cli.js";
 import { createAuditedHostRunner } from "../src/host-runner.js";
 import { createLifecycleGuard } from "../src/lifecycle.js";
 import { createHostRunLedger } from "../src/host-run-ledger.js";
-import { redactText } from "../src/policy.js";
+import { redactCommandLine } from "../src/policy.js";
 import type { EffectiveConfig } from "../src/types.js";
 import { RuntimeError } from "../src/errors.js";
 import { renderExecutionContext } from "../src/execution-context.js";
@@ -567,7 +567,7 @@ export default function (pi: ExtensionAPI): void {
           // the notice must not claim one (verify-node adversarial pass). Redaction is the audit
           // trail's: join first, then redact.
           ctx.ui.notify(
-            `[devcontainer-manager] first host command attempt this session: ${redactText(argv.join(" "))} (host execution is withheld by configuration — no audit record)`,
+            `[devcontainer-manager] first host command attempt this session: ${redactCommandLine(argv)} (host execution is withheld by configuration — no audit record)`,
             "warning",
           );
         }
@@ -577,7 +577,9 @@ export default function (pi: ExtensionAPI): void {
         // should not require reading the audit log to notice. The runner hands over an already
         // REDACTED rendering, so this notice cannot be the one place a credential appears in plaintext.
         // "Attempt", because a refused command never ran but is exactly what the operator must see.
-        ctx.ui.notify(`[devcontainer-manager] first host command attempt this session: ${rendered} (audited)`, "warning");
+        // `audit.enabled: false` accepts records but persists nothing, so the notice must not claim one.
+        const recorded = config.audit.enabled ? "audited" : "audit disabled by configuration — no record persisted";
+        ctx.ui.notify(`[devcontainer-manager] first host command attempt this session: ${rendered} (${recorded})`, "warning");
       },
     });
     // The runtime assignment is a surface mutation like any other, so it goes through the guard (a

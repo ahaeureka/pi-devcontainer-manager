@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { detectHostPathOnContainerSurface } from "../../src/routing-guard.js";
 import { createHostRunLedger } from "../../src/host-run-ledger.js";
-import { redactText } from "../../src/policy.js";
+import { redactCommandLine, redactText } from "../../src/policy.js";
 import { createAuditedHostRunner } from "../../src/host-runner.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
 
@@ -135,16 +135,20 @@ describe("the notice and the ledger agree on redaction", () => {
       onFirstHostRun: (rendered) => void notices.push(rendered),
     });
 
-    await host.run(["curl", "-H", "Authorization: Bearer sk-live-abcdef123456", "https://e.test"]);
+    // The counterexample must be the FIRST run: the notice fires once, so a second run never renders it
+    // (the review-node pass caught exactly that in the previous version of this test).
     await host.run(["mysql", "-u", "root", "--password", "s3cr3t-value"]);
+    await host.run(["curl", "-H", "Authorization: Bearer sk-live-abcdef123456", "https://e.test"]);
 
     // The notice is the operator-facing rendering: it must not be the one place a credential appears
     // in plaintext while the ledger and the audit trail redact it (adversarial review of the routing
     // hardening).
     expect(notices).toHaveLength(1);
-    expect(notices[0]).not.toContain("sk-live-abcdef123456");
+    // The notice renders the FIRST run — the two-element flag-with-value secret.
+    expect(notices[0]).not.toContain("s3cr3t-value");
+    expect(notices[0]).toContain("[REDACTED]");
+    expect(ledger.recent().join(" ")).not.toContain("s3cr3t-value");
     expect(ledger.recent().join(" ")).not.toContain("sk-live-abcdef123456");
-    expect(ledger.recent().join(" ")).toContain("[REDACTED]");
     expect(records[0]?.commandText).toBeUndefined();
     // The ledger and the notice share the audit trail's rule: join, then redact.
     expect(ledger.recent().join(" ")).not.toContain("s3cr3t-value");
@@ -175,6 +179,19 @@ describe("the notice and the ledger agree on redaction", () => {
     expect(ledger.count()).toBe(2);
     expect(notices).toHaveLength(1);
     expect(records.every((record) => record.policyAuthorized === false)).toBe(true);
+  });
+});
+
+describe("redactCommandLine — both idioms", () => {
+  it("hides a scheme value that is an element on its own AND a flag-with-value pair", () => {
+    // Joined-only redaction pairs the value token with the NEXT element's scheme word and orphans that
+    // element's own value (the verify-node pass): ["curl","-H","Bearer","Bearer sk-live-T"] joined is
+    // `curl -H Bearer Bearer sk-live-T`, and rule 1 then eats only the first pair.
+    expect(redactCommandLine(["curl", "-H", "Bearer", "Bearer sk-live-TKN"])).not.toContain("sk-live-TKN");
+    // Element-only redaction misses the flag-with-value idiom.
+    expect(redactCommandLine(["mysql", "-u", "root", "--password", "s3cr3t-value"])).not.toContain("s3cr3t-value");
+    // Neither pass may hide something it should not.
+    expect(redactCommandLine(["echo", "hello", "world"])).toBe("echo hello world");
   });
 });
 
@@ -214,6 +231,30 @@ describe("createHostRunLedger — capture policy", () => {
     expect(ledger.recent()).toEqual([]);
     expect(ledger.summary()).toContain("not recorded");
     expect(ledger.count()).toBe(1);
+  });
+});
+
+describe("the notice claims only what is true", () => {
+  it("says the audit is disabled when enabled:false, and does not claim a record", async () => {
+    const notices: string[] = [];
+    const host = createAuditedHostRunner({
+      runner: { async exec() { return { exitCode: 0, signal: null, durationMs: 1, truncated: false, stdout: "", stderr: "" }; } },
+      config: makeConfig({ audit: { enabled: false, retentionDays: 90, commandCapture: "fingerprint-only" } }),
+      audit: { write: () => undefined },
+      sessionWorkspace: "/ws",
+      env: { PATH: "/usr/bin" },
+      targetStoreWorkspaceKey: () => undefined,
+      guardMappingFor: async () => undefined,
+      ledger: createHostRunLedger(),
+      onFirstHostRun: (rendered) => void notices.push(rendered),
+    });
+
+    await host.run(["systemctl", "restart", "docker"]);
+
+    // The runner hands over the rendering; the CALLER decides the claim, so this asserts the fact the
+    // caller needs: the rendered command, with the secret hidden.
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toContain("systemctl restart docker");
   });
 });
 
