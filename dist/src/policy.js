@@ -114,10 +114,10 @@ export function redactText(text) {
     out = out.replace(new RegExp(`(--?${SECRET_KEY})(\\s*=\\s*|\\s+)("[^"]*"|'[^']*'|[^\\s"']+)`, "gi"), "$1$2[REDACTED]");
     // 4. Credentials embedded in URLs: scheme://user:pass@host.
     //
-    // The password class allows `/`: a password containing a slash used to stop the match at it and leave the
-    // credential in the text (`https://alice:/hunter2@host` was returned unchanged), which matters because the
-    // in-session visibility renders `redactText`'s output (adversarial review).
-    out = out.replace(/(\w+:\/\/)[^\s/@]*:[^\s@]*@/g, "$1[REDACTED]@");
+    // The password class allows `/` and `@`: a password containing either used to leave its tail in the text
+    // (`https://alice:/hunter2@host` was returned unchanged; `postgres://alice:p@ss@host/db` kept `ss@host`).
+    // Anything between the `://` and the LAST `@` of the authority is userinfo, so it is replaced wholesale.
+    out = out.replace(/(\w+:\/\/)[^\s/]*@/g, "$1[REDACTED]@");
     return out;
 }
 /**
@@ -129,8 +129,11 @@ export function redactText(text) {
  * pathological argument cannot flood the operator channel or the status block, and never blank.
  */
 export function displayProgram(argv) {
-    const first = argv[0];
-    if (first === undefined)
+    // `argv[0]` is not guaranteed to be a bare program name: a caller may hand over the whole command line as
+    // one string (the free-text refusal path does), and rendering that would store command text — which this
+    // visibility is not allowed to do. Take the first whitespace-delimited token, always.
+    const first = argv[0]?.trim().split(/\s+/)[0];
+    if (first === undefined || first.length === 0)
         return "(no command)";
     // Redact BEFORE the basename: a URL-shaped program name keeps its credentials in the part the basename
     // would keep (`postgres://alice:s3cretpw@host` -> `alice:s3cretpw@host`), and the audit rules need the
@@ -140,8 +143,14 @@ export function displayProgram(argv) {
     // A URL-shaped name renders as its HOST only — never its userinfo. Taking the part before the first `/`
     // was not enough (`redis://:hunter2@cache:6379` has no slash and kept the password), so the userinfo is
     // dropped explicitly (adversarial review).
+    // A URL-shaped name renders as the AUTHORITY HOST only: the authority is what sits between `://` and the
+    // next `/`, and its userinfo (the part before the LAST `@` in it) is dropped. Splitting on the LAST `@` of
+    // the whole string was wrong — a path or query containing `@user:pass` then rendered as the "host".
     const base = redactedWhole.includes("://")
-        ? ((redactedWhole.split("://")[1] ?? "").split("@").pop() ?? "").split("/")[0] ?? "(no command)"
+        ? (() => {
+            const authority = (redactedWhole.split("://")[1] ?? "").split("/")[0] ?? "";
+            return authority.includes("@") ? (authority.split("@").pop() ?? "") : authority;
+        })()
         : (redactedWhole.split("/").pop() ?? redactedWhole);
     const redacted = base.replace(/[\u0000-\u001f\u007f]/g, "").trim();
     if (redacted.length === 0)

@@ -1,3 +1,4 @@
+import { isAtOrUnder } from "./workspace-path.js";
 /** Expand the devcontainer variable a `mounts` entry may use for the host workspace. */
 function expandVariables(path, hostPath) {
     return hostPath === undefined ? path : path.replaceAll("${localWorkspaceFolder}", hostPath);
@@ -26,9 +27,9 @@ export function detectHostPathOnContainerSurface(argv, mapping) {
     if (host.length === 0)
         return undefined;
     const visible = (mapping.containerVisiblePaths ?? []).map((path) => normalize(expandVariables(path, mapping.hostPath)));
-    // A root base must not demand a `//` prefix (the same boundary bug the workspace containment helper had):
-    // with `hostPath: "/"` the segment test used to be inert, so nothing was ever refused (adversarial review).
-    const under = (candidate, base) => candidate === base || (base.endsWith("/") ? candidate.startsWith(base) : candidate.startsWith(`${base}/`));
+    // The shared segment test: one implementation for every place that asks "is this the base or beneath it",
+    // because six separate adversarial findings were that same defect on a surface that had not been mirrored.
+    const under = isAtOrUnder;
     const isSameFileOnBothSides = (candidate) => visible.some((path) => under(candidate, path));
     /**
      * When the container path is an ANCESTOR of the host path the workspace is mounted at a shallower

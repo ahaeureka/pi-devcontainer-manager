@@ -26,19 +26,11 @@ export interface HostRunLedger {
   recent(): readonly string[];
   /** One operator-facing line for `/devcontainer status`. */
   summary(): string;
-  /**
-   * Adopt the session's capture policy.
-   *
-   * The policy governs command TEXT, which this ledger never holds; the count and the PROGRAM names are
-   * kept under every policy (a program name is not command text, and hiding it made the visibility claim
-   * false under `commandCapture: "none"`). Kept as the session wiring's hook.
-   */
-  setCapture(mode: "none" | "fingerprint-only" | "redacted-text"): void;
   /** Start a new session: the summary and the one-shot notice are per session, not per process. */
   reset(): void;
 }
 
-export function createHostRunLedger(options: { limit?: number; capture?: "none" | "fingerprint-only" | "redacted-text" } = {}): HostRunLedger {
+export function createHostRunLedger(options: { limit?: number } = {}): HostRunLedger {
   const limit = Math.max(1, options.limit ?? 5);
   let count = 0;
   const recent: string[] = [];
@@ -50,7 +42,7 @@ export function createHostRunLedger(options: { limit?: number; capture?: "none" 
   let keepText = true;
   const remember = (argv: readonly string[]): void => {
     count += 1;
-    if (keepText) {
+    {
       // The summary names the PROGRAM, never the command line. Ten adversarial passes over this
       // change found five credentials reachable through a rendered argv (and two of them through
       // fixes for the previous one), so the visibility keeps the signal an operator needs — how many
@@ -76,16 +68,8 @@ export function createHostRunLedger(options: { limit?: number; capture?: "none" 
       recent.length = 0;
       firstRunNoted = false;
     },
-    setCapture: () => {
-      // Retained for the session wiring, but the program NAME is not command text: it is always kept, so a
-      // `commandCapture: "none"` session still sees which tools ran (adversarial review).
-      keepText = true;
-    },
     summary: () => {
       if (count === 0) return "no host commands in this session";
-      if (!keepText) {
-        return `${count} host command ${count === 1 ? "attempt" : "attempts"} this session (command text not recorded)`;
-      }
       const plural = count === 1 ? "host command attempt" : "host command attempts";
       return `${count} ${plural} this session — most recent: ${recent.join(" | ")}`;
     },

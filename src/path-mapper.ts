@@ -20,6 +20,7 @@
  * sees one consistent in-container view.
  */
 import { isAbsolute } from "node:path";
+import { isAtOrUnder } from "./workspace-path.js";
 import { parseJsonc } from "./jsonc.js";
 
 export interface PathMapping {
@@ -119,7 +120,9 @@ export function findContainerPath(argv: readonly string[], containerPath: string
   for (const token of argv) {
     if (typeof token !== "string" || !token.startsWith("/")) continue;
     const candidate = normalize(token);
-    if (candidate === base || candidate.startsWith(`${base}/`)) return token;
+    // The shared segment test: a base of `/` matches everything absolute (the local `${base}/` prefix built
+    // `//` and made this guard silently inert for a container workspace path of `/`).
+    if (isAtOrUnder(candidate, base)) return token;
   }
   return undefined;
 }

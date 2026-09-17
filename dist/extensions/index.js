@@ -428,8 +428,6 @@ export default function (pi) {
         // The summary and the one-shot notice describe THIS session, not the process: a second session in
         // the same Pi process must not inherit the first one's count.
         hostRuns.reset();
-        // The session's capture policy decides whether the visibility summary may hold command text at all.
-        hostRuns.setCapture(config.audit.commandCapture);
         const restoredIntent = restoreSelection(ctx);
         const activation = { decision: { active: false, reason: "no-evidence" } };
         // Honor audit.enabled and audit.directory: the configured directory is used

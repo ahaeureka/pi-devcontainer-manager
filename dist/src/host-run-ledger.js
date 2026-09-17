@@ -10,7 +10,7 @@ export function createHostRunLedger(options = {}) {
     let keepText = true;
     const remember = (argv) => {
         count += 1;
-        if (keepText) {
+        {
             // The summary names the PROGRAM, never the command line. Ten adversarial passes over this
             // change found five credentials reachable through a rendered argv (and two of them through
             // fixes for the previous one), so the visibility keeps the signal an operator needs — how many
@@ -36,17 +36,9 @@ export function createHostRunLedger(options = {}) {
             recent.length = 0;
             firstRunNoted = false;
         },
-        setCapture: () => {
-            // Retained for the session wiring, but the program NAME is not command text: it is always kept, so a
-            // `commandCapture: "none"` session still sees which tools ran (adversarial review).
-            keepText = true;
-        },
         summary: () => {
             if (count === 0)
                 return "no host commands in this session";
-            if (!keepText) {
-                return `${count} host command ${count === 1 ? "attempt" : "attempts"} this session (command text not recorded)`;
-            }
             const plural = count === 1 ? "host command attempt" : "host command attempts";
             return `${count} ${plural} this session — most recent: ${recent.join(" | ")}`;
         },

@@ -10,6 +10,8 @@ import { describe, expect, it } from "vitest";
 import { detectHostPathOnContainerSurface } from "../../src/routing-guard.js";
 import { createHostRunLedger } from "../../src/host-run-ledger.js";
 import { displayProgram, redactText } from "../../src/policy.js";
+import { isAtOrUnder, isSamePath } from "../../src/workspace-path.js";
+import { findContainerPath } from "../../src/path-mapper.js";
 import { createAuditedHostRunner } from "../../src/host-runner.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
 
@@ -173,13 +175,12 @@ describe("the visibility renders NO command text at all", () => {
     expect(records.every((record) => record.policyAuthorized === false)).toBe(true);
   });
 
-  it("keeps the program name under `none`: it is not command text", () => {
+  it("keeps the program name under every capture policy: it is not command text", () => {
     const ledger = createHostRunLedger({ limit: 5 });
-    ledger.setCapture("none");
     ledger.record(["docker", "ps"]);
 
-    // The program name is one word rendered by `displayProgram`; the audit policy that governs command
-    // CAPTURE does not withhold it, and pretending otherwise made AC-1 false under a documented config.
+    // The program name is one word rendered by `displayProgram`; the audit policy governs command CAPTURE,
+    // and the ledger has no command text to withhold (the plumbing that pretended otherwise is gone).
     expect(ledger.recent()).toEqual(["docker"]);
     expect(ledger.count()).toBe(1);
   });
@@ -271,20 +272,46 @@ describe("the URL rule spans a slash in the password", () => {
     expect(displayProgram(["redis://:hunter2@cache:6379"])).toBe("cache:6379");
     // `[^/\s@]+` stopped the match at the first slash, so these were returned unchanged and then rendered by
     // `displayProgram` into both operator surfaces (adversarial review, both nodes).
-    expect(redactText("https://alice:/hunter2@host")).not.toContain("hunter2");
+    expect(redactText("postgres://alice:p@ss@host/db")).not.toContain("ss@host");
+    expect(redactText("postgres://alice:@hunter2@host/db")).not.toContain("hunter2");
     expect(displayProgram(["https://alice:/hunter2@host"])).not.toContain("hunter2");
     expect(displayProgram(["postgres://alice:my/password@db.example.test"])).not.toContain("password@");
     // A URL-shaped name renders as its host, never its userinfo.
     // A URL-shaped name renders as its HOST only: no userinfo, in any shape.
     expect(displayProgram(["postgres://alice:s3cretpw@db.example.test"])).toBe("db.example.test");
     expect(displayProgram(["https://host/path"])).toBe("host");
+    // The authority HOST only: a path or query carrying an `@user:pass`-shaped tail must not be rendered.
+    expect(displayProgram(["https://host:8080/path@user:hunter2"])).toBe("host:8080");
+    expect(displayProgram(["https://example.test/x@deployer:hunter2"])).toBe("example.test");
+    // `argv[0]` may be a WHOLE command line: only the first token is a program name.
+    expect(displayProgram(["ssh alice:hunter2@host"])).toBe("ssh");
+    expect(displayProgram(["docker login -u alice -p hunter2"])).toBe("docker");
   });
 });
 
-describe("the reverse guard handles a root host path", () => {
-  it("refuses paths under `/` instead of demanding a `//` prefix", () => {
+describe("the SEGMENT test is one implementation for every consumer", () => {
+  it("handles a root base, trailing slashes and prefix-sharing siblings", () => {
+    for (const base of ["/", "/data/ws", "/data/ws/"]) {
+      // Everything absolute is under `/`; otherwise only the base itself or a real segment below it.
+      expect(isAtOrUnder("/etc/passwd", base)).toBe(base === "/");
+      expect(isAtOrUnder("/data/ws/x", base)).toBe(true);
+      expect(isAtOrUnder("/data/ws/", base)).toBe(true);
+      expect(isAtOrUnder("/data/ws2/x", base)).toBe(base === "/");
+    }
+    expect(isSamePath("/data/ws/", "/data/ws")).toBe(true);
+    expect(isSamePath("/data/ws", "/data/wss")).toBe(false);
+  });
+
+  it("is what the reverse guard uses", () => {
     const mapping = { hostPath: "/", containerPath: "/workspaces/proj" };
     expect(detectHostPathOnContainerSurface(["cat", "/etc/passwd"], mapping)).toBe("/etc/passwd");
     expect(detectHostPathOnContainerSurface(["cat", "/workspaces/proj/x"], mapping)).toBeUndefined();
+  });
+
+  it("is what the HOST-surface guard uses (a root container path used to be inert)", () => {
+    // The local `${base}/` prefix built `//`, so this returned undefined and the guard silently did nothing.
+    expect(findContainerPath(["cat", "/etc/passwd"], "/")).toBe("/etc/passwd");
+    expect(findContainerPath(["cat", "/etc/passwd"], "/tmp")).toBeUndefined();
+    expect(findContainerPath(["cat", "/data/ws/x"], "/data/ws/")).toBe("/data/ws/x");
   });
 });

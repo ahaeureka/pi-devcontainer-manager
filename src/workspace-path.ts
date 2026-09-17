@@ -53,11 +53,29 @@ export function isWithinWorkspace(root: string, candidate: string, platform: Nod
   if (!isAbsolute(root) || !isAbsolute(candidate)) return false;
   const base = canonicalWorkspaceKey(resolveRealPathFor(root), platform);
   const target = canonicalWorkspaceKey(resolveRealPathFor(candidate), platform);
-  if (target === base) return true;
-  // The filesystem root contains everything; `${base}/` would build `//` and deny every workspace
-  // under an `allowedWorkspaceRoots: ["/"]` configuration (the review caught exactly that).
-  const prefix = base.endsWith("/") ? base : `${base}/`;
-  return target.startsWith(prefix);
+  return isAtOrUnder(target, base);
+}
+
+/**
+ * The SEGMENT test: is `candidate` the same path as `base`, or beneath it?
+ *
+ * One implementation for every place that asks this question, because six separate adversarial findings
+ * were the same defect — a fix applied to one surface and not its mirror. A bare `startsWith(base + "/")`
+ * is wrong for a base of `/` (it builds `//` and matches nothing), and raw comparison is wrong for two
+ * spellings that differ only in a trailing slash, so both cases live here once.
+ */
+export function isAtOrUnder(candidate: string, base: string): boolean {
+  const trimmedBase = base.length > 1 ? base.replace(/\/+$/, "") : base;
+  const trimmedCandidate = candidate.length > 1 ? candidate.replace(/\/+$/, "") : candidate;
+  if (trimmedCandidate === trimmedBase) return true;
+  if (trimmedBase === "/") return trimmedCandidate.startsWith("/");
+  return trimmedCandidate.startsWith(`${trimmedBase}/`);
+}
+
+/** Two spellings of the same path (trailing slashes and a lone root). */
+export function isSamePath(left: string, right: string): boolean {
+  const trim = (value: string): string => (value.length > 1 ? value.replace(/\/+$/, "") : value);
+  return trim(left) === trim(right);
 }
 
 /** `realpath` when it resolves, else the path unchanged (the platform fold happens in the key). */

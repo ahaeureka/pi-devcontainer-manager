@@ -158,11 +158,16 @@ quoted or bare), a secret-named key/value pair (`password=…`, `token: …`), a
 
 It does **not** hide a bare `-u user:pass` pair (`curl -u alice:hunter2 https://…`), an unflagged secret
 that appears as a plain positional argument, or the part of a flag value that follows a space (a command
-line is redacted as one space-joined string, so `--password "a b"` hides up to the space). Under the audit
+line is redacted as one space-joined string, so `--password "a b"` hides up to the space). Two URL shapes are
+inherently ambiguous to a rule and also survive: a **slash inside the password**
+(`https://alice:/hunter2@host` — a rule cannot tell it from a path) and a **URL-shaped argument that is not
+the whole argument** (`ssh alice:hunter2@host`, with no scheme to key on). Under the audit
 default `audit.commandCapture: "fingerprint-only"` no command text is recorded at all, so those three gaps
 matter only under `"redacted-text"` — but the in-session summary renders a program name, so a
 credential-shaped `argv[0]` is the one place they would have shown up there, which is why that rendering is
-enforced (`displayProgram`) rather than assumed. A rule that guessed at unflagged secrets would redact ordinary arguments
+enforced (`displayProgram`) rather than assumed: it takes the FIRST whitespace-delimited token of `argv[0]`,
+and a URL-shaped name renders as the authority HOST only — so no credential reaches either operator surface
+even for the shapes the audit-side rule misses. A rule that guessed at unflagged secrets would redact ordinary arguments
 too, so extending it is a policy decision rather than a bug fix, and belongs in its own change.
 
 The **in-session visibility deliberately keeps no command text at all**: `/devcontainer status` reports a

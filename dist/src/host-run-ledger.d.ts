@@ -24,19 +24,10 @@ export interface HostRunLedger {
     recent(): readonly string[];
     /** One operator-facing line for `/devcontainer status`. */
     summary(): string;
-    /**
-     * Adopt the session's capture policy.
-     *
-     * The policy governs command TEXT, which this ledger never holds; the count and the PROGRAM names are
-     * kept under every policy (a program name is not command text, and hiding it made the visibility claim
-     * false under `commandCapture: "none"`). Kept as the session wiring's hook.
-     */
-    setCapture(mode: "none" | "fingerprint-only" | "redacted-text"): void;
     /** Start a new session: the summary and the one-shot notice are per session, not per process. */
     reset(): void;
 }
 export declare function createHostRunLedger(options?: {
     limit?: number;
-    capture?: "none" | "fingerprint-only" | "redacted-text";
 }): HostRunLedger;
 //# sourceMappingURL=host-run-ledger.d.ts.map
