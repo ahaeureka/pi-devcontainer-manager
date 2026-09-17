@@ -260,3 +260,49 @@ describe("the segment predicate is shared and complete", () => {
     expect(hostToContainer("/elsewhere/x", { hostPath: "/data/work", containerPath: "/workspace" })).toBeUndefined();
   });
 });
+
+describe("the host-run ledger itself", () => {
+  it("counts attempts, names the programs, and keeps only the latest few", () => {
+    const ledger = createHostRunLedger({ limit: 3 });
+    expect(ledger.count()).toBe(0);
+    expect(ledger.recent()).toEqual([]);
+    expect(ledger.summary()).toBe("no host commands in this session");
+
+    ledger.record(["docker", "ps"]);
+    expect(ledger.summary()).toBe("1 host command attempt this session — most recent: docker");
+    ledger.record(["/usr/bin/systemctl", "restart", "docker"]);
+    expect(ledger.count()).toBe(2);
+    expect(ledger.recent()).toEqual(["docker", "(no command)"]);
+    expect(ledger.summary()).toBe("2 host command attempts this session — most recent: docker | (no command)");
+
+    // The bounded list keeps the LATEST entries (oldest first within the window) and never grows past the limit.
+    ledger.record(["curl", "-H", "Authorization: Bearer", "eyJhbGciOiJIUzI1NiJ9.SECRET"]);
+    ledger.record(["python3.11", "-m", "http.server"]);
+    expect(ledger.recent()).toEqual(["(no command)", "curl", "python3.11"]);
+    expect(ledger.recent().length).toBe(3);
+    expect(ledger.count()).toBe(4);
+
+    // No entry ever carries command text: the flag value and its secret are gone.
+    expect(JSON.stringify(ledger.recent())).not.toContain("SECRET");
+    expect(JSON.stringify(ledger.recent())).not.toContain("eyJhbGciOiJIUzI1NiJ9");
+
+    // A new session starts from zero, including the one-shot notice gate.
+    ledger.reset();
+    expect(ledger.count()).toBe(0);
+    expect(ledger.recent()).toEqual([]);
+    expect(ledger.summary()).toBe("no host commands in this session");
+    expect(ledger.noteFirstRun(["docker"])).toBe(true);
+  });
+
+  it("counts every attempt (including a refusal) and announces only the first", () => {
+    const ledger = createHostRunLedger({ limit: 5 });
+    // `noteFirstRun` is the withheld path's entry point: it gates the notice AND counts the attempt.
+    expect(ledger.noteFirstRun(["docker"])).toBe(true);
+    expect(ledger.noteFirstRun(["docker"])).toBe(false);
+    expect(ledger.noteFirstRun(["/usr/bin/docker"])).toBe(false);
+    expect(ledger.count()).toBe(3);
+    ledger.record(["docker"]);
+    expect(ledger.count()).toBe(4);
+    expect(ledger.recent()).toEqual(["docker", "docker", "(no command)", "docker"]);
+  });
+});
