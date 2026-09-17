@@ -166,11 +166,11 @@ default `audit.commandCapture: "fingerprint-only"` no command text is recorded a
 matter only under `"redacted-text"` — but the in-session summary renders a program name, so a
 credential-shaped `argv[0]` is the one place they would have shown up there, which is why that rendering is
 enforced (`displayProgram`) rather than assumed: it takes the FIRST whitespace-delimited token of `argv[0]`,
-and renders a NAME only when the token can be classified safely: a bare word renders itself, `user:pass@host`
-renders the host, `user:pass` renders the username, a URL (with a scheme, or protocol-relative `//host/…`)
-renders its host with the userinfo, query and fragment dropped, and an absolute, explicitly relative (`./`,
-`../`) or Windows-drive path renders its last segment with everything from the first `:` or `@` dropped.
-**Anything else that carries a separator is ambiguous and renders `(no command)`** — the same text used when
+and renders a NAME only when the token can be classified safely: a bare word with no punctuation beyond `._+-`
+renders itself; a URL — a scheme, or a leading `//` — renders its authority with the userinfo (before its last
+`@`), the query and the fragment dropped, and a `user:pass` authority without an `@` keeps only the user; an
+absolute, explicitly relative (`./`, `../`) or Windows-drive path renders its last segment, and only when that
+segment carries no `@` or `:`. **Everything else renders `(no command)`** — the same text used when
 nothing was named — because the earlier heuristic that guessed between a path segment and a URL path kept
 leaking (a webhook secret, a userinfo pair). What can still reach the surfaces is a credential a caller spells
 as a single bare word (`argv[0]="hunter2"`), which is not a shape a command line produces in practice. A rule that guessed at unflagged secrets would redact ordinary arguments

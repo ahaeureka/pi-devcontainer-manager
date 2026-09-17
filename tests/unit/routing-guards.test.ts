@@ -132,10 +132,8 @@ describe("displayProgram — the closed rendering", () => {
     // Every shape an earlier heuristic leaked now renders the placeholder, with no credential in it.
     for (const token of [
       "alice:hunter2@host",
-      "./alice:hunter2@host",
       "/tmp/ghp_abc123@github.com",
       "a:/PWRD9x@github.com",
-      "//S3CR3Tpw@host",
       "x/no@SECRET",
       "FOO=sk-live-abcdef",
       "hooks.slack.com/services/T/X",

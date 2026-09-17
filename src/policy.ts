@@ -160,43 +160,51 @@ export function redactText(text: string): string {
  * pathological argument cannot flood the operator channel or the status block, and never blank.
  */
 export function displayProgram(argv: readonly string[]): string {
-  // The rendering is deliberately CLOSED rather than clever. Eight adversarial passes each broke a heuristic
-  // that tried to tell a program name from a credential, so the rule now only renders a name it can justify,
-  // and `(no command)` otherwise. `argv[0]` may be a whole command line, so only its FIRST ASCII-whitespace
-  // token is considered.
+  // The rendering is deliberately CLOSED rather than clever: nine adversarial passes each broke a heuristic that
+  // tried to tell a program name from a credential, so only a name that can be justified is rendered and
+  // `(no command)` is returned otherwise. `argv[0]` may be a whole command line, so only its first
+  // ASCII-whitespace-delimited token is considered.
   const first = argv[0]?.trim().split(/[ \t\n\r\f\v]+/)[0];
   if (first === undefined || first.length === 0) return "(no command)";
 
-  // Strip control, format, line-separator and space-separator characters: a U+202E can reorder the notice, and
-  // a Unicode space (Zs) makes one entry read as several in the ` | `-joined summary.
-  const token = first.replace(/[\u0000-\u001f\u007f-\u009f\p{Cf}\p{Zl}\p{Zp}\p{Zs}]/gu, "");
-  if (token.length === 0) return "(no command)";
+  // Control, format and line-separator characters are removed; Unicode SPACES (Zs) become an ASCII space so
+  // they still terminate a token (`Bearer<NBSP>secret` must not glue into one bare word) without breaking the
+  // summary's ` | ` separator.
+  const cleaned = first
+    .replace(/[\u0000-\u001f\u007f-\u009f\p{Cf}\p{Zl}\p{Zp}]/gu, "")
+    .replace(/\p{Zs}/gu, " ")
+    .trim();
+  if (cleaned.length === 0) return "(no command)";
 
-  const redacted = redactText(token);
+  // Redact with the audit rules BEFORE classifying: the auth-scheme and key=value rules need the original
+  // spacing to recognise a credential. Then take the FIRST token again — a Unicode space is a separator, so
+  // `/usr/bin/curl<NBSP>secret` must classify `/usr/bin/curl`, not the whole string.
+  const token = (redactText(cleaned).split(" ")[0] ?? "").trim();
+  if (token.length === 0) return "(no command)";
   const classify = (value: string): string => {
-    // 1. A URL renders its HOST: with a scheme, or protocol-relative when its first segment looks like a host
-    //    (a dot). Userinfo, query and fragment are dropped.
+    // 1. A URL renders its HOST. A `://` scheme or a LEADING `//` is a URL (a protocol-relative reference —
+    //    the previous dot-in-the-first-segment condition let `//host/hook/SECRET` render its path).
     const schemed = value.includes("://");
-    const protocolRelative = value.startsWith("//") && (value.slice(2).split("/")[0] ?? "").includes(".");
-    if (schemed || protocolRelative) {
+    if (schemed || value.startsWith("//")) {
       const rest = schemed ? (value.split("://")[1] ?? "") : value.slice(2);
       const authority = rest.split(/[/?#]/)[0] ?? "";
       const host = authority.includes("@") ? (authority.split("@").pop() ?? "") : authority;
-      // After userinfo is dropped, what remains IS the host: rendering it is safe by construction.
-      return host.length > 0 ? host : "(no command)";
+      // A `user:password` authority with no `@` keeps only the part before a colon that is NOT a port.
+      const colon = host.lastIndexOf(":");
+      const bare = colon > 0 && !/^[0-9]+$/.test(host.slice(colon + 1)) ? host.slice(0, colon) : host;
+      return bare.length > 0 ? bare : "(no command)";
     }
-    // 2. A filesystem path (absolute, explicitly relative or Windows-drive) renders its LAST segment — but only
-    //    when that segment is a plain name: a segment carrying `@` or `:` is the userinfo/user position a
-    //    credential occupies (`./TOKEN@host`, `/tmp/user:pass`), so it is not rendered.
+    // 2. A filesystem path (absolute, explicitly relative or Windows-drive) renders its LAST segment, and only
+    //    when that segment is a plain name: a segment carrying `@` or `:` is a credential position.
     const isPath = value.startsWith("/") || value.startsWith("./") || value.startsWith("../") || /^[A-Za-z]:[\\/]/.test(value);
     if (isPath) {
       const last = value.split(/[\\/]/).filter((part) => part.length > 0).pop() ?? "";
-      return last.length > 0 && !/[@:]/.test(last) && !/^\[[^\]]+\]$/.test(last) ? last : "(no command)";
+      return last.length > 0 && !/[@:]/.test(last) ? last : "(no command)";
     }
-    // 3. A SIMPLE token with no separator and no userinfo punctuation is the name itself (`docker`, `systemctl`).
+    // 3. A SIMPLE token with no separator and no punctuation beyond `._+-` is the name itself.
     return /^[A-Za-z0-9][A-Za-z0-9._+-]*$/.test(value) ? value : "(no command)";
   };
 
-  const name = classify(redacted);
+  const name = classify(token);
   return name === "(no command)" ? name : Array.from(name).slice(0, 64).join("");
 }
