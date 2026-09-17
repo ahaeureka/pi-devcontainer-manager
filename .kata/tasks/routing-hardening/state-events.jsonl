@@ -85,3 +85,5 @@
 {"taskId":"routing-hardening","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T19:09:01.113Z"}
 {"taskId":"routing-hardening","from":"hardVerify","to":"review","actor":{"id":"kata-reviewer","role":"reviewer"},"at":"2026-09-17T19:23:54.368Z"}
 {"taskId":"routing-hardening","from":"review","to":"judge","actor":{"id":"kata-judge","role":"judge"},"at":"2026-09-17T19:24:18.080Z"}
+{"taskId":"routing-hardening","from":"judge","to":"distill","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T19:30:22.591Z"}
+{"taskId":"routing-hardening","from":"distill","to":"archive","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T19:30:22.598Z"}
