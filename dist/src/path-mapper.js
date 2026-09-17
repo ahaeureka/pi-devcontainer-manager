@@ -88,7 +88,12 @@ export function hostToContainer(path, mapping) {
         return undefined;
     if (candidate === host)
         return mapping.containerPath;
-    return `${mapping.containerPath}${candidate.slice(host.length)}`;
+    // The join boundary is EXPLICIT: with a host of `/` the tail has no leading slash, so concatenating the
+    // container path with the raw slice produced `/workspacedata/work/proj` (adversarial review, three nodes).
+    const hostTrimmed = host === "/" ? "/" : host.replace(/\/+$/, "");
+    const base = hostTrimmed === "/" ? "/" : `${hostTrimmed}/`;
+    const containerRoot = mapping.containerPath.replace(/\/+$/, "") || "/";
+    return `${containerRoot === "/" ? "" : containerRoot}/${candidate.slice(base.length)}`;
 }
 /**
  * Return the first argv element that refers to a CONTAINER-only path (the

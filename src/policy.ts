@@ -184,14 +184,40 @@ export function displayProgram(argv: readonly string[]): string {
   // With a scheme the userinfo lives inside the authority; WITHOUT one there may be a path in front of it
   // (`./alice:hunter2@host`), so the `@` must be looked for in the WHOLE token — taking the last segment
   // verbatim rendered the credential (adversarial review).
+  // The authority is credential-shaped when it carries a `:` (a user:password pair) — then the host is what
+  // follows the LAST `@` of the whole token, because a password containing `/` cut the authority short
+  // (`https://deployer:QWERTY/x@host` used to render `deployer:QWERTY`).
+  // `host:port` is not userinfo, but `user:password` is: the discriminator is whether everything after the
+  // LAST `:` is a port (all digits). Without it, `https://host:8080/path@user:hunter2` rendered the PATH's
+  // `@tail` as the host (adversarial review).
+  const afterColon = authority.slice(authority.lastIndexOf(":") + 1);
+  const authorityLooksLikeUserinfo =
+    authority.includes(":") && !authority.includes("@") && !/^[0-9]+$/.test(afterColon);
+  const hostAfterLastAt = (): string | undefined => {
+    if (!redactedWhole.includes("@")) return undefined;
+    const tail = redactedWhole.split("@").pop() ?? "";
+    return tail.split("/")[0] ?? "";
+  };
   const base = authority.includes("@")
     ? (authority.split("@").pop() ?? "(no command)")
-    : !hasScheme && afterScheme.includes("@")
-      ? ((afterScheme.split("@").pop() ?? "").split("/")[0] ?? "(no command)")
-      : hasScheme
-        ? authority
-        : (redactedWhole.split("/").pop() ?? redactedWhole);
-  const redacted = base.replace(/[\u0000-\u001f\u007f]/g, "").trim();
+    : !hasScheme &&
+        afterScheme.includes("@") &&
+        !(afterScheme.split("@").pop() ?? "").includes("/")
+      ? (afterScheme.split("@").pop() ?? "(no command)")
+      : authorityLooksLikeUserinfo
+        ? // No `@` to find the host after: render the USERNAME only (a username is not a credential, and a
+          // password cannot be told apart from a host here).
+          (hostAfterLastAt() || authority.split(":")[0] || "(no command)")
+        : hasScheme
+          ? authority
+          : (redactedWhole.split("/").pop() ?? redactedWhole);
+  // Strip control AND format characters (a U+202E in a name can visually reorder the notice the operator is
+  // asked to trust) and treat a Windows separator as a separator.
+  const redacted = base
+    .replace(/[\u0000-\u001f\u007f\p{Cf}]/gu, "")
+    .split(/[\\/]/)
+    .pop()
+    ?.trim() ?? "";
   if (redacted.length === 0) return "(no command)";
   return redacted.slice(0, 64);
 }

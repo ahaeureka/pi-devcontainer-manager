@@ -11,7 +11,7 @@ import { detectHostPathOnContainerSurface } from "../../src/routing-guard.js";
 import { createHostRunLedger } from "../../src/host-run-ledger.js";
 import { displayProgram, redactText } from "../../src/policy.js";
 import { isAtOrUnder, isSamePath } from "../../src/workspace-path.js";
-import { findContainerPath } from "../../src/path-mapper.js";
+import { findContainerPath, hostToContainer } from "../../src/path-mapper.js";
 import { createAuditedHostRunner } from "../../src/host-runner.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
 
@@ -330,5 +330,30 @@ describe("displayProgram never renders userinfo, whatever the shape", () => {
     }
     // A path with no userinfo still renders its program name.
     expect(displayProgram(["/usr/bin/docker"])).toBe("docker");
+  });
+});
+
+describe("hostToContainer keeps an explicit join boundary", () => {
+  it("maps a root host and a doubled-slash host to well-formed container paths", () => {
+    // Three adversarial nodes found this: the delegation lost the separator, so a root host produced
+    // `/workspacedata/work/proj` and reached the agent as its container workspace path.
+    expect(hostToContainer("/data/work/proj", { hostPath: "/", containerPath: "/workspace" })).toBe(
+      "/workspace/data/work/proj",
+    );
+    expect(hostToContainer("/data/work/proj", { hostPath: "/data/work//", containerPath: "/workspace" })).toBe(
+      "/workspace/proj",
+    );
+    expect(hostToContainer("/data/work", { hostPath: "/data/work", containerPath: "/workspace" })).toBe("/workspace");
+    expect(hostToContainer("/elsewhere/x", { hostPath: "/data/work", containerPath: "/workspace" })).toBeUndefined();
+  });
+});
+
+describe("displayProgram keeps a credential-free path's basename", () => {
+  it("only applies the @ rule when the @ sits in the tail", () => {
+    // A directory named `app@2` is not userinfo — the visibility must still name the program being run.
+    expect(displayProgram(["/opt/app@2/dist/bin/tool"])).toBe("tool");
+    expect(displayProgram(["/usr/lib/node_modules/@babel/cli/bin/babel.js"])).toBe("babel.js");
+    // While a real userinfo token still loses it.
+    expect(displayProgram(["./alice:hunter2@host"])).toBe("host");
   });
 });
