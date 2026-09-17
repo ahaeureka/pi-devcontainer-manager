@@ -1,9 +1,9 @@
 {
   "taskId": "arch-review-p4-vocabulary-identity",
-  "phase": "hardVerify",
+  "phase": "review",
   "actor": {
-    "id": "kata-agent",
-    "role": "implementer"
+    "id": "kata-reviewer",
+    "role": "reviewer"
   },
-  "updatedAt": "2026-09-17T07:20:37.955Z"
+  "updatedAt": "2026-09-17T07:22:31.207Z"
 }

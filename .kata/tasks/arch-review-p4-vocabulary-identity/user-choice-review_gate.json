@@ -1,5 +1,8 @@
 {
   "taskId": "arch-review-p4-vocabulary-identity",
   "boundary": "review_gate",
-  "createdAt": "2026-09-17T07:21:22.262Z"
+  "createdAt": "2026-09-17T07:21:22.262Z",
+  "choice": "continue_current",
+  "approvedAt": "2026-09-17T07:22:30.844Z",
+  "consumedAt": "2026-09-17T07:22:31.213Z"
 }
