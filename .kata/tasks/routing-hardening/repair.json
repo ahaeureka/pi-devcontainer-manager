@@ -1,0 +1,24 @@
+{
+  "fromPhase": "review",
+  "reason": "review_findings",
+  "baselineRevisionId": "revision-b06b91fe2d61c0ff",
+  "baselineManifestHash": "acaf2f21dc2f3b61dde8f4827dfe9ea8a5b10e5ed309d45118ceb1dbca2d94b2",
+  "findings": [
+    {
+      "id": "finding-tree-moved-after-seal",
+      "acceptanceId": "AC-1",
+      "severity": "blocking",
+      "message": "PROCESS, not a defect: the independent adversarial review of revision-b06b91fe produced eight findings (no blocking defects) and closing them edited task-owned paths, so the tree no longer matches the sealed revision. Three were real defects in this change: `/devcontainer status` never received the host-run summary (AC-1's claim and four documents were false), the reverse guard's mapping read sat outside an audit boundary (a Docker failure escaped unrecorded), and a mirror mount was wrongly refused. Also fixed: the picker had no `hasUI` guard, the ledger stored argv verbatim (a credential would have reached the status text), the guard refused the container path its own remedy named, and four documentation errors.",
+      "path": "src/commands.ts"
+    }
+  ],
+  "taskId": "routing-hardening",
+  "toPhase": "implement",
+  "actor": {
+    "id": "kata-agent",
+    "role": "implementer"
+  },
+  "createdAt": "2026-09-17T09:28:58.627Z",
+  "resolvedAt": "2026-09-17T09:29:17.786Z",
+  "resolvedRevisionId": "revision-77f7f98ec983bc0b"
+}

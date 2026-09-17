@@ -1,5 +1,5 @@
 {
-  "id": "evidence-28830da1-0dca-4a8c-9afc-5ff6158ca4d9",
+  "id": "evidence-29901023-f3c5-4ebe-9a70-2ac98feffc0a",
   "taskId": "routing-hardening",
   "checkId": "matrix:AC-1:typecheck:npm run typecheck",
   "checkSource": "matrix",
@@ -8,11 +8,11 @@
   "command": "npm run typecheck",
   "environment": "cwd=/data/work/ahaeureka/pi-devcontainer-manager node=v24.19.0 platform=linux",
   "exitCode": 0,
-  "startedAt": "2026-09-17T09:28:58.922Z",
-  "finishedAt": "2026-09-17T09:29:06.149Z",
-  "diffHash": "ddefc54f9d02988d0defece2ce65f02b40710ae757f1f57dc52da3ecc283590d",
+  "startedAt": "2026-09-17T09:13:26.413Z",
+  "finishedAt": "2026-09-17T09:13:33.673Z",
+  "diffHash": "e432f68e845d2b34a623b1ea32ad9f3173e3b30962f81f704779a8d1b89deb65",
   "log": "\n> pi-devcontainer-manager@1.0.0 typecheck\n> tsc --noEmit -p tsconfig.json\n\n",
-  "revisionId": "revision-77f7f98ec983bc0b",
+  "revisionId": "revision-b06b91fe2d61c0ff",
   "scope": {
     "paths": [
       "CHANGELOG.md",
@@ -27,6 +27,6 @@
       "src",
       "tests"
     ],
-    "hash": "e680b118ad45c40e0603064c949eae7f1a38af812cbd89c6dd6a3b3d380bcbbd"
+    "hash": "acaf2f21dc2f3b61dde8f4827dfe9ea8a5b10e5ed309d45118ceb1dbca2d94b2"
   }
 }
