@@ -22,3 +22,9 @@ node_modules/
 .pi/pi-devcontainer-manager.json
 .kata/runtime/
 .kata/worktrees/
+
+# Adversarial reviewers' scratch directories: a `tsc --outDir` probe must never be committed, and a broad
+# `git add -A` swept one in once (128 files, 928K) — it would have landed on main.
+.verify-scratch/
+.review-tmp/
+*-scratch/
