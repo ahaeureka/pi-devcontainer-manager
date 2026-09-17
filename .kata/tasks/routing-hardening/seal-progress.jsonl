@@ -31,3 +31,14 @@
 {"type":"quality_check_progress","check":"AC-6-test-node-scripts-smoke-pi-package.mjs---no-model","state":"started","elapsedMs":0,"at":"2026-09-17T16:55:37.345Z"}
 {"type":"quality_check_progress","check":"AC-6-test-node-scripts-smoke-pi-package.mjs---no-model","state":"passed","exitCode":0,"elapsedMs":15542,"at":"2026-09-17T16:55:52.887Z"}
 {"type":"seal_complete","at":"2026-09-17T16:55:53.012Z","checks":5}
+{"type":"quality_check_progress","check":"typecheck","state":"started","elapsedMs":0,"at":"2026-09-17T17:16:41.592Z"}
+{"type":"quality_check_progress","check":"typecheck","state":"passed","exitCode":0,"elapsedMs":6626,"at":"2026-09-17T17:16:48.218Z"}
+{"type":"quality_check_progress","check":"test","state":"started","elapsedMs":0,"at":"2026-09-17T17:16:48.218Z"}
+{"type":"quality_check_progress","check":"test","state":"passed","exitCode":0,"elapsedMs":46984,"at":"2026-09-17T17:17:35.202Z"}
+{"type":"quality_check_progress","check":"AC-1-test-npm-run-test-unit","state":"started","elapsedMs":0,"at":"2026-09-17T17:17:35.203Z"}
+{"type":"quality_check_progress","check":"AC-1-test-npm-run-test-unit","state":"passed","exitCode":0,"elapsedMs":15645,"at":"2026-09-17T17:17:50.848Z"}
+{"type":"quality_check_progress","check":"AC-1-typecheck-npm-run-typecheck","state":"started","elapsedMs":0,"at":"2026-09-17T17:17:50.849Z"}
+{"type":"quality_check_progress","check":"AC-1-typecheck-npm-run-typecheck","state":"passed","exitCode":0,"elapsedMs":6021,"at":"2026-09-17T17:17:56.870Z"}
+{"type":"quality_check_progress","check":"AC-6-test-node-scripts-smoke-pi-package.mjs---no-model","state":"started","elapsedMs":0,"at":"2026-09-17T17:17:56.870Z"}
+{"type":"quality_check_progress","check":"AC-6-test-node-scripts-smoke-pi-package.mjs---no-model","state":"passed","exitCode":0,"elapsedMs":15795,"at":"2026-09-17T17:18:12.665Z"}
+{"type":"seal_complete","at":"2026-09-17T17:18:12.780Z","checks":5}

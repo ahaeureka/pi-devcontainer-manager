@@ -367,3 +367,22 @@ describe("displayProgram keeps a credential-free path's basename", () => {
     expect(displayProgram(["./alice:hunter2@host"])).toBe("host");
   });
 });
+
+describe("a scheme-less URL renders its HOST", () => {
+  it("does not render a webhook's path segment", () => {
+    // `hooks.slack.com/services/T…/X…` is a URL without a scheme, and its PATH is where the secret sits.
+    expect(displayProgram(["hooks.slack.com/services/T000/B000/X9fQ"])).toBe("hooks.slack.com");
+    expect(displayProgram(["api.example.com/sk_live_Zq7"])).toBe("api.example.com");
+    // A filesystem path still renders its basename, and a relative script keeps its name.
+    expect(displayProgram(["./build.sh"])).toBe("build.sh");
+    expect(displayProgram(["/usr/bin/docker"])).toBe("docker");
+  });
+});
+
+describe("equivalent path spellings are the same path", () => {
+  it("collapses repeated separators and dot segments", () => {
+    expect(isAtOrUnder("//host/proj/x", "/host/proj")).toBe(true);
+    expect(isAtOrUnder("/host/./proj/x", "/host/proj")).toBe(true);
+    expect(isAtOrUnder("/host/proj2/x", "/host/proj")).toBe(false);
+  });
+});

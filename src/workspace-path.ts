@@ -65,6 +65,14 @@ export function isWithinWorkspace(root: string, candidate: string, platform: Nod
  * spellings that differ only in a trailing slash, so both cases live here once.
  */
 export function isAtOrUnder(candidate: string, base: string): boolean {
+  // Equivalent spellings are the same path: collapse repeated separators and drop `.` segments first, so
+  // `//host/proj/x` and `/host/./proj/x` match `/host/proj` (adversarial review).
+  const tidy = (value: string): string => {
+    const collapsed = value.replace(/\/{2,}/g, "/").replace(/\/\.\//g, "/").replace(/\/\.$/, "");
+    return collapsed.length > 1 ? collapsed.replace(/\/+$/, "") : collapsed;
+  };
+  base = tidy(base);
+  candidate = tidy(candidate);
   const trimmedBase = base.length > 1 ? base.replace(/\/+$/, "") : base;
   const trimmedCandidate = candidate.length > 1 ? candidate.replace(/\/+$/, "") : candidate;
   if (trimmedCandidate === trimmedBase) return true;

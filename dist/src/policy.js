@@ -140,7 +140,7 @@ export function displayProgram(argv) {
     // Strip control and format characters FIRST (C0/C1/DEL/Cf): a U+202E in a name can visually reorder the
     // notice the operator is asked to trust, and stripping first means the structural rules below see the
     // real text.
-    const cleaned = first.replace(/[\u0000-\u001f\u007f-\u009f\p{Cf}]/gu, "");
+    const cleaned = first.replace(/[\u0000-\u001f\u007f-\u009f\p{Cf}\u2028\u2029]/gu, "");
     if (cleaned.length === 0)
         return "(no command)";
     // Redact with the audit rules before any slicing: a URL-shaped name keeps its credentials in the part a
@@ -165,6 +165,12 @@ export function displayProgram(argv) {
                 // `[user[:pass]@]host` with no scheme renders the HOST, mirroring the URL branch: the credential can
                 // sit in the user position (a token-in-URL), and the host is the name an operator needs.
                 const afterAt = bare.includes("@") && !bare.split("@").pop()?.includes("/") ? (bare.split("@").pop() ?? bare) : bare;
+                // A SCHEME-LESS URL is still a URL: `hooks.slack.com/services/T…/X…` renders its HOST, because the
+                // path of a webhook or a signed link is exactly where the credential sits (adversarial review). The
+                // discriminator is the first segment carrying a `.` while the token is not a filesystem path.
+                const firstSegment = afterAt.split("/")[0] ?? "";
+                if (!afterAt.startsWith("/") && !afterAt.startsWith(".") && firstSegment.includes("."))
+                    return firstSegment;
                 // Otherwise a path: the LAST segment is the name, and an `@` in a DIRECTORY is not userinfo
                 // (`/opt/app@2/dist/bin/tool` is `tool`, `/usr/lib/node_modules/@babel/cli/bin/babel.js` is `babel.js`).
                 return (afterAt.split(/[\\/]/).pop() ?? afterAt);

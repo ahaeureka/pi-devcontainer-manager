@@ -1,5 +1,5 @@
 {
-  "id": "evidence-0ed0fef9-6b1e-45a9-a678-da64503f55d3",
+  "id": "evidence-a5aef3f3-4aa7-46fc-9050-c67a74fd29f0",
   "taskId": "routing-hardening",
   "checkSource": "fallback",
   "name": "test",
@@ -7,11 +7,11 @@
   "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/vitest/dist/cli.js run",
   "environment": "cwd=/data/work/ahaeureka/pi-devcontainer-manager node=v24.19.0 platform=linux",
   "exitCode": 0,
-  "startedAt": "2026-09-17T16:54:25.627Z",
-  "finishedAt": "2026-09-17T16:55:15.428Z",
-  "diffHash": "cefedd14c7c901d6126b39a2946cee46aa4f54e5acc221b938e7fc97a7ce22c3",
-  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  42 passed (42)\n      Tests  518 passed (518)\n   Start at  00:54:26\n   Duration  49.36s (transform 1.17s, setup 0ms, import 4.89s, tests 37.74s, environment 6ms)\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n",
-  "revisionId": "revision-573e235b0fb0845f",
+  "startedAt": "2026-09-17T17:16:48.218Z",
+  "finishedAt": "2026-09-17T17:17:35.202Z",
+  "diffHash": "d7723b15212693cd89d3e11baed57c7613dcd3799ef06c2453a43496b8491157",
+  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  42 passed (42)\n      Tests  518 passed (518)\n   Start at  01:16:48\n   Duration  46.56s (transform 1.24s, setup 0ms, import 5.05s, tests 34.67s, environment 6ms)\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n",
+  "revisionId": "revision-7061518a05cf1c66",
   "scope": {
     "paths": [
       "CHANGELOG.md",
@@ -27,6 +27,6 @@
       "tests",
       "vitest.config.ts"
     ],
-    "hash": "80b146d2829e54e7bfaa59a81249477a784b5e5c08f1f0ff107616bea42fade1"
+    "hash": "ecd4fca190c6181749e559912c133ca642394e781c6bddc5197ce9b384274ee3"
   }
 }
