@@ -160,8 +160,8 @@ quoted or bare), a secret-named key/value pair (`password=…`, `token: …`), a
 (`--password …`, `--api-key=…`), and credentials embedded in a URL (`scheme://user:pass@host`).
 
 It does **not** hide a bare `-u user:pass` pair (`curl -u alice:hunter2 https://…`), an unflagged secret
-that appears as a plain positional argument, or the part of a flag value that follows a space (a command
-line is redacted as one space-joined string, so `--password "a b"` hides up to the space). Two URL shapes are
+that appears as a plain positional argument, or the tail of a flag value that spans a space (a command line
+is redacted as one space-joined string, so `--password a b` hides `--password a` and leaves `b`). Two URL shapes are
 inherently ambiguous to a rule and also survive: a **slash inside the password**
 (`https://alice:/hunter2@host` — a rule cannot tell it from a path) and a **URL-shaped argument that is not
 the whole argument** (`ssh alice:hunter2@host`, with no scheme to key on). Under the audit
