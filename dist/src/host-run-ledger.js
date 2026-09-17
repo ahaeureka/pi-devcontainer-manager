@@ -48,6 +48,11 @@ export function createHostRunLedger(options = {}) {
         },
         count: () => count,
         recent: () => [...recent],
+        reset: () => {
+            count = 0;
+            recent.length = 0;
+            firstRunNoted = false;
+        },
         setCapture: (mode) => {
             keepText = mode !== "none";
             if (!keepText)
@@ -56,8 +61,9 @@ export function createHostRunLedger(options = {}) {
         summary: () => {
             if (count === 0)
                 return "no host commands in this session";
-            if (!keepText)
-                return `${count} host command ${count === 1 ? "attempt" : "attempts"} this session (command text not recorded)`.replace("command attempt this session", "command attempt this session");
+            if (!keepText) {
+                return `${count} host command ${count === 1 ? "attempt" : "attempts"} this session (command text not recorded)`;
+            }
             const plural = count === 1 ? "host command attempt" : "host command attempts";
             return `${count} ${plural} this session — most recent: ${recent.join(" | ")}`;
         },

@@ -28,17 +28,20 @@ export function detectHostPathOnContainerSurface(argv, mapping) {
     const visible = (mapping.containerVisiblePaths ?? []).map((path) => normalize(expandVariables(path, mapping.hostPath)));
     const under = (candidate, base) => candidate === base || candidate.startsWith(`${base}/`);
     const isSameFileOnBothSides = (candidate) => visible.some((path) => under(candidate, path));
-    // A container path NESTED under the host path is the container's own workspace (mounting a subdirectory
-    // elsewhere), so a request for it is legitimate. The reverse — the workspace mounted at an ANCESTOR of
-    // the host path — makes every host-path request a different file inside the container, so it must be
-    // refused (adversarial review of the routing hardening: the blanket container-space exemption swallowed
-    // exactly that case).
-    const containerSpaceIsNestedUnderHost = container.length > host.length && under(container, host);
+    /**
+     * When the container path is an ANCESTOR of the host path the workspace is mounted at a shallower
+     * container path, so nothing under the host path is container space — every host-path request names a
+     * different file inside the container and must be refused.
+     */
+    const containerIsAncestorOfHost = container.length > 0 && host.length > container.length && under(host, container);
     for (const element of argv) {
         const candidate = normalize(element);
         if (!under(candidate, host))
             continue;
-        if (containerSpaceIsNestedUnderHost)
+        // The container's OWN workspace is legitimate (it may be nested inside the host path), but only that
+        // space — exempting everything under the host path whenever the container path was nested let a host
+        // file that is not the workspace slip through (adversarial review of the routing hardening).
+        if (!containerIsAncestorOfHost && container.length > 0 && under(candidate, container))
             continue;
         if (isSameFileOnBothSides(candidate))
             continue;

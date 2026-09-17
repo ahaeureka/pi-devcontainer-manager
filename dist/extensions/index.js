@@ -276,7 +276,6 @@ hostVisibility) {
             sessionWorkspace,
             hostRunner,
             hostExecutionAllowed: config.hostExecution.allow,
-            onWithheldHostAttempt: hostVisibility.onWithheldHostAttempt,
         }),
         status: createDevcontainerStatusTool(() => {
             const snapshot = targetStore.snapshot();
@@ -287,6 +286,10 @@ hostVisibility) {
         }),
         hostExec: createDevcontainerHostExecTool({
             execution,
+            // A withheld attempt is reported to the ledger + one-shot notice, so the AGENT's surface is as
+            // visible as the operator's (the previous wiring put this on `devcontainer_exec`, which ignores
+            // it — adversarial review of the routing hardening).
+            onWithheldHostAttempt: hostVisibility.onWithheldHostAttempt,
             sessionWorkspace,
             hostRunner,
             hostExecutionAllowed: config.hostExecution.allow,
@@ -423,6 +426,9 @@ export default function (pi) {
         const paths = defaultConfigPaths(ctx.cwd);
         const loaded = loadConfigWithDiagnostics(paths, { projectTrusted: ctx.isProjectTrusted() });
         const config = composeRuntimeConfig(ctx.cwd, loaded.config);
+        // The summary and the one-shot notice describe THIS session, not the process: a second session in
+        // the same Pi process must not inherit the first one's count.
+        hostRuns.reset();
         // The session's capture policy decides whether the visibility summary may hold command text at all.
         hostRuns.setCapture(config.audit.commandCapture);
         const restoredIntent = restoreSelection(ctx);

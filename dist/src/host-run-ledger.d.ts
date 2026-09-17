@@ -17,6 +17,8 @@ export interface HostRunLedger {
      * what the policy declined to record.
      */
     setCapture(mode: "none" | "fingerprint-only" | "redacted-text"): void;
+    /** Start a new session: the summary and the one-shot notice are per session, not per process. */
+    reset(): void;
 }
 export declare function createHostRunLedger(options?: {
     limit?: number;

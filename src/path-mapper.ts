@@ -176,7 +176,7 @@ export function readConfigFacts(configDir: string, text: string): ConfigRead {
     ? config.mounts.filter((entry): entry is string => typeof entry === "string")
     : [];
   const containerOnly = containerOnlyMounts(mounts, workspaceMount, mapping);
-  const samePath = samePathMounts(mounts);
+  const samePath = samePathMounts(mounts, configDir);
   return {
     kind: "ok",
     facts: {
@@ -222,12 +222,16 @@ export function containerOnlyMounts(
  * routing guard may excuse. Keying on the target alone would excuse a mount whose source is somewhere
  * else entirely (adversarial review of the routing hardening).
  */
-export function samePathMounts(mounts: readonly string[]): readonly string[] | undefined {
+export function samePathMounts(mounts: readonly string[], workspaceFolder?: string): readonly string[] | undefined {
   const paths: string[] = [];
   for (const mount of mounts) {
     const parts = mount.split(",");
-    const source = parts.find((part) => part.trim().startsWith("source="))?.trim().slice("source=".length);
-    const target = parts.find((part) => part.trim().startsWith("target="))?.trim().slice("target=".length);
+    const expand = (value: string | undefined): string | undefined =>
+      value?.replaceAll("${localWorkspaceFolder}", workspaceFolder ?? "${localWorkspaceFolder}");
+    const source = expand(parts.find((part) => part.trim().startsWith("source="))?.trim().slice("source=".length));
+    const target = expand(parts.find((part) => part.trim().startsWith("target="))?.trim().slice("target=".length));
+    // Both sides are expanded first: `source=${localWorkspaceFolder},target=<the host path>` is a mirror
+    // mount too (adversarial review of the routing hardening), and comparing raw strings missed it.
     if (source !== undefined && target !== undefined && source.length > 0 && source === target) paths.push(target);
   }
   return paths.length > 0 ? paths : undefined;

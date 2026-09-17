@@ -88,5 +88,5 @@ export declare function containerOnlyMounts(mounts: readonly string[], workspace
  * routing guard may excuse. Keying on the target alone would excuse a mount whose source is somewhere
  * else entirely (adversarial review of the routing hardening).
  */
-export declare function samePathMounts(mounts: readonly string[]): readonly string[] | undefined;
+export declare function samePathMounts(mounts: readonly string[], workspaceFolder?: string): readonly string[] | undefined;
 //# sourceMappingURL=path-mapper.d.ts.map

@@ -75,6 +75,15 @@ describe("detectHostPathOnContainerSurface", () => {
     ).toBeUndefined();
   });
 
+  it("exempts only the container's own workspace when it is nested under the host path", () => {
+    const mapping = { hostPath: "/data/work/proj", containerPath: "/data/work/proj/sub" };
+    // The container's workspace is legitimate …
+    expect(detectHostPathOnContainerSurface(["cat", "/data/work/proj/sub/x"], mapping)).toBeUndefined();
+    // … but a sibling HOST file is not: the exemption is the container space, not the host space
+    // (adversarial review of the routing hardening).
+    expect(detectHostPathOnContainerSurface(["cat", "/data/work/proj/README.md"], mapping)).toBe("/data/work/proj/README.md");
+  });
+
   it("refuses when the container path is an ANCESTOR of the host path", () => {
     // The workspace mounted at a shallower container path: every host-path request then names a
     // different file inside the container, so the blanket container-space exemption must not swallow it
@@ -203,6 +212,19 @@ describe("createHostRunLedger", () => {
     expect(ledger.count()).toBe(3);
     // Bounded: only the newest `limit` commands are kept, oldest first for reading.
     expect(ledger.recent()).toEqual(["systemctl status docker", "hostname"]);
+  });
+
+  it("is per SESSION: reset() clears the count, the recent list and the one-shot flag", () => {
+    const ledger = createHostRunLedger({ limit: 5 });
+    ledger.noteFirstRun(["hostname"]);
+    ledger.noteFirstRun(["hostname"]);
+
+    ledger.reset();
+
+    // A second session in the same process must not inherit the first one's summary.
+    expect(ledger.count()).toBe(0);
+    expect(ledger.recent()).toEqual([]);
+    expect(ledger.noteFirstRun(["hostname"])).toBe(true);
   });
 
   it("reports the first run exactly once per session", () => {
