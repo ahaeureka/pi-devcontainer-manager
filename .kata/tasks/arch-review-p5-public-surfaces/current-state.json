@@ -1,9 +1,9 @@
 {
   "taskId": "arch-review-p5-public-surfaces",
-  "phase": "review",
+  "phase": "implement",
   "actor": {
-    "id": "kata-reviewer",
-    "role": "reviewer"
+    "id": "kata-agent",
+    "role": "implementer"
   },
-  "updatedAt": "2026-09-17T08:02:09.519Z"
+  "updatedAt": "2026-09-17T08:02:29.475Z"
 }
