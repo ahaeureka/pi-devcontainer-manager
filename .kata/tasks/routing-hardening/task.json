@@ -84,5 +84,164 @@
       "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraints 1-10",
       "confirmedAt": "2026-09-17T09:06:32.355Z"
     }
-  ]
+  ],
+  "acceptanceMatrix": {
+    "version": 1,
+    "rows": [
+      {
+        "acceptanceId": "AC-1",
+        "designRefs": [
+          "assessment §4.1"
+        ],
+        "implementationPaths": [
+          "src/host-run-ledger.ts",
+          "src/host-runner.ts",
+          "src/commands.ts",
+          "extensions/index.ts"
+        ],
+        "testPaths": [
+          "tests/unit/routing-guards.test.ts",
+          "tests/unit/host-runner.test.ts",
+          "tests/unit/commands.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-2",
+        "designRefs": [
+          "assessment §4.2"
+        ],
+        "implementationPaths": [
+          "src/routing-guard.ts",
+          "src/execution-service.ts",
+          "extensions/index.ts"
+        ],
+        "testPaths": [
+          "tests/unit/routing-guards.test.ts",
+          "tests/unit/service-routing-guard.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-3",
+        "designRefs": [
+          "assessment §4.2"
+        ],
+        "implementationPaths": [
+          "src/routing-guard.ts",
+          "src/execution-service.ts"
+        ],
+        "testPaths": [
+          "tests/unit/routing-guards.test.ts",
+          "tests/unit/service-routing-guard.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-4",
+        "designRefs": [
+          "assessment §4.3"
+        ],
+        "implementationPaths": [
+          "src/commands.ts"
+        ],
+        "testPaths": [
+          "tests/unit/commands.test.ts"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-5",
+        "designRefs": [
+          "assessment §4.1"
+        ],
+        "implementationPaths": [
+          "docs/security.md",
+          "CHANGELOG.md"
+        ],
+        "testPaths": [
+          "tests/unit"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          }
+        ],
+        "verificationLevel": "unit"
+      },
+      {
+        "acceptanceId": "AC-6",
+        "designRefs": [
+          "assessment §5"
+        ],
+        "implementationPaths": [
+          "dist",
+          "README.md"
+        ],
+        "testPaths": [
+          "tests/unit"
+        ],
+        "evidence": [
+          {
+            "kind": "test",
+            "command": "npm run test:unit"
+          },
+          {
+            "kind": "typecheck",
+            "command": "npm run typecheck"
+          },
+          {
+            "kind": "test",
+            "command": "node scripts/smoke-pi-package.mjs --no-model"
+          }
+        ],
+        "verificationLevel": "integration"
+      }
+    ]
+  }
 }
