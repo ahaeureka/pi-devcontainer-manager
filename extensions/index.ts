@@ -88,6 +88,7 @@ import { createSetupCli } from "../src/setup-cli.js";
 import { createAuditedHostRunner } from "../src/host-runner.js";
 import { createLifecycleGuard } from "../src/lifecycle.js";
 import { createHostRunLedger } from "../src/host-run-ledger.js";
+import { displayProgram } from "../src/policy.js";
 import type { EffectiveConfig } from "../src/types.js";
 import { RuntimeError } from "../src/errors.js";
 import { renderExecutionContext } from "../src/execution-context.js";
@@ -565,8 +566,10 @@ export default function (pi: ExtensionAPI): void {
           // A withheld attempt is refused BEFORE the runner, so it leaves no `host-exec` audit record:
           // the notice must not claim one (verify-node adversarial pass). Redaction is the audit
           // trail's: join first, then redact.
+          // The notice renders the program through the SAME enforced renderer as the ledger: interpolating the
+          // raw token put command text (and a credential) on the operator channel (adversarial review).
           ctx.ui.notify(
-            `[devcontainer-manager] first host command attempt this session: ${program} (host execution is withheld by configuration — no audit record)`,
+            `[devcontainer-manager] first host command attempt this session: ${displayProgram([program])} (host execution is withheld by configuration — no audit record)`,
             "warning",
           );
         }

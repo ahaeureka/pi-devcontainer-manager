@@ -319,3 +319,16 @@ describe("the SEGMENT test is one implementation for every consumer", () => {
     expect(findContainerPath(["cat", "/data/ws/x"], "/data/ws/")).toBe("/data/ws/x");
   });
 });
+
+describe("displayProgram never renders userinfo, whatever the shape", () => {
+  it("drops userinfo in scheme-less, path-prefixed and multi-@ tokens", () => {
+    // Every one of these reached an operator surface before this fix (adversarial review, blocking/major).
+    for (const token of ["./alice:hunter2@host", "alice:hunter2@host", "../alice:hunter2@host", "a@b@c:hunter2@host"]) {
+      const rendered = displayProgram([token]);
+      expect(rendered).toBe("host");
+      expect(rendered).not.toContain("hunter2");
+    }
+    // A path with no userinfo still renders its program name.
+    expect(displayProgram(["/usr/bin/docker"])).toBe("docker");
+  });
+});

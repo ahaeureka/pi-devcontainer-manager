@@ -181,11 +181,16 @@ export function displayProgram(argv: readonly string[]): string {
   const hasScheme = redactedWhole.includes("://");
   const afterScheme = hasScheme ? (redactedWhole.split("://")[1] ?? "") : redactedWhole;
   const authority = afterScheme.split("/")[0] ?? "";
+  // With a scheme the userinfo lives inside the authority; WITHOUT one there may be a path in front of it
+  // (`./alice:hunter2@host`), so the `@` must be looked for in the WHOLE token — taking the last segment
+  // verbatim rendered the credential (adversarial review).
   const base = authority.includes("@")
     ? (authority.split("@").pop() ?? "(no command)")
-    : hasScheme
-      ? authority
-      : (redactedWhole.split("/").pop() ?? redactedWhole);
+    : !hasScheme && afterScheme.includes("@")
+      ? ((afterScheme.split("@").pop() ?? "").split("/")[0] ?? "(no command)")
+      : hasScheme
+        ? authority
+        : (redactedWhole.split("/").pop() ?? redactedWhole);
   const redacted = base.replace(/[\u0000-\u001f\u007f]/g, "").trim();
   if (redacted.length === 0) return "(no command)";
   return redacted.slice(0, 64);

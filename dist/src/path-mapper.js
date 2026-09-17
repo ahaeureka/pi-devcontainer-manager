@@ -84,12 +84,11 @@ export function hostToContainer(path, mapping) {
         return undefined;
     const host = normalize(mapping.hostPath);
     const candidate = normalize(path);
+    if (!isAtOrUnder(candidate, host))
+        return undefined;
     if (candidate === host)
         return mapping.containerPath;
-    if (candidate.startsWith(`${host}/`)) {
-        return `${mapping.containerPath}${candidate.slice(host.length)}`;
-    }
-    return undefined;
+    return `${mapping.containerPath}${candidate.slice(host.length)}`;
 }
 /**
  * Return the first argv element that refers to a CONTAINER-only path (the
