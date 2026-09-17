@@ -1,14 +1,14 @@
 {
   "fromPhase": "review",
   "reason": "review_findings",
-  "baselineRevisionId": "revision-aede85a60a62e379",
-  "baselineManifestHash": "0f9dba76f22020fbb99211fff4cab229df8ff0aacacea225d169978cbc1df062",
+  "baselineRevisionId": "revision-35236165b4055c92",
+  "baselineManifestHash": "da236a34d2b2f741a7488f3dee76cc8c762b05f89bd932d4ef435cdbb67b47ba",
   "findings": [
     {
-      "id": "finding-tree-moved-after-node-passes",
+      "id": "finding-tree-moved-after-r9",
       "acceptanceId": "AC-1",
       "severity": "blocking",
-      "message": "PROCESS, not a defect: BOTH node passes on revision-aede85a6 returned findings (one major, three minors, one nit; all in the visibility, none in the guards) and are fixed in this revision — joining before redacting was not always stronger (`redactText`'s scheme rule orphans a value when the next element starts with a scheme word, so a standalone `Bearer <token>` element leaked), `(audited)` was claimed for attempts that persist nothing (withheld, or `audit.enabled: false`), the regression test did not pin the notice fix, the new tools test omitted a required option, and the CHANGELOG overstated the redaction. Re-sealing so both node records can match the tree.",
+      "message": "PROCESS, not a defect: the review node on revision-35236165 found that the two-pass redaction I had just introduced leaked a credential the joined-only form hid — the element pass let rule 2 consume the element `Authorization: Bearer`, so the scheme word was gone from the joined line and the following token survived; fixed by leaving such an element intact, plus two smaller findings (the notice fired before the audit write, and the new limitation section overstated flag-value coverage). Re-sealing.",
       "path": "src/policy.ts"
     }
   ],
@@ -18,7 +18,7 @@
     "id": "kata-agent",
     "role": "implementer"
   },
-  "createdAt": "2026-09-17T11:56:25.565Z",
-  "resolvedAt": "2026-09-17T11:57:12.837Z",
-  "resolvedRevisionId": "revision-35236165b4055c92"
+  "createdAt": "2026-09-17T12:08:17.524Z",
+  "resolvedAt": "2026-09-17T12:09:03.642Z",
+  "resolvedRevisionId": "revision-586ce6277d60330b"
 }
