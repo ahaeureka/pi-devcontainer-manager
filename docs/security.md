@@ -146,6 +146,10 @@ extension keeps them separate:
 |---|---|---|
 | `/devcontainer stop` | `destructive.allowStop = true` | Fresh per-action confirmation naming the exact action + container ID; noninteractive callers receive `confirmation-required` and can never bypass |
 | `/devcontainer remove` | `destructive.allowRemove = true` | Same confirmation contract |
+| `logs` / `/devcontainer stop` / `/devcontainer remove` | a target must be selected (`selected-valid` or `selected-stopped` — a stopped container is exactly what these are for) | The requested container id must be the BOUND target's candidate; anything else is refused before Docker runs, and the audit `targetId` comes from the binding |
+| `devcontainer_host_exec` / `/devcontainer host-exec` | `hostExecution.allow` (granted by default; a configuration can withhold it with `false`) | Audited with `operation: "host-exec"`, `initiator: "host-escape"` |
+| `/devcontainer setup` | **none** — not gated by `hostExecution.allow` | Interactive confirmation naming the exact command; fixed argv (`npm install -g @devcontainers/cli`), audited as `operation: "setup"`, 300 s timeout |
+
 ### How the host escape hatch is gated (a deliberate asymmetry)
 
 `stop`/`remove` require a policy grant **and** a fresh per-action confirmation token. An arbitrary host
@@ -154,13 +158,10 @@ since the host-execution default change that grant ships enabled. This is a deci
 the surface is driven by the agent, so an interactive confirmation would either stall an autonomous run
 or degrade into a confirmation the operator clicks through. The compensating controls are the audit
 trail (every attempt, including refusals and failures), the in-session visibility added for host runs
-(`/devcontainer status` reports the session's host commands, and the first one of a session is announced
-on the operator channel), the container-path guard, and `hostExecution.allow: false` in either
+(`/devcontainer status` reports the session's host command attempts — every attempt counts, including a
+refused one — and the first one of a session is announced on the operator channel), the container-path guard, and `hostExecution.allow: false` in either
 configuration file, which withdraws the surface entirely.
 
-| `logs` / `/devcontainer stop` / `/devcontainer remove` | a target must be selected (`selected-valid` or `selected-stopped` — a stopped container is exactly what these are for) | The requested container id must be the BOUND target's candidate; anything else is refused before Docker runs, and the audit `targetId` comes from the binding |
-| `devcontainer_host_exec` / `/devcontainer host-exec` | `hostExecution.allow` (granted by default; a configuration can withhold it with `false`) | Audited with `operation: "host-exec"`, `initiator: "host-escape"` |
-| `/devcontainer setup` | **none** — not gated by `hostExecution.allow` | Interactive confirmation naming the exact command; fixed argv (`npm install -g @devcontainers/cli`), audited as `operation: "setup"`, 300 s timeout |
 
 ### `/devcontainer setup`
 

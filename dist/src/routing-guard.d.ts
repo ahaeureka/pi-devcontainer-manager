@@ -16,6 +16,12 @@
 export interface HostToContainerMapping {
     readonly hostPath: string;
     readonly containerPath: string;
+    /**
+     * Paths the configuration makes visible inside the container at their own path (a `mounts` entry
+     * with `source == target`). A hit covered by one of these is NOT a mis-route: the same path is
+     * genuinely the same file on both sides (adversarial review of this change).
+     */
+    readonly containerVisiblePaths?: readonly string[];
 }
 /**
  * The offending argv element, when one names the host workspace path on a container surface.

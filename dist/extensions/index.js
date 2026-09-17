@@ -195,7 +195,17 @@ hostVisibility) {
         const configPath = entry !== undefined ? configPathOf(entry) : undefined;
         if (entry === undefined || configPath === undefined)
             return undefined;
-        return readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, configPath), reportUnparsableConfig).mapping;
+        const facts = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, configPath), reportUnparsableConfig);
+        if (facts.mapping === undefined)
+            return undefined;
+        // Paths the configuration makes visible in the container at their own path are NOT mis-routes:
+        // the same file exists on both sides (the reverse guard must not refuse them).
+        return {
+            hostPath: facts.mapping.hostPath,
+            containerPath: facts.mapping.containerPath,
+            // `exactOptionalPropertyTypes`: only present when the configuration declares such mounts.
+            ...(facts.containerOnlyMounts !== undefined ? { containerVisiblePaths: facts.containerOnlyMounts } : {}),
+        };
     };
     const execution = new ExecutionService({
         config,

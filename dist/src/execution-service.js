@@ -67,7 +67,16 @@ export class ExecutionService {
         // and name the container path to use instead. Routed-shell text is deliberately NOT inspected: the
         // Phase-5 review established that a heuristic over shell text cannot be made safe.
         if (request.operation === "container-exec" && this.options.mappingFor !== undefined) {
-            const mapping = await this.options.mappingFor(ctx.workspaceKey);
+            // The mapping comes from a registry read (which can fail: a Docker probe), and a failure here
+            // must land on a channel someone reads rather than escaping unaudited.
+            let mapping;
+            try {
+                mapping = await this.options.mappingFor(ctx.workspaceKey);
+            }
+            catch (error) {
+                this.audit(snapshot, ctx, { operation: request.operation, initiator: request.initiator, workspace: request.workspace }, { outputTruncated: false, errorSummary: this.asAuditError(error).message });
+                throw error;
+            }
             const offending = detectHostPathOnContainerSurface([request.cmd, ...request.args], mapping);
             if (offending !== undefined && mapping !== undefined) {
                 const error = new RuntimeError({

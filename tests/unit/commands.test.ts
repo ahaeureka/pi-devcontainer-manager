@@ -129,11 +129,13 @@ describe("/devcontainer list + status", () => {
     expect(result.text).toContain("/ws/project-a");
   });
 
-  it("status reuses the same rendering", async () => {
-    const { handlers } = makeServices();
+  it("status reuses the same rendering and reports the session's host runs", async () => {
+    const { handlers } = makeServices({ hostRuns: { summary: () => "2 host command attempts this session — most recent: docker ps" } });
     const ctx = makeCtx();
     const result = await handlers["status"]!("", ctx);
     expect(result.text).toContain("**DevContainer target:**");
+    // The claim the adversarial review caught as untested: the summary must reach `/devcontainer status`.
+    expect(result.text).toContain("host runs: 2 host command attempts this session");
   });
 });
 
@@ -191,6 +193,17 @@ describe("/devcontainer use", () => {
     expect(ctx.ui.select).toHaveBeenCalled();
     expect(result.text).toContain("container `aa12`");
     expect(result.target?.candidateId).toBe("aa12");
+  });
+
+  it("refuses instead of prompting when there is no UI", async () => {
+    const ambiguous = configEntry({ workspacePath: "/ws/project-a", containers: [candidate("aa11"), candidate("aa12")] });
+    const { handlers } = makeServices({ registry: vi.fn(async () => ({ entries: [ambiguous], diagnostics: [] })) });
+    const ctx = makeCtx({ hasUI: false });
+
+    const result = await handlers["use"]!("project-a", ctx);
+
+    expect(ctx.ui.select).not.toHaveBeenCalled();
+    expect(result.text).toContain("[ambiguous-candidate]");
   });
 
   it("keeps the refusal when the container picker is cancelled", async () => {

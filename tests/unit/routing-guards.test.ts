@@ -39,9 +39,42 @@ describe("detectHostPathOnContainerSurface", () => {
     expect(detectHostPathOnContainerSurface(["cat", "/host/proj/x"], undefined)).toBeUndefined();
   });
 
+  it("says nothing for a path the configuration makes visible in the container at its own path", () => {
+    // A `mounts` entry with source == target makes the path the SAME file on both sides, so refusing
+    // it would break the mirror-mount idiom (found by the adversarial review of this change).
+    expect(
+      detectHostPathOnContainerSurface(["cat", "/data/work/proj/README.md"], {
+        hostPath: "/data/work/proj",
+        containerPath: "/workspaces/proj",
+        containerVisiblePaths: ["/data/work/proj"],
+      }),
+    ).toBeUndefined();
+  });
+
+  it("never refuses the container's own path space, even beneath the host path", () => {
+    expect(
+      detectHostPathOnContainerSurface(["cat", "/host/proj/container/x"], {
+        hostPath: "/host/proj",
+        containerPath: "/host/proj/container",
+      }),
+    ).toBeUndefined();
+  });
+
   it("says nothing when the mapping mounts the host path at the same path", () => {
     // There the host path IS the container path, so using it is correct.
     expect(detectHostPathOnContainerSurface(["cat", "/ws/x"], { hostPath: "/ws", containerPath: "/ws" })).toBeUndefined();
+  });
+});
+
+describe("createHostRunLedger — redaction", () => {
+  it("never stores a credential verbatim", () => {
+    const ledger = createHostRunLedger();
+    ledger.record(["curl", "-H", "authorization: Bearer sk-live-abcdef123456", "https://example.test"]);
+
+    // The summary is rendered to the operator; it must not become a plaintext copy of what the audit
+    // trail captures by fingerprint only.
+    expect(ledger.recent().join(" ")).not.toContain("sk-live-abcdef123456");
+    expect(ledger.recent().join(" ")).toContain("[REDACTED]");
   });
 });
 
@@ -71,7 +104,7 @@ describe("createHostRunLedger", () => {
     const ledger = createHostRunLedger({ limit: 3 });
     ledger.record(["docker", "ps"]);
 
-    expect(ledger.summary()).toContain("1 host command");
+    expect(ledger.summary()).toContain("1 host command attempt");
     expect(ledger.summary()).toContain("docker ps");
   });
 });

@@ -21,8 +21,15 @@ export function detectHostPathOnContainerSurface(argv, mapping) {
         return undefined;
     if (host.length === 0)
         return undefined;
+    // The container's own path space is never a mis-route — including when the configured container path
+    // happens to sit BENEATH the host path (then the guard's own remedy would otherwise be refused).
+    const containerSpace = container.length > 0 ? [container] : [];
+    const visible = [...containerSpace, ...(mapping.containerVisiblePaths ?? []).map(normalize)];
+    const isVisibleInContainer = (candidate) => visible.some((path) => candidate === path || candidate.startsWith(`${path}/`));
     for (const element of argv) {
         const candidate = normalize(element);
+        if (isVisibleInContainer(candidate))
+            continue;
         if (candidate === host)
             return element;
         if (candidate.startsWith(`${host}/`))

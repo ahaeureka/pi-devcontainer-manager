@@ -270,7 +270,7 @@ export function createCommandHandlers(services) {
     handlers["status"] = async (_args, _ctx) => {
         const { entries } = await services.registry();
         const snapshot = services.targetStore.snapshot();
-        return { text: renderStatus(snapshot, entries, services.config) };
+        return { text: renderStatus(snapshot, entries, services.config, services.hostRuns) };
     };
     /**
      * Return to the dormant state: clear the target so the session's execution
@@ -329,7 +329,9 @@ export function createCommandHandlers(services) {
                 // the operator picks, and a cancelled picker keeps the refusal (command-routing assessment
                 // §4.3).
                 const labels = only.containerCandidates.map((c) => `${c.id.slice(0, 12)} — ${c.state}`);
-                if (labels.length === 0)
+                // Same convention as every other prompt in this file: without a UI there is nobody to ask, so
+                // the refusal is the answer (print/json runs must not hang or throw).
+                if (labels.length === 0 || !ctx.hasUI)
                     return { text: refusal };
                 const picked = await ctx.ui.select(`Select the container for ${only.workspacePath}`, labels, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
                 if (picked === undefined)

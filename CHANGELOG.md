@@ -19,8 +19,9 @@ to [Semantic Versioning](https://semver.org/).
   instead of only refusing with the candidate ids. Docker result order still never decides the target —
   you pick, and cancelling keeps the refusal. The explicit `/devcontainer use <container-id>` path is
   unchanged.
-- Host runs are now visible in-session: `/devcontainer status` reports how many host commands the
-  session has run and the most recent ones, and the first one of a session is announced on the operator
+- Host runs are now visible in-session: `/devcontainer status` reports how many host command attempts
+  the session has made and the most recent ones (redacted with the same rules the audit trail uses, so a
+  credential cannot reach the status text), and the first one of a session is announced on the operator
   channel. The audit trail remains the authoritative record; the escape hatch still needs only the
   policy grant (see `docs/security.md` for why that asymmetry with `stop`/`remove` is deliberate).
 - **Behaviour change — `/devcontainer host-exec` takes structured argv.** The command used to accept

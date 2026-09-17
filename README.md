@@ -207,7 +207,6 @@ If the Dev Containers CLI is missing, run `/devcontainer setup` once.
 | `/devcontainer` | Interactive verb picker (or a usage line when no UI is available) |
 | `/devcontainer list` | Discover + render the registry; also repairs a stale selection |
 | `/devcontainer status` | Same status block (target, registry, route, caps) |
-| `/devcontainer use [path\|container-id]` | Select a target and persist it in the session; a container id resolves an ambiguous workspace |
 | `/devcontainer up [path]` | `devcontainer up --workspace-folder`; re-resolves the selection on success |
 | `/devcontainer build [path]` | `devcontainer build` |
 | `/devcontainer stop` | Docker stop — policy grant + fresh confirmation |
