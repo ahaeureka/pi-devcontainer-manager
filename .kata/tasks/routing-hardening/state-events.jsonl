@@ -77,3 +77,6 @@
 {"taskId":"routing-hardening","from":"hardVerify","to":"review","actor":{"id":"kata-reviewer","role":"reviewer"},"at":"2026-09-17T18:41:59.052Z"}
 {"taskId":"routing-hardening","from":"review","to":"implement","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T18:42:00.059Z"}
 {"taskId":"routing-hardening","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T18:43:33.901Z"}
+{"taskId":"routing-hardening","from":"hardVerify","to":"review","actor":{"id":"kata-reviewer","role":"reviewer"},"at":"2026-09-17T18:52:52.941Z"}
+{"taskId":"routing-hardening","from":"review","to":"implement","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T18:52:54.552Z"}
+{"taskId":"routing-hardening","from":"implement","to":"hardVerify","actor":{"id":"kata-agent","role":"implementer"},"at":"2026-09-17T18:54:31.715Z"}

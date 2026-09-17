@@ -116,43 +116,47 @@ describe("detectHostPathOnContainerSurface", () => {
   });
 });
 
-describe("displayProgram — the closed rendering", () => {
-  it("renders legitimate names and refuses every ambiguous shape", () => {
-    // Names an operator needs.
+describe("displayProgram — one branch, no structure parsing", () => {
+  it("renders a plain program word and nothing else", () => {
+    // A program name is a single word: this is what the operator's drift signal is made of.
     expect(displayProgram(["docker"])).toBe("docker");
-    expect(displayProgram(["/usr/bin/docker"])).toBe("docker");
-    expect(displayProgram(["./build.sh"])).toBe("build.sh");
-    expect(displayProgram(["C:/tools/docker.exe"])).toBe("docker.exe");
-    expect(displayProgram(["ls -la"])).toBe("ls");
-    // A URL renders its HOST: userinfo, query and fragment are dropped.
-    expect(displayProgram(["https://alice:pw@host"])).toBe("host");
-    expect(displayProgram(["redis://:hunter2@cache:6379"])).toBe("cache:6379");
-    expect(displayProgram(["https://[::1]:3000/app"])).toBe("[::1]:3000");
-    expect(displayProgram(["//hooks.slack.com/services/T000/B000/X9fQ"])).toBe("hooks.slack.com");
-    // Every shape an earlier heuristic leaked now renders the placeholder, with no credential in it.
+    expect(displayProgram(["systemctl"])).toBe("systemctl");
+    expect(displayProgram(["python3.11"])).toBe("python3.11");
+    expect(displayProgram(["docker", "ps", "-a"])).toBe("docker");
+    expect(displayProgram(["docker ps -a"])).toBe("docker");
+    // EVERYTHING with structure renders the placeholder — no path segment, host, query, fragment or userinfo is
+    // rendered, because eleven adversarial passes each found a credential through a richer rule.
     for (const token of [
-      "alice:hunter2@host",
-      "/tmp/ghp_abc123@github.com",
-      "a:/PWRD9x@github.com",
-      "x/no@SECRET",
-      "FOO=sk-live-abcdef",
+      "/usr/bin/docker",
+      "./build.sh",
+      "C:\\tools\\docker.exe",
+      "https://alice:pw@host",
+      "postgres://alice:hunter2:5432/db",
+      "https://[sk-live-abc123]",
+      "//hooks.slack.com/services/T000/B000/X9fQ",
+      "//host://QZX9token",
+      "https://host\\xoxb-1234-5678",
       "hooks.slack.com/services/T/X",
       "internal-host/hook/S3CR3T",
-      'token="Xy9Pq2Wm',
-      "[alice:hunter2@host]",
-      "python3.11/bin/pip",
+      "alice:hunter2@host",
+      "token=\"Xy9Pq2Wm",
+      "FOO=sk-live-abcdef",
+      "Bearer\u200bsk-live-ABC123",
+      "docker\u00a0|\u00a0systemctl",
+      "-n",
+      ".bashrc",
     ]) {
-      expect(displayProgram([token])).toBe("(no command)");
-      expect(displayProgram([token])).not.toContain("hunter2");
-      expect(displayProgram([token])).not.toContain("SECRET");
+      const rendered = displayProgram([token]);
+      expect(rendered).toBe("(no command)");
+      expect(rendered).not.toContain("hunter2");
+      expect(rendered).not.toContain("SECRET");
+      expect(rendered).not.toContain("sk-live");
     }
-    // Empty and blank input is never rendered as a name.
     expect(displayProgram([])).toBe("(no command)");
     expect(displayProgram([""])).toBe("(no command)");
     expect(displayProgram(["   "])).toBe("(no command)");
-    // The cap counts code points and never splits a surrogate pair.
-    expect(displayProgram(["a".repeat(5000)]).length).toBe(64);
-    expect(displayProgram(["a".repeat(63) + "\u{1F600}bb"])).not.toMatch(/[\uD800-\uDBFF]$/);
+    expect(displayProgram(["a".repeat(5000)])).toBe("(no command)");
+    expect(displayProgram(["a".repeat(64)])).toHaveLength(64);
   });
 });
 

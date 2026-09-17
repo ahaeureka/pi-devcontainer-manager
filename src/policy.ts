@@ -160,56 +160,13 @@ export function redactText(text: string): string {
  * pathological argument cannot flood the operator channel or the status block, and never blank.
  */
 export function displayProgram(argv: readonly string[]): string {
-  // The rendering is deliberately CLOSED rather than clever: nine adversarial passes each broke a heuristic that
-  // tried to tell a program name from a credential, so only a name that can be justified is rendered and
-  // `(no command)` is returned otherwise. `argv[0]` may be a whole command line, so only its first
-  // ASCII-whitespace-delimited token is considered.
-  const first = argv[0]?.trim().split(/[ \t\n\r\f\v]+/)[0];
-  if (first === undefined || first.length === 0) return "(no command)";
-
-  // Control, format and line-separator characters are removed; Unicode SPACES (Zs) become an ASCII space so
-  // they still terminate a token (`Bearer<NBSP>secret` must not glue into one bare word) without breaking the
-  // summary's ` | ` separator.
-  // Nothing is deleted: every control, format, line-separator or space character becomes an ASCII SPACE, so a
-  // keyword can never be glued to its value (`Bearer<ZWSP>secret` used to become one bare word the audit rules
-  // could not see) while the summary's ` | ` separator cannot be spoofed either (adversarial review).
-  const cleaned = first
-    .replace(/[\u0000-\u001f\u007f-\u009f\p{Cf}\p{Zl}\p{Zp}\p{Zs}]/gu, " ")
-    .trim();
-  if (cleaned.length === 0) return "(no command)";
-
-  // Redact with the audit rules BEFORE classifying: the auth-scheme and key=value rules need the original
-  // spacing to recognise a credential. Then take the FIRST token again — a Unicode space is a separator, so
-  // `/usr/bin/curl<NBSP>secret` must classify `/usr/bin/curl`, not the whole string.
-  const token = (redactText(cleaned).split(" ")[0] ?? "").trim();
-  if (token.length === 0) return "(no command)";
-  const classify = (value: string): string => {
-    // 1. A URL renders its HOST. A `://` scheme or a LEADING `//` is a URL (a protocol-relative reference —
-    //    the previous dot-in-the-first-segment condition let `//host/hook/SECRET` render its path).
-    const schemed = value.includes("://");
-    if (schemed || value.startsWith("//")) {
-      const rest = schemed ? (value.split("://")[1] ?? "") : value.slice(2);
-      const authority = rest.split(/[/?#]/)[0] ?? "";
-      const host = authority.includes("@") ? (authority.split("@").pop() ?? "") : authority;
-      // A bracketed IPv6 literal is the host itself (its colons are not userinfo).
-      if (/^\[[^\]]*\](?::[0-9]+)?$/.test(host)) return host;
-      // Otherwise a `user:password` authority with no `@` keeps only the part before the colon that is NOT a
-      // port — INCLUDING a colon at index 0, which used to render the credential-shaped tail.
-      const colon = host.lastIndexOf(":");
-      const bare = colon !== -1 && !/^[0-9]+$/.test(host.slice(colon + 1)) ? host.slice(0, colon) : host;
-      return bare.length > 0 ? bare : "(no command)";
-    }
-    // 2. A filesystem path (absolute, explicitly relative or Windows-drive) renders its LAST segment, and only
-    //    when that segment is a plain name: a segment carrying `@` or `:` is a credential position.
-    const isPath = value.startsWith("/") || value.startsWith("./") || value.startsWith("../") || /^[A-Za-z]:[\\/]/.test(value);
-    if (isPath) {
-      const last = value.split(/[\\/]/).filter((part) => part.length > 0).pop() ?? "";
-      return last.length > 0 && !/[@:]/.test(last) ? last : "(no command)";
-    }
-    // 3. A SIMPLE token with no separator and no punctuation beyond `._+-` is the name itself.
-    return /^[A-Za-z0-9][A-Za-z0-9._+-]*$/.test(value) ? value : "(no command)";
-  };
-
-  const name = classify(token);
-  return name === "(no command)" ? name : Array.from(name).slice(0, 64).join("");
+  // The rendering has exactly ONE branch, because eleven adversarial passes each found a new credential shape
+  // through a richer rule (a userinfo pair, a URL query, a webhook path, a bracket literal, a colon that was not
+  // a port). A name is rendered only when the token IS a program name — a single word of `[A-Za-z0-9._+-]`
+  // starting with an alphanumeric — and `(no command)` is returned for everything else, so no path segment, host
+  // authority, query, fragment or userinfo can ever be rendered. The count still tells an operator how many host
+  // commands ran; the audit trail remains the authoritative record of what they were.
+  const token = argv[0]?.trim().split(/[ \t\n\r\f\v]+/)[0];
+  if (token === undefined || token.length === 0) return "(no command)";
+  return /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/.test(token) ? token : "(no command)";
 }
