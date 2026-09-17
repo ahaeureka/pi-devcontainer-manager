@@ -140,9 +140,11 @@ export function displayProgram(argv) {
     // Control, format and line-separator characters are removed; Unicode SPACES (Zs) become an ASCII space so
     // they still terminate a token (`Bearer<NBSP>secret` must not glue into one bare word) without breaking the
     // summary's ` | ` separator.
+    // Nothing is deleted: every control, format, line-separator or space character becomes an ASCII SPACE, so a
+    // keyword can never be glued to its value (`Bearer<ZWSP>secret` used to become one bare word the audit rules
+    // could not see) while the summary's ` | ` separator cannot be spoofed either (adversarial review).
     const cleaned = first
-        .replace(/[\u0000-\u001f\u007f-\u009f\p{Cf}\p{Zl}\p{Zp}]/gu, "")
-        .replace(/\p{Zs}/gu, " ")
+        .replace(/[\u0000-\u001f\u007f-\u009f\p{Cf}\p{Zl}\p{Zp}\p{Zs}]/gu, " ")
         .trim();
     if (cleaned.length === 0)
         return "(no command)";
@@ -160,9 +162,13 @@ export function displayProgram(argv) {
             const rest = schemed ? (value.split("://")[1] ?? "") : value.slice(2);
             const authority = rest.split(/[/?#]/)[0] ?? "";
             const host = authority.includes("@") ? (authority.split("@").pop() ?? "") : authority;
-            // A `user:password` authority with no `@` keeps only the part before a colon that is NOT a port.
+            // A bracketed IPv6 literal is the host itself (its colons are not userinfo).
+            if (/^\[[^\]]*\](?::[0-9]+)?$/.test(host))
+                return host;
+            // Otherwise a `user:password` authority with no `@` keeps only the part before the colon that is NOT a
+            // port — INCLUDING a colon at index 0, which used to render the credential-shaped tail.
             const colon = host.lastIndexOf(":");
-            const bare = colon > 0 && !/^[0-9]+$/.test(host.slice(colon + 1)) ? host.slice(0, colon) : host;
+            const bare = colon !== -1 && !/^[0-9]+$/.test(host.slice(colon + 1)) ? host.slice(0, colon) : host;
             return bare.length > 0 ? bare : "(no command)";
         }
         // 2. A filesystem path (absolute, explicitly relative or Windows-drive) renders its LAST segment, and only
