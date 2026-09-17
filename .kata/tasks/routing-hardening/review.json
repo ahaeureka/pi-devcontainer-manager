@@ -1,13 +1,13 @@
 {
-  "revisionId": "revision-d48c4ad5369ab489",
+  "revisionId": "revision-1b84c6b515d35b5b",
   "findings": [
     {
-      "id": "finding-segment-class-closed",
+      "id": "finding-two-majors-closed",
       "taskId": "routing-hardening",
-      "acceptanceId": "AC-2",
+      "acceptanceId": "AC-1",
       "severity": "blocking",
-      "message": "PROCESS: the rev-13 verify node found the SIXTH instance of the same failure mode (a fix on one surface, not its mirror: findContainerPath still built `/` + `/` so the HOST guard was inert for a root container path; displayProgram rendered a whole-command-line argv[0] and a URL's post-authority `@user:pass` tail; redactText consumed only up to the first `@`). All fixed in this revision by removing the class: one shared `isAtOrUnder`/`isSamePath` predicate, an enforced program rendering (first token, authority host only), and the deletion of the ledger's dead capture plumbing. Re-sealing.",
-      "path": "src/workspace-path.ts"
+      "message": "PROCESS: the rev-14 node pair returned TWO majors — a scheme-less credential-shaped argv[0] was rendered in full by displayProgram (the URL branch only triggered on `://`), and Docker's own listing order could decide the target because containerCandidates was not running-first while `ambiguous` only trips for more than one RUNNING container — plus the claim-vs-code gaps (host-runner's sameSpot never actually delegated, containerOnlyMounts kept its own prefix math, the withheld path double-rendered, a dead keepText binding, a wrong redaction comment, and both READMEs missing the reverse guard). All fixed in this revision. Re-sealing.",
+      "path": "src/policy.ts"
     }
   ],
   "status": "pending"
