@@ -1,9 +1,9 @@
 {
   "taskId": "routing-hardening",
   "decision": "captured",
-  "reason": "Routing hardening carries three reusable judgements: observability (a bounded session ledger + a first-use notice) is the right control for an agent-driven surface where an interactive confirmation would stall or rubber-stamp; a reverse routing guard must be a path-identity check on the structured surface rather than a heuristic over shell text; and per-session state (the ledger, the lifecycle generation) belongs in the closure that owns the session and is passed to the modules that need it.",
+  "reason": "Routing hardening now also records what its own review caught: an optional display parameter is how a claim loses its caller (assert every surface that renders a new line), a new refusal must be checked against the remedy it suggests, a failure path introduced by a change must sit inside an audit boundary like every other, and the CLI does not always write the user-choice gate file.",
   "candidateIds": [
     "llmwiki-routing-hardening"
   ],
-  "updatedAt": "2026-09-17T09:14:25.795Z"
+  "updatedAt": "2026-09-17T09:29:48.335Z"
 }

@@ -1,7 +1,7 @@
 ---
 source_path: .kata/tasks/routing-hardening/wiki/routing-hardening.md
-ingested: 2026-09-17T09:14:25.666Z
-sha256: 6a5391ae949cc56221d4ea4c9b75f8bbb665e9af0e34b5aa1f32f21f3bd1c9f6
+ingested: 2026-09-17T09:29:47.827Z
+sha256: 8bf6ec7dcaf03e09b44760339680b58c2108fb591ba91575983b826cd12f68f6
 ---
 # Routing hardening (build notes)
 
@@ -70,3 +70,35 @@ minimal), so the labels are `id — state`. Fetching the image would mean a Dock
 command path — the kind of extra scan the review's contract avoids. The picker still removes the
 copy-a-64-character-id problem, which was the point; the deviation is recorded in the review record
 rather than quietly satisfied.
+
+## 5. What the review caught: three defects in this change
+
+The adversarial pass on the first sealed revision returned "not safe to merge as-is", and it was right
+three times over. Every one of them was invisible to the tests I had written:
+
+- **A claim without a caller.** `renderStatus` gained an optional `hostRuns` parameter, one of the two
+  call sites passed it, and the test that "reuses the same rendering" asserted nothing about the new
+  line. So the acceptance criterion, the CHANGELOG bullet, `docs/security.md` and a README row were all
+  false while the suite was green. **When a change adds a rendered line, the test must assert the line
+  at EVERY surface that renders it** — an optional parameter is exactly how a claim loses its caller.
+- **A new failure path outside the audit boundary.** The reverse guard's mapping read goes through the
+  registry (`docker ps`), so a Docker failure escaped with no record. The invariant this repository
+  earned in an earlier phase — every failure lands on a channel someone reads — applies to the code a
+  review adds, not just to the code it critiques.
+- **A guard that refused correct work.** A configuration that mirrors a host path into the container at
+  its own path (`mounts: source == target`) makes that path the SAME file on both sides, and the guard
+  refused it; it also refused the container path whenever that path sat beneath the host path — i.e. it
+  refused the very path its own remedy named. **A refusal must be checked against the remedy it
+  suggests**, or the guard argues with itself.
+
+Two smaller ones are worth keeping too: the ledger stored argv verbatim (so a credential would have
+been rendered in `/devcontainer status`, a plaintext copy of what the audit trail deliberately captures
+by fingerprint), and the picker was the only prompt in its file without a `hasUI` guard — which is how a
+print/json run would have hung.
+
+## 6. A kata-route detail: the choice file is not always written
+
+`gate approve --boundary review_gate` failed with ENOENT on `user-choice-review_gate.json`: the CLI
+reported the boundary in its completion but had not created the file (unlike the earlier tasks). The
+file is a small JSON object (`taskId`, `boundary`, `createdAt`, `choice`) and recording the operator's
+standing choice there unblocked the route. Worth knowing before concluding that a gate is broken.

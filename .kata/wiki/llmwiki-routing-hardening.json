@@ -10,15 +10,20 @@
     ".llmwiki/concepts/routing-hardening.md"
   ],
   "sourceHashes": {
-    ".llmwiki/raw/docs/routing-hardening.md": "e1552a2982606793eb54f4c9ccc40f244e7e551967f446126af0d331257e28b7",
+    ".llmwiki/raw/docs/routing-hardening.md": "055b406a14121acbe6138ad3464f8c9db692c1292e22e204b4d70a02e85105f5",
     ".llmwiki/concepts/routing-hardening.md": "84dc71ff22a5a36d98fa71124c26313bcf126c3e1abeddebf48614777be5792a"
   },
   "validationTaskId": "llmwiki-ingest",
   "evidenceIds": [
-    "llmwiki-e1552a298260"
+    "llmwiki-055b406a1412"
   ],
-  "status": "candidate",
-  "lastVerifiedAt": "2026-09-17T09:14:25.669Z",
-  "createdAt": "2026-09-17T09:14:25.669Z",
-  "updatedAt": "2026-09-17T09:14:25.669Z"
+  "status": "verified",
+  "lastVerifiedAt": "2026-09-17T09:29:48.081Z",
+  "createdAt": "2026-09-17T09:29:47.830Z",
+  "updatedAt": "2026-09-17T09:29:48.085Z",
+  "approvalEvent": {
+    "approvedBy": "geebytes",
+    "role": "distiller",
+    "approvedAt": "2026-09-17T09:29:48.081Z"
+  }
 }

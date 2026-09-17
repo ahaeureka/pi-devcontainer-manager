@@ -182,3 +182,18 @@ FAIL, which a PASS never provides. The working route:
    required fields). The seal writes `name: ${acceptanceId}-${kind}-${command}`, which violates the
    current `^[A-Za-z0-9_.-]+$` pattern for any multi-word command, and ONE bad envelope makes the
    directory unreadable so every criterion reads `missing_test_evidence`.
+
+## 13. Two habits that would have caught the routing-hardening defects
+
+- **An optional parameter is how a claim loses its caller.** When a change adds something a surface
+  should SHOW, assert that surface's output for it. `renderStatus` gained `hostRuns`, one of its two
+  call sites passed it, and the test asserted nothing about the new line — so the acceptance criterion
+  and three documents were false while the suite was green.
+- **Check a new refusal against its own remedy.** The reverse guard refused a path in the case where its
+  remedy named that same path (a container path sitting beneath the host path), and refused a mirrored
+  mount where the path is the same file on both sides. A guard's remedy is part of its specification.
+- Also: a failure path introduced by the change (a registry read inside the guard) must sit inside an
+  audit boundary like every other refusal — the invariant applies to new code, not just reviewed code.
+- And: if `gate approve` cannot find `user-choice-<boundary>.json`, the CLI may simply not have written
+  it. The file is `{taskId, boundary, createdAt, choice}`; recording the operator's standing choice
+  there is legitimate and unblocks the route.

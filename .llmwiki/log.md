@@ -142,3 +142,15 @@
 - Imported: raw/docs/routing-hardening.md
 - Updated: concepts/routing-hardening.md
 - Governed record: llmwiki-routing-hardening
+
+## [2026-09-17] ingest | routing-hardening.md
+
+- Imported: raw/docs/routing-hardening.md
+- Updated: concepts/routing-hardening.md
+- Governed record: llmwiki-routing-hardening
+
+## [2026-09-17] ingest | kata-task-conventions.md
+
+- Imported: raw/docs/kata-task-conventions.md
+- Updated: concepts/kata-task-conventions.md
+- Governed record: llmwiki-kata-task-conventions
