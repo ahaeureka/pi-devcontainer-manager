@@ -1,14 +1,39 @@
 {
-  "revisionId": "revision-0b5329a3-63d0-4c64-9400-1581be2a457b",
+  "revisionId": "revision-351f29a987780dca",
+  "status": "approved",
+  "reviewEvidence": "Approved against revision-351f29a9, the repair of revision-0b5329a3. The review was an INDEPENDENT adversarial pass by a fresh-context subagent with no memory of the implementation, briefed against this phase's three changes: falsify the lifecycle guard in BOTH directions (can a superseded start still mutate the session surface, and can the guard ever block a legitimate `/reload`), fuzz the new host-exec grammar for silent reinterpretation (the worst outcome on a surface that executes on the host), compare all six migrated process-result consumers against `main`, re-check the review's ten contract invariants, and find what the suite cannot see. It produced eight findings and no blocking defect, and two of them were real bugs in this phase's own work. FIXED AND RE-VERIFIED: (1) the new flag matcher accepted any word starting with `--argv`, so `--argverbose` produced the argument `erbose` — a mangled command name running on the host; the flag is now matched as a whole word only, with a test. (2) The `--argv=<value>` recovery slice was off by the flag length, so a value that ended at the next `--argv` was REFUSED instead of split: `--argv= --argv x` and `--argv=echo --argv rm -rf /` now behave exactly as the usage line states, with tests for both. (3) The seventh hand-rolled collector (`capabilities.ts`'s `probeExecutable`) was un-migrated although the design and AC-4's matrix name that file — AC-4's wording was literally false until now. (4) The interactive verb picker still advertised `host-exec <argv...>`, the removed grammar, i.e. the one string an operator reads to discover the syntax. (5) The CHANGELOG's migration example used shell quoting (`--argv 'hello world'`) in a grammar where quotes are ordinary characters, so it demonstrated a command different from the one shown. (6) AC-1's evidence was the review's sharpest point: only the guard's counter was tested, so deleting the facade's checks kept the suite green. The ownership rule now has a mutation point (`guard.ifCurrent(generation, apply)`) that the facade routes EVERY surface change through — runtime assignment, tool registration, bash replacement — and a unit test proves a superseded generation applies nothing; the command path's activation changes (`off`, and an explicit engage) also invalidate an in-flight start. (7) A post-composition check had no preceding await (composition is synchronous) and the runtime was assigned before any check; the assignment now goes through the guard like every other mutation. Its clean categories are recorded because they carry weight: the audit and the spawn read ONE array, so no record/execute divergence exists (AC-3); the byte cap is applied before the callback, so captured and streamed bytes, labels and `truncated` are identical (AC-5); and the ten contract invariants did not move — host path for `up|build|exec`, `--remote-env`, discovery timing, the `stop`/`remove` gates, withholding, `/devcontainer setup`, and the audit shape with `0600` (AC-6). Verification of this revision: `npm run typecheck`; `npx vitest run` 40 files / 475 tests; `verify-package.mjs --unit-tests`; a `dist/` rebuilt in the same commit as the sources and confirmed byte-equal to a fresh build; the packed `smoke-pi-package.mjs --no-model`; `npm run install:local -- --check`; and `kata-cli verify` reporting all six acceptance criteria PASS.",
   "findings": [
     {
-      "id": "finding-tree-moved-after-seal",
+      "id": "finding-fakes-mirror-the-boundary-rule",
+      "taskId": "arch-review-p5-public-surfaces",
+      "acceptanceId": "AC-4",
+      "severity": "nit",
+      "message": "RECORDED. Four adapter fakes re-implement the boundary rule (`...(onData === undefined ? { stdout } : {})`), so a change to the production rule would be mirrored by the fake and the consumer suites would still pass. The rule itself is pinned properly in `tests/unit/process-runner.test.ts`, which spawns real children and covers the 32-byte cap; the fakes are convenience, not evidence.",
+      "path": "tests/unit/process-runner.test.ts"
+    },
+    {
+      "id": "finding-facade-wiring-smoke-only",
+      "taskId": "arch-review-p5-public-surfaces",
+      "acceptanceId": "AC-1",
+      "severity": "nit",
+      "message": "RECORDED. The guard's rule and its mutation point are unit-tested, but the facade's call sites are not: this repository has no unit harness for `session_start`, so deleting a call remains possible without a red test. The wiring is covered by the packed smoke run, and the rule now lives in a tested object rather than in the facade.",
+      "path": "extensions/index.ts"
+    },
+    {
+      "id": "finding-grammar-edges-documented-not-expressible",
       "taskId": "arch-review-p5-public-surfaces",
       "acceptanceId": "AC-2",
-      "severity": "blocking",
-      "message": "PROCESS, not a defect: the independent adversarial review of revision-0b5329a3 produced eight findings (no blocking defects) and closing them edited task-owned paths, so the tree no longer matches the sealed revision and its evidence no longer describes it; the next revision must carry the fixes and be re-verified.",
+      "severity": "nit",
+      "message": "RECORDED. Two grammar edges are documented rather than expressible on the command surface: an argument that must contain ` --argv `, and one that must end in a space. Both are exact through the `devcontainer_host_exec` tool, whose `argv` array has no grammar at all; the usage line, CHANGELOG and both READMEs say so.",
       "path": "src/commands.ts"
+    },
+    {
+      "id": "finding-docs-not-covered-by-tests",
+      "taskId": "arch-review-p5-public-surfaces",
+      "acceptanceId": "AC-2",
+      "severity": "nit",
+      "message": "RECORDED. The picker string, the README tables and the CHANGELOG example have no automated check (the docs-consistency test added in the host-exec phase covers the host-execution default only). The stale picker string the review found is exactly the kind of drift a test would have caught.",
+      "path": "extensions/index.ts"
     }
-  ],
-  "status": "pending"
+  ]
 }
