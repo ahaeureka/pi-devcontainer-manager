@@ -1,0 +1,34 @@
+{
+  "requirements": [
+    {
+      "id": "REQ-1",
+      "statement": "One lifecycle owner for the session surface (L0-04): composition, activation and surface registration are bound to a monotonic lifecycle generation that is re-checked after every await, so an asynchronous `session_start` that resumes after a reload, a second start, or a shutdown can no longer assign a stale runtime or register surfaces from a superseded activation decision; a superseded start dispatches nothing and its callbacks never dereference a newer or missing runtime.",
+      "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L0-04"
+    },
+    {
+      "id": "REQ-2",
+      "statement": "`/devcontainer host-exec` takes structured argv instead of shell-like free text (L2-04): the quote-splitting grammar is replaced by an interface whose arguments are unambiguous (including empty and space-containing ones), and the change is documented as a breaking change for the command surface with the migration shown.",
+      "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L2-04"
+    },
+    {
+      "id": "REQ-3",
+      "statement": "The host escape hatch's transport invariants survive the grammar change: argv still reaches the host runner as literal argv with no shell interpretation, the container-path guard still evaluates the same argv before any spawn, and the audit record still carries the fingerprint (or the configured capture) of exactly the argv that ran.",
+      "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraint 6, plus the guard/audit invariant in L2-04's own remedy."
+    },
+    {
+      "id": "REQ-4",
+      "statement": "The process boundary carries its bounded output (L5-03): `ProcessResult` exposes the bounded stdout/stderr it already knows how to bound whenever the caller supplied no streaming callbacks, callbacks continue to work for live streaming, and every adapter's hand-rolled chunk-collection block migrates to the fields — so a caller that forgets the callbacks can no longer receive a clean exit code with silently discarded output.",
+      "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md#L5-03"
+    },
+    {
+      "id": "REQ-5",
+      "statement": "Truncation and cap semantics are unchanged by that migration: the byte cap per stream still comes from the single sourced constants (`DEFAULT_MAX_OUTPUT_BYTES`, `LOGS_MAX_OUTPUT_BYTES`, or `config.maxOutputBytes`), the `truncated` flag keeps its meaning, the persisted full-output path still receives the complete text, and stream labelling (`--- stderr ---`) behaves exactly as before.",
+      "source": "src/runtime/process-runner.ts (the caps and the truncation contract) and the Phase 2 findings that established the labelling."
+    },
+    {
+      "id": "REQ-6",
+      "statement": "No regression, and the review's contract invariants hold: the CLI still receives the HOST workspace path for `up`/`build`/`exec`, the argv contract is unchanged, discovery stays lazy/read-only/bounded, targets are never auto-started, `stop`/`remove` keep both gates, host execution stays withheld-able and audited with the same operation/initiator/capture defaults, `/devcontainer setup` is untouched, and the full gate set is green (`npm run typecheck`, `npx vitest run`, `verify-package.mjs --unit-tests`, a rebuilt `dist/` committed with the sources, the packed smoke run, `npm run install:local -- --check`).",
+      "source": ".rpiv/artifacts/architecture-reviews/2026-09-15_08-46-53_pi-devcontainer-manager.md — Host and DevContainer contract constraints 1-10, plus the repository's no-regression convention."
+    }
+  ]
+}
