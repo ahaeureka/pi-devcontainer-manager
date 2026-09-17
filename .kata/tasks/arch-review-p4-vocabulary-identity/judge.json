@@ -1,38 +1,67 @@
 {
   "taskId": "arch-review-p4-vocabulary-identity",
-  "result": "FAIL",
+  "result": "PASS",
   "diffHash": "c7ec06fab40c22f3c53fd3d8c685441f81ff40f8fa30a4650c4e2a7627e93e89",
+  "revisionId": "revision-f1172221-ad60-4d71-81dc-3991cc7e262f",
   "acceptance": [
     {
       "id": "AC-1",
-      "result": "FAIL",
-      "repairScope": "missing_test_evidence"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-47f0f248-be99-4bf3-bb4b-6216b2a52b10",
+        "evidence-4d8014e6-3f0a-4bc4-914d-3b8027ce1fe2",
+        "evidence-538763ee-d9af-4227-b8fb-33e36a9d3317"
+      ]
     },
     {
       "id": "AC-2",
-      "result": "FAIL",
-      "repairScope": "missing_test_evidence"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-47f0f248-be99-4bf3-bb4b-6216b2a52b10",
+        "evidence-4d8014e6-3f0a-4bc4-914d-3b8027ce1fe2",
+        "evidence-538763ee-d9af-4227-b8fb-33e36a9d3317"
+      ]
     },
     {
       "id": "AC-3",
-      "result": "FAIL",
-      "repairScope": "missing_test_evidence"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-47f0f248-be99-4bf3-bb4b-6216b2a52b10",
+        "evidence-4d8014e6-3f0a-4bc4-914d-3b8027ce1fe2",
+        "evidence-538763ee-d9af-4227-b8fb-33e36a9d3317"
+      ]
     },
     {
       "id": "AC-4",
-      "result": "FAIL",
-      "repairScope": "missing_test_evidence"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-47f0f248-be99-4bf3-bb4b-6216b2a52b10",
+        "evidence-4d8014e6-3f0a-4bc4-914d-3b8027ce1fe2",
+        "evidence-538763ee-d9af-4227-b8fb-33e36a9d3317"
+      ]
     },
     {
       "id": "AC-5",
-      "result": "FAIL",
-      "repairScope": "missing_test_evidence"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-47f0f248-be99-4bf3-bb4b-6216b2a52b10",
+        "evidence-4d8014e6-3f0a-4bc4-914d-3b8027ce1fe2",
+        "evidence-538763ee-d9af-4227-b8fb-33e36a9d3317"
+      ]
     },
     {
       "id": "AC-6",
-      "result": "FAIL",
-      "repairScope": "missing_test_evidence"
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-47f0f248-be99-4bf3-bb4b-6216b2a52b10",
+        "evidence-4d8014e6-3f0a-4bc4-914d-3b8027ce1fe2",
+        "evidence-538763ee-d9af-4227-b8fb-33e36a9d3317"
+      ]
     }
   ],
-  "evidenceIds": []
+  "evidenceIds": [
+    "evidence-47f0f248-be99-4bf3-bb4b-6216b2a52b10",
+    "evidence-4d8014e6-3f0a-4bc4-914d-3b8027ce1fe2",
+    "evidence-538763ee-d9af-4227-b8fb-33e36a9d3317"
+  ]
 }
