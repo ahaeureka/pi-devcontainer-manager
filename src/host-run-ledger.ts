@@ -12,7 +12,8 @@ import { displayProgram } from "./policy.js";
  * command text — just a count and the PROGRAM names, bounded so a long session cannot grow it without
  * limit. (It used to remember redacted command lines; the redaction turned out to be the source of
  * every defect five adversarial passes found in this feature, and naming the program gives an operator
- * the drift signal without a place a credential could ever be rendered.)
+ * the drift signal while the single enforced `displayProgram` keeps a credential out of it — a program name
+ * CAN be credential-shaped, which is why the rendering is enforced rather than assumed.)
  */
 export interface HostRunLedger {
   /** Count one host ATTEMPT (a refusal counts: nothing ran) and remember the PROGRAM it named. */
@@ -43,10 +44,10 @@ export function createHostRunLedger(options: { limit?: number; capture?: "none" 
   const recent: string[] = [];
   let firstRunNoted = false;
 
-  // A capture policy of `none` means no command identity is kept anywhere — including here, or the
-  // ledger would become the one place the operator can read what the policy declined to record
-  // (adversarial review of the routing hardening).
-  let keepText = (options.capture ?? "fingerprint-only") !== "none";
+  // The program NAME is not command text: it is one word, rendered by the enforced `displayProgram`, and the
+  // audit policy that governs command CAPTURE does not withhold it. (It used to, which made the visibility
+  // claim false under `commandCapture: "none"` — adversarial review.)
+  let keepText = true;
   const remember = (argv: readonly string[]): void => {
     count += 1;
     if (keepText) {
@@ -75,9 +76,10 @@ export function createHostRunLedger(options: { limit?: number; capture?: "none" 
       recent.length = 0;
       firstRunNoted = false;
     },
-    setCapture: (mode) => {
-      keepText = mode !== "none";
-      if (!keepText) recent.length = 0;
+    setCapture: () => {
+      // Retained for the session wiring, but the program NAME is not command text: it is always kept, so a
+      // `commandCapture: "none"` session still sees which tools ran (adversarial review).
+      keepText = true;
     },
     summary: () => {
       if (count === 0) return "no host commands in this session";

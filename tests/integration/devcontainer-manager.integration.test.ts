@@ -245,6 +245,7 @@ suite("devcontainer-manager integration (real Docker + CLI)", () => {
 
     const upB = await composed.service.up({ operation: "up", initiator: "slash-command", workspace: FIXTURE_B });
     expect(upB.candidateId).toBeTypeOf("string");
+    cleanedIds.push(upB.candidateId!);
     await selectRunning(composed.store, FIXTURE_B, upB.candidateId!);
 
     const execB = await execWhenReady(composed.service, FIXTURE_B);

@@ -26,7 +26,9 @@ export function detectHostPathOnContainerSurface(argv, mapping) {
     if (host.length === 0)
         return undefined;
     const visible = (mapping.containerVisiblePaths ?? []).map((path) => normalize(expandVariables(path, mapping.hostPath)));
-    const under = (candidate, base) => candidate === base || candidate.startsWith(`${base}/`);
+    // A root base must not demand a `//` prefix (the same boundary bug the workspace containment helper had):
+    // with `hostPath: "/"` the segment test used to be inert, so nothing was ever refused (adversarial review).
+    const under = (candidate, base) => candidate === base || (base.endsWith("/") ? candidate.startsWith(base) : candidate.startsWith(`${base}/`));
     const isSameFileOnBothSides = (candidate) => visible.some((path) => under(candidate, path));
     /**
      * When the container path is an ANCESTOR of the host path the workspace is mounted at a shallower

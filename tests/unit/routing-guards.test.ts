@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { detectHostPathOnContainerSurface } from "../../src/routing-guard.js";
 import { createHostRunLedger } from "../../src/host-run-ledger.js";
-import { displayProgram } from "../../src/policy.js";
+import { displayProgram, redactText } from "../../src/policy.js";
 import { createAuditedHostRunner } from "../../src/host-runner.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
 
@@ -173,13 +173,14 @@ describe("the visibility renders NO command text at all", () => {
     expect(records.every((record) => record.policyAuthorized === false)).toBe(true);
   });
 
-  it("stores nothing when the capture policy is `none`", () => {
+  it("keeps the program name under `none`: it is not command text", () => {
     const ledger = createHostRunLedger({ limit: 5 });
     ledger.setCapture("none");
     ledger.record(["docker", "ps"]);
 
-    expect(ledger.recent()).toEqual([]);
-    expect(ledger.summary()).toContain("not recorded");
+    // The program name is one word rendered by `displayProgram`; the audit policy that governs command
+    // CAPTURE does not withhold it, and pretending otherwise made AC-1 false under a documented config.
+    expect(ledger.recent()).toEqual(["docker"]);
     expect(ledger.count()).toBe(1);
   });
 });
@@ -259,5 +260,25 @@ describe("displayProgram — credential shapes the audit rules know", () => {
     // hardening).
     expect(displayProgram(["postgres://alice:s3cretpw@db.example.test"])).not.toContain("s3cretpw");
     expect(displayProgram(["https://alice:s3cretpw@git.example.test"])).not.toContain("s3cretpw");
+  });
+});
+
+describe("the URL rule spans a slash in the password", () => {
+  it("redacts every URL credential shape the audit rule used to miss", () => {
+    // `[^/\s@]+` stopped the match at the first slash, so these were returned unchanged and then rendered by
+    // `displayProgram` into both operator surfaces (adversarial review, both nodes).
+    expect(redactText("https://alice:/hunter2@host")).not.toContain("hunter2");
+    expect(displayProgram(["https://alice:/hunter2@host"])).not.toContain("hunter2");
+    expect(displayProgram(["postgres://alice:my/password@db.example.test"])).not.toContain("password@");
+    // A URL-shaped name renders as its host, never its userinfo.
+    expect(displayProgram(["postgres://alice:s3cretpw@db.example.test"])).toBe("[REDACTED]@db.example.test");
+  });
+});
+
+describe("the reverse guard handles a root host path", () => {
+  it("refuses paths under `/` instead of demanding a `//` prefix", () => {
+    const mapping = { hostPath: "/", containerPath: "/workspaces/proj" };
+    expect(detectHostPathOnContainerSurface(["cat", "/etc/passwd"], mapping)).toBe("/etc/passwd");
+    expect(detectHostPathOnContainerSurface(["cat", "/workspaces/proj/x"], mapping)).toBeUndefined();
   });
 });

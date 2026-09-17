@@ -73,7 +73,11 @@ export function createAuditedHostRunner(deps) {
                     note();
                     throw error;
                 }
-                const violation = mapping !== undefined ? findContainerPath(argv, mapping.containerPath) : undefined;
+                // A mapping that keeps the path is not a mis-route: the same path exists on both sides (the mirror
+                // mount idiom), exactly like the reverse guard's exemption (adversarial review).
+                const violation = mapping !== undefined && mapping.containerPath !== mapping.hostPath
+                    ? findContainerPath(argv, mapping.containerPath)
+                    : undefined;
                 if (violation !== undefined) {
                     deps.audit.write(record(argv, {
                         policyAuthorized: false,

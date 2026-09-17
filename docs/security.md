@@ -158,9 +158,11 @@ quoted or bare), a secret-named key/value pair (`password=…`, `token: …`), a
 
 It does **not** hide a bare `-u user:pass` pair (`curl -u alice:hunter2 https://…`), an unflagged secret
 that appears as a plain positional argument, or the part of a flag value that follows a space (a command
-line is redacted as one space-joined string, so `--password "a b"` hides up to the space). Under the
-default `audit.commandCapture: "fingerprint-only"` no command text is recorded at all, so these gaps only
-matter under `"redacted-text"`. A rule that guessed at unflagged secrets would redact ordinary arguments
+line is redacted as one space-joined string, so `--password "a b"` hides up to the space). Under the audit
+default `audit.commandCapture: "fingerprint-only"` no command text is recorded at all, so those three gaps
+matter only under `"redacted-text"` — but the in-session summary renders a program name, so a
+credential-shaped `argv[0]` is the one place they would have shown up there, which is why that rendering is
+enforced (`displayProgram`) rather than assumed. A rule that guessed at unflagged secrets would redact ordinary arguments
 too, so extending it is a policy decision rather than a bug fix, and belongs in its own change.
 
 The **in-session visibility deliberately keeps no command text at all**: `/devcontainer status` reports a

@@ -4,10 +4,10 @@ export function createHostRunLedger(options = {}) {
     let count = 0;
     const recent = [];
     let firstRunNoted = false;
-    // A capture policy of `none` means no command identity is kept anywhere — including here, or the
-    // ledger would become the one place the operator can read what the policy declined to record
-    // (adversarial review of the routing hardening).
-    let keepText = (options.capture ?? "fingerprint-only") !== "none";
+    // The program NAME is not command text: it is one word, rendered by the enforced `displayProgram`, and the
+    // audit policy that governs command CAPTURE does not withhold it. (It used to, which made the visibility
+    // claim false under `commandCapture: "none"` — adversarial review.)
+    let keepText = true;
     const remember = (argv) => {
         count += 1;
         if (keepText) {
@@ -36,10 +36,10 @@ export function createHostRunLedger(options = {}) {
             recent.length = 0;
             firstRunNoted = false;
         },
-        setCapture: (mode) => {
-            keepText = mode !== "none";
-            if (!keepText)
-                recent.length = 0;
+        setCapture: () => {
+            // Retained for the session wiring, but the program NAME is not command text: it is always kept, so a
+            // `commandCapture: "none"` session still sees which tools ran (adversarial review).
+            keepText = true;
         },
         summary: () => {
             if (count === 0)

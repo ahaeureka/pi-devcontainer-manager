@@ -10,7 +10,8 @@
  * command text — just a count and the PROGRAM names, bounded so a long session cannot grow it without
  * limit. (It used to remember redacted command lines; the redaction turned out to be the source of
  * every defect five adversarial passes found in this feature, and naming the program gives an operator
- * the drift signal without a place a credential could ever be rendered.)
+ * the drift signal while the single enforced `displayProgram` keeps a credential out of it — a program name
+ * CAN be credential-shaped, which is why the rendering is enforced rather than assumed.)
  */
 export interface HostRunLedger {
     /** Count one host ATTEMPT (a refusal counts: nothing ran) and remember the PROGRAM it named. */

@@ -141,7 +141,11 @@ export function redactText(text: string): string {
     "$1$2[REDACTED]",
   );
   // 4. Credentials embedded in URLs: scheme://user:pass@host.
-  out = out.replace(/(\w+:\/\/)[^/\s:@]+:[^/\s@]+@/g, "$1[REDACTED]@");
+  //
+  // The password class allows `/`: a password containing a slash used to stop the match at it and leave the
+  // credential in the text (`https://alice:/hunter2@host` was returned unchanged), which matters because the
+  // in-session visibility renders `redactText`'s output (adversarial review).
+  out = out.replace(/(\w+:\/\/)[^/\s:@]+:[^\s@]*@/g, "$1[REDACTED]@");
   return out;
 }
 
@@ -158,10 +162,13 @@ export function displayProgram(argv: readonly string[]): string {
   if (first === undefined) return "(no command)";
   // Redact BEFORE the basename: a URL-shaped program name keeps its credentials in the part the basename
   // would keep (`postgres://alice:s3cretpw@host` -> `alice:s3cretpw@host`), and the audit rules need the
-  // scheme prefix to see them (adversarial review of the routing hardening).
+  // scheme prefix to see them. A URL-shaped name is then rendered as its HOST only — a program name is a
+  // word, and after redaction the remaining userinfo has no value worth showing (adversarial review).
   const redactedWhole = redactText(first);
-  const base = redactedWhole.split("/").pop() ?? redactedWhole;
-  const redacted = base.replace(/[\u0000-\u001f\u007f]/g, "");
+  const base = redactedWhole.includes("://")
+    ? (redactedWhole.split("://")[1]?.split("/")[0] ?? redactedWhole.split("://")[1] ?? "(no command)")
+    : (redactedWhole.split("/").pop() ?? redactedWhole);
+  const redacted = base.replace(/[\u0000-\u001f\u007f]/g, "").trim();
   if (redacted.length === 0) return "(no command)";
   return redacted.slice(0, 64);
 }
