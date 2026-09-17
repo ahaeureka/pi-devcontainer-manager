@@ -240,3 +240,12 @@ And on the kata gate itself: the adversarial record is **per node** (`verify` AN
 revision, so a task needs two recorded passes per revision, and any post-pass edit restarts both. Budget
 for it: on this task the loop cost five passes (10–27 minutes each) before converging, and the two
 majors it caught in the last three rounds would otherwise have shipped.
+
+## 16. A second rendering of the same data needs the same transformation
+
+Found on `routing-hardening` by the verify-node pass: the audit trail redacts the JOINED command line (its
+flag-with-value rules need flag and value in one string), while the newly added operator notice redacted
+each argv element and joined them — both hide a one-element `Authorization: Bearer …`, so tests passed, and
+only the two-element `--password s3cr3t` showed the difference. When you add a rendering of data that
+already has a policy applied to it, route it through the SAME function on the SAME string, grep for every
+other rendering, and test the shape the policy was written for.

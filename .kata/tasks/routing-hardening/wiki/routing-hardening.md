@@ -143,3 +143,29 @@ invalidates both and starts the count again — which is the cost that makes the
 Practical note for the reviewer prompt: the schema rejects unknown properties (`additionalProperties:
 false`), so a subagent that adds a helpful `outcome_note` to an attempt gets its record refused —
 fold extra prose into `evidence` instead.
+
+## 9. Redact what you RECORD, with the rule the record uses
+
+The verify-node pass found the sharpest defect of the whole task in the visibility I had just added, and it
+is worth stating as a rule because the mistake is invisible by construction.
+
+The audit trail redacts the **joined command line** (`commandIdentity` joins the argv, `JsonlAuditWriter`
+applies `redactText`), and `redactText`'s flag-with-value rules need the flag and its value in ONE string —
+that is how `--password s3cr3t` becomes `--password [REDACTED]`. My ledger, the runner's notice and the
+withheld-attempt notice each redacted **element by element** and then joined. Both forms hide
+`Authorization: Bearer <token>` (one element), so the tests I wrote passed — and both forms are wrong for
+the two-element idiom, so `mysql -u root --password s3cr3t` reached the operator notice verbatim while the
+audit record redacted it.
+
+Rules from that:
+
+- **A second rendering of the same data must use the same transformation, or it is a second, weaker
+  policy.** "I redacted it too" is not the claim; "it went through the same function on the same string" is.
+- **Test the shape the policy is written for.** A redaction test using a one-element secret proves nothing
+  about the two-element form the policy exists to catch.
+- **Grep for every rendering.** The same argv reaches the ledger summary, two notices, `/devcontainer
+  status` and the audit record; a per-rendering fix leaves the next one wrong.
+
+The companion finding was a claim mismatch: a withheld attempt is refused BEFORE the runner, so it leaves
+no `host-exec` audit record — and the notice I wrote said `(audited)`. **A notice is a claim about what
+happened; make it true per refusal path, not in the common case.**
