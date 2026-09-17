@@ -6,32 +6,32 @@
     {
       "id": "AC-1",
       "result": "FAIL",
-      "repairScope": "unresolved_repair_obligation"
+      "repairScope": "missing_test_evidence"
     },
     {
       "id": "AC-2",
       "result": "FAIL",
-      "repairScope": "unresolved_repair_obligation"
+      "repairScope": "missing_test_evidence"
     },
     {
       "id": "AC-3",
       "result": "FAIL",
-      "repairScope": "unresolved_repair_obligation"
+      "repairScope": "missing_test_evidence"
     },
     {
       "id": "AC-4",
       "result": "FAIL",
-      "repairScope": "unresolved_repair_obligation"
+      "repairScope": "missing_test_evidence"
     },
     {
       "id": "AC-5",
       "result": "FAIL",
-      "repairScope": "unresolved_repair_obligation"
+      "repairScope": "missing_test_evidence"
     },
     {
       "id": "AC-6",
       "result": "FAIL",
-      "repairScope": "unresolved_repair_obligation"
+      "repairScope": "missing_test_evidence"
     }
   ],
   "evidenceIds": []
