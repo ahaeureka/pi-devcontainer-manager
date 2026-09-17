@@ -1,9 +1,9 @@
 {
   "taskId": "routing-hardening",
-  "phase": "hardVerify",
+  "phase": "review",
   "actor": {
-    "id": "kata-agent",
-    "role": "implementer"
+    "id": "kata-reviewer",
+    "role": "reviewer"
   },
-  "updatedAt": "2026-09-17T10:39:35.918Z"
+  "updatedAt": "2026-09-17T10:53:15.522Z"
 }

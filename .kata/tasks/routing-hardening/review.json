@@ -1,13 +1,13 @@
 {
-  "revisionId": "revision-4b7ba535f1a33572",
+  "revisionId": "revision-42a78a3bfebee0cf",
   "findings": [
     {
-      "id": "finding-tree-moved-after-third-pass",
+      "id": "finding-tree-moved-after-fourth-pass",
       "taskId": "routing-hardening",
-      "acceptanceId": "AC-1",
+      "acceptanceId": "AC-4",
       "severity": "blocking",
-      "message": "PROCESS, not a defect: the recorded adversarial pass on revision-4b7ba535 returned one major, three minors and one nit (all fixed in 00e40d2) — the withheld-attempt hook was wired to the tool that ignores it instead of the host-exec tool that reads it, the nested exemption exempted the whole host space, `samePathMounts` compared raw strings, the Chinese README kept a duplicate row, and the ledger was process-scoped rather than session-scoped.",
-      "path": "extensions/index.ts"
+      "message": "PROCESS, not a defect: the recorded adversarial pass on revision-42a78a3b returned ONE major finding and nothing else (all other claims refuted), fixed in d6c19f8 — `selectionFor` took the candidate state from the workspace's primary candidate while the id came from the picker, so choosing a stopped sibling of a running primary recorded `running` and choosing a running sibling of a stopped primary answered `target-stopped`. Re-sealing so the record matches the tree.",
+      "path": "src/commands.ts"
     }
   ],
   "status": "pending"
