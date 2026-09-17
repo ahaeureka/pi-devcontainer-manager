@@ -1,13 +1,14 @@
 {
-  "status": "changes-requested",
+  "revisionId": "revision-0b5329a3-63d0-4c64-9400-1581be2a457b",
   "findings": [
     {
       "id": "finding-tree-moved-after-seal",
       "taskId": "arch-review-p5-public-surfaces",
       "acceptanceId": "AC-2",
       "severity": "blocking",
-      "message": "PROCESS, not a defect: the independent adversarial review of revision-0b5329a3 produced eight findings (no blocking defects) and closing them edited task-owned paths, so the tree no longer matches the sealed revision and the sealed evidence no longer describes it. The next revision must carry the fixes and be re-verified. Findings being closed: the parser's whole-word flag match and `=` recovery slice (`--argverbose` produced the argument `erbose`; `--argv= --argv x` refused instead of `[\"\", \"x\"]`), the un-migrated seventh collector in `capabilities.ts`, the stale verb-picker string, and a CHANGELOG example that showed shell quoting in a grammar where quotes are literal.",
+      "message": "PROCESS, not a defect: the independent adversarial review of revision-0b5329a3 produced eight findings (no blocking defects) and closing them edited task-owned paths, so the tree no longer matches the sealed revision and its evidence no longer describes it; the next revision must carry the fixes and be re-verified.",
       "path": "src/commands.ts"
     }
-  ]
+  ],
+  "status": "changes-requested"
 }
