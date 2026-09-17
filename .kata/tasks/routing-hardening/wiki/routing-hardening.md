@@ -97,3 +97,49 @@ print/json run would have hung.
 reported the boundary in its completion but had not created the file (unlike the earlier tasks). The
 file is a small JSON object (`taskId`, `boundary`, `createdAt`, `choice`) and recording the operator's
 standing choice there unblocked the route. Worth knowing before concluding that a gate is broken.
+
+## 7. Six independent passes over one change: what the loop actually bought
+
+This task was reviewed by a fresh-context adversarial subagent six times (four over successive sealed
+revisions, then a converged pass, then the verify node). The severity curve is the interesting part:
+
+| pass | result |
+|---|---|
+| 1 | 1 major + 4 minor + 1 nit |
+| 2 | 6 minor + 2 nit |
+| 3 | 1 major + 3 minor + 1 nit |
+| 4 | 1 major (everything else refuted) |
+| 5 | **nothing — `no_defect_found`, 8/8 attempts refuted** |
+
+**Every single major was introduced or missed by the author while fixing the previous round.** Three
+concrete examples, all of them the same shape — a fix that was correct in the case it was written for
+and wrong one step away:
+
+- The withheld-attempt hook was wired into the tool that does not read it instead of the tool that does
+  (the compensating control's whole point is the agent's surface).
+- The exemption added for a nested container path exempted the entire host path space instead of the
+  container's own workspace.
+- `selectionFor` took the candidate state from the workspace's primary container while the id came from
+  the picker, so a runnable target could answer `target-stopped`.
+
+The rule this leaves behind: **after repairing a finding, the repair itself is the most likely place for
+the next defect** — so the next pass must be told *what the last fix touched*, and the fix's own test
+must cover the inverse of the case it was written for (the tool that reads the option, the sibling path
+that is not exempt, the sibling container whose state differs).
+
+It also shows what "converged" means in practice: the final pass did not merely find nothing, it
+re-ran every gate, rebuilt `dist/` and compared, and drove the picker path instrumented — eight
+falsification attempts, all refuted. A pass that says "looks fine" without executing anything is worth
+nothing.
+
+## 8. The kata adversarial gate is per NODE (verify and review)
+
+`verify` and `review` each hold their own record (`.kata/tasks/<id>/adversarial-{verify,review}.json`),
+each bound to its own brief hash and the current revision. So a task needs **two** recorded passes per
+revision: one framed as "does the implementation deliver these criteria, with fresh evidence" (verify
+node) and one framed as "does the change hold up as a whole" (review node). Fixing anything after that
+invalidates both and starts the count again — which is the cost that makes the loop honest.
+
+Practical note for the reviewer prompt: the schema rejects unknown properties (`additionalProperties:
+false`), so a subagent that adds a helpful `outcome_note` to an attempt gets its record refused —
+fold extra prose into `evidence` instead.

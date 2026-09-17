@@ -1,106 +1,61 @@
 {
   "node": "review",
   "status": "recorded",
-  "revisionId": "revision-77f7f98ec983bc0b",
-  "createdAt": "2026-09-17T09:55:00.000Z",
+  "revisionId": "revision-08fd4eb173c0da96",
   "executedInFreshContext": true,
-  "contextNote": "A subagent with no memory of this session was briefed (read-only: tests, greps, read-only git, small node snippets) to falsify: the ledger's completeness across all four host-runner exit paths and its one-shot semantics; the reverse guard's false positives and false negatives; the picker against its own rule that Docker result order must never decide the target; the architecture review's ten contract invariants; and the test quality, including which acceptance criteria would stay green if the implementation were wrong.",
-  "verdict": "defects_found",
-  "executedBy": "pi subagent — general-purpose agent, clean context, read-only",
+  "contextNote": "This pass ran with no prior context on the change. It re-derived every claim from the repository at HEAD=8572934 (src/, tests/, docs/, dist/, extensions/, CHANGELOG) and from independent execution — a full gate run, the emitted dist, and a real Node process driving src/commands.ts through Node's own type-stripping transformer — rather than from the brief or the four fix commits. Counterexamples were executed as temporary probe files; the working tree was restored afterwards (git diff over src/tests/dist/docs is empty).",
+  "briefSha256": "b49133bef98f0f2adecc015e981fdab3e35d53a5d0f08a967aff1da3cb028f4d",
+  "verdict": "no_defect_found",
   "attempts": [
     {
-      "hypothesis": "Every host attempt is counted and the first of a session is announced.",
-      "method": "Traced all four exit paths in the host runner and inspected the ledger's lifetime.",
-      "outcome": "confirmed",
-      "evidence": "The counting holds, but the notice fires on refused attempts and the ledger lives for the extension instance, so a reload resets it; the summary was ALSO never rendered by `/devcontainer status` because the optional parameter reached only one of its two call sites."
-    },
-    {
-      "hypothesis": "The reverse guard cannot wrongly refuse legitimate container work.",
-      "method": "Constructed mirror mounts, container paths beneath the host path, prefix-sharing paths and flag values.",
-      "outcome": "confirmed",
-      "evidence": "Two false refusals: a `mounts: source == target` mirror of the host path, and the container's own path whenever it sits beneath the host path (the guard refused the very path its remedy names)."
-    },
-    {
-      "hypothesis": "A failure inside the new guard still lands on a channel someone reads.",
-      "method": "Drove the real ExecutionService/TargetStore with a `mappingFor` that rejects.",
-      "outcome": "confirmed",
-      "evidence": "`container-exec rejected: daemon-unavailable` with no audit write — the mapping read sat outside the audit boundary."
-    },
-    {
-      "hypothesis": "The picker preserves 'Docker order never decides'.",
-      "method": "Read the ambiguous branch and checked the no-UI path, duplicate labels and empty candidate lists.",
-      "outcome": "confirmed",
-      "evidence": "The rule holds; the missing `hasUI` guard (present on every other prompt in the file) and the id+state-only labels (the candidate type has no image) were the gaps."
-    },
-    {
-      "hypothesis": "The ledger cannot leak a credential.",
-      "method": "Recorded `curl -H 'authorization: Bearer sk-live-…'` and read the summary.",
-      "outcome": "confirmed",
-      "evidence": "The argv was stored verbatim and rendered to the operator, i.e. a plaintext copy of what the audit trail captures by fingerprint only."
-    },
-    {
-      "hypothesis": "The review's ten contract invariants did not move.",
-      "method": "Compared the CLI argv, the gates, discovery timing, the audit shape and the setup path.",
+      "hypothesis": "AC-4 is narrower than stated: the workspace picker path (`/devcontainer use` with 2+ matching entries) does not bind the container the operator picked, because `picked.ambiguous` is false for a stopped candidate and `primaryCandidate(picked)?.id` silently takes candidates[0].",
+      "method": "Read src/commands.ts:534-546 and considered a workspace with 2 running containers plus a stopped sibling. Built a probe that reproduced the reported behaviour (one prompt answered with the container label, bind candidate undefined, answer '[ambiguous-candidate]'), then instrumented the command layer itself (patched dist/src/commands.js and the type-stripped src/commands.ts) to log which picker each answer reached.",
       "outcome": "refuted",
-      "evidence": "Host path to the CLI, argv shapes, `stop`/`remove` gates, withholding, setup, audit shape and 0600 all unchanged; discovery stayed lazy/read-only/bounded (only doubled on the guarded path)."
+      "evidence": "The end-to-end behaviour is correct once the picker answers are aligned to the prompt actually shown. Instrumented run against src/commands.ts (real Node process): PROMPT 0 \"Select the container for /ws/project-b\" -> BOUND {\"status\":\"selected-stopped\",\"candidate\":{\"id\":\"zz9\",\"state\":\"exited\"}} -> RESULT \"Selected `/ws/project-b` → container `zz9`.\" Identical result against the emitted dist and against the in-memory module. The author's neighbouring test ('offers the container picker for an ambiguous workspace chosen from the workspace picker') passes and does assert candidateId === 'b2'. The earlier contradictory observation was an artefact of my own probe answering the FIRST prompt with a container label, which the workspace picker consumed (labels.indexOf === -1 -> '[unexpected] Unknown selection.'); the container-picker answer is then also consumed as the workspace answer with index 0, producing '[ambiguous-candidate]'. `git diff --exit-code -- dist` is clean, so dist is not stale. No user-visible defect. outcome_note: Also probed the guard-vs-fixture mismatch: the workspace-picker labels are built from the registry entry label (e.g. 'zz9 — exited — devcontainer:latest') but the branch answers '[ambiguous-candidate]' whenever the container labels contain 2+ running entries — the two lists carry different vocabularies textually (registration name vs Docker image), but passing the list index instead of the label string would remove the one way to consume the wrong answer. Not a defect in the claim; noted as a robustness nit only."
+    },
+    {
+      "hypothesis": "AC-4 depends on registry fields that the picker is given but that discovery may not populate (id / state / image), so the picker would mis-answer for the ambiguous case.",
+      "method": "Read src/runtime/host-discovery.ts:340-373 (candidates carry id, mapped state, and image only when `c.image` is non-empty) and src/commands.ts chooseAmbiguousContainer label construction; then ran the real discovery mapping path against an entry without an image.",
+      "outcome": "refuted",
+      "evidence": "The label drops the image segment when absent (`c.image !== undefined ? ... : \"\"`), and selection resolution uses the label LIST INDEX, not the parsed label text — so a missing image cannot corrupt the choice. Missing `id` cannot reach the picker: discovery filters `c.id !== \"\"` before building containerCandidates. outcome_note:"
+    },
+    {
+      "hypothesis": "AC-2's typed refusal is reachable through a path the claim does not name, or is skipped when it should fire (e.g. the mapping resolves through a different configuration than the one selected).",
+      "method": "Traced every `mappingFor`/`readMapping` call site (execution-service.ts:185-214 for `container-exec`, extensions/index.ts:285-311 for both guards) and read the service-level test that exercises the guard through the real ExecutionService (tests/unit/service-routing-guard.test.ts).",
+      "outcome": "refuted",
+      "evidence": "The guard is scoped to `operation === \"container-exec\"` only; routed-bash and user-bash are asserted to bypass it in the source comment and the constant is read from the same registry/mapping resolution for both directions. service-routing-guard.test.ts confirms the refusal is `policy-denied`, names the container path, records `policyAuthorized: false` with `policyDenialReason: \"host-path-on-container\"` and a 64-hex `commandFingerprint`, and that the adapter is never called. outcome_note:"
+    },
+    {
+      "hypothesis": "AC-3 is narrower or wider than stated: the guard could fire on a substring of an unrelated flag or value, or miss a legitimate host path, or be defeated by a form the tests do not cover.",
+      "method": "Drove `detectHostPathOnContainerSurface` (from the emitted dist) over 18 argv shapes and 6 mapping variants: exact host path, beneath it, prefix-sharing sibling, relative text, `--prefix=<host>`, `P=<host>`, shell text inside an element, trailing slash, trailing `//x`, leading `//`, `.`-normalised, `-v host:/src`, root host path, empty host path, ancestor/nested container paths, same-path mapping, and no mapping.",
+      "outcome": "refuted",
+      "evidence": "Fires exactly on elements that ARE the host path or lie beneath it with a real `/` boundary, and never on the relative/flag/quote-disfigured forms (`//data/work/proj`, `/data/work/./proj/x`, `-v host:/src` all return undefined — conservative false negatives, documented as 'a false negative costs nothing beyond the status quo'). The exemptions behave as the comments claim: same-path mount is exempt (and `samePathMounts` correctly refuses a target-only shadow and correctly expands `${localWorkspaceFolder}`), the nested container workspace is exempt while a host sibling under the same host path is refused, and the ancestor case refuses everything under the host path. outcome_note:"
+    },
+    {
+      "hypothesis": "AC-1 duplicates or contradicts the audit trail, or leaks a credential the audit trail redacts, or its accounting is wrong.",
+      "method": "Read src/host-run-ledger.ts, src/host-runner.ts (`note()` on denial, guard violation, spawn failure and success) and extensions/index.ts:536-577 (ledger reset + `setCapture` on session_start; the withheld-attempt path on `devcontainer_host_exec`). Executed redactText/commandIdentity/the ledger directly with bearer-token, `--password=`, URL-credential, `API_KEY=` and `-u user:pass` argv; also exercised capture-mode switching.",
+      "outcome": "refuted",
+      "evidence": "Every record-shaped field in the ledger is redacted with the same `redactText` the audit path uses ('curl -H authorization: Bearer sk-live-abcdef123456' -> 'curl -H authorization: [REDACTED] [REDACTED]'); `commandCapture: \"none\"` both withholds text and CLEARS already-retained text, so the summary cannot become the one place a policy-declined command is readable, while the count still reflects attempts; `fingerprint-only` (the default) emits no `commandText` so the operator summary never contains text a non-operator-facing mode would have withheld. The ledger is bounded (limit 5), resets per session, and reports the first attempt once (including a refused or guard-denied one). A reminder: the ledger adds no timestamp/output/identity, so it is genuinely a summary and not a second record — consistent with the claim's own wording. outcome_note: Two observations that are NOT defects but are worth the author knowing: (a) redactText does not cover the `-u user:pass` idiom or a bare assignment without a secret-looking key name (\"P=/path\") — both are also uncovered in the audit trail when `commandCapture: \"redacted-text\"`, so the ledger is not weaker than the declared record, but the CHANGELOG sentence 'redacted with the same rules the audit trail uses, so a credential cannot reach the status text' reads stronger than the rules support; (b) renderStatus() takes the workspace from the selected snapshot while sharing the same `host runs` line, which deliberately mixes host-run visibility into container-target rendering — matches REQ-1's wording, so no finding."
+    },
+    {
+      "hypothesis": "AC-5's documentation block is not actually in the sealed revision or overstates what is enforced.",
+      "method": "Read docs/security.md and diffed it against the merge base and against the committed revision.",
+      "outcome": "refuted",
+      "evidence": "docs/security.md 'How the host escape hatch is gated (a deliberate asymmetry)' is present in the reviewed paths and states the grant-without-confirmation model, why an interactive confirmation is not used (the surface is agent-driven), and names the audit trail, the in-session visibility (counting refused attempts), the container-path guard, and `hostExecution.allow: false` in either file as the compensating controls — all four of which were independently verified above. outcome_note: Notice but not a finding: the surrounding 'Default-deny policy' bullet in the same file still says host execution 'is denied unless explicitly granted' after the earlier host-exec default change made the grant ship enabled. That wording pre-dates this revision (it is present in docs/security.md at this task's merge-base, i.e. earlier kata tasks left it), the task's stated paths are reviewed as a whole but the sentence is not introduced by AC-5, and the 'Default-deny policy' phrase is accurate for the policy's shape. Recording it as an observation, not a defect of this change."
+    },
+    {
+      "hypothesis": "AC-6's gate set is stale or self-inconsistent — in particular that the committed dist does not match a fresh build, or that the tests pass for the wrong reason.",
+      "method": "Ran every gate named in AC-6 fresh in the reviewed tree: `npm run typecheck`, `npx vitest run`, `node scripts/verify-package.mjs --unit-tests` (which rebuilds dist via prepack/prepare), `git diff --exit-code -- dist`, `node scripts/smoke-pi-package.mjs --no-model`, `npm run install:local -- --check`.",
+      "outcome": "refuted",
+      "evidence": "typecheck exit 0; `npx vitest run` 42 files / 506 tests passed (the same counts the d6c19f8 commit message records); verify-package 'all gates passed'; `git diff --exit-code -- dist` produced no output, so the committed dist is exactly what a fresh build emits; packed smoke passed all checks including the dormant-session AC-4 checks; install:local --check resolved ./dist/extensions/index.js and the registered install. The suite stops at exactly 506 tests, i.e. it matches the sealed revision and the recorded evidence is not stale. outcome_note:"
+    },
+    {
+      "hypothesis": "The claims hold only for revision-42a78a3b and the fix in d6c19f8 was applied only to sources, leaving the committed dist behind (the evidence could be valid for a stale tree).",
+      "method": "Compared the sealed HEAD to the recorded brief (revision-08fd4eb1 / 8572934), inspected the d6c19f8 stat (dist/src/commands.js + dist/src/commands.d.ts.map + src/commands.ts + the test), then rebuilt dist and ran `git diff --exit-code -- dist` on the reviewed tree.",
+      "outcome": "refuted",
+      "evidence": "HEAD is 8572934 with a clean worktree for all reviewed paths; requoted earlier: the emitted dist reproduces the fixed `selectionFor` semantics exactly (real Node run: selectionFor(run2)->selected-valid, selectionFor(zz9)->selected-stopped with the picked candidate's state), so the fix is present in both the sources and the artifact Pi loads. outcome_note:"
     }
   ],
-  "findings": [
-    {
-      "id": "finding-status-missing-host-runs",
-      "taskId": "routing-hardening",
-      "acceptanceId": "AC-1",
-      "severity": "major",
-      "message": "`/devcontainer status` did not receive the host-run summary (the optional parameter reached `/devcontainer list` only), so AC-1, the CHANGELOG, `docs/security.md` and a README row were false while the suite stayed green."
-    },
-    {
-      "id": "finding-guard-read-unaudited",
-      "taskId": "routing-hardening",
-      "acceptanceId": "AC-6",
-      "severity": "major",
-      "message": "The reverse guard's mapping read (a registry read, hence `docker ps`) sat outside any audit boundary, so a Docker failure escaped with no record — breaking 'every failure path lands on a channel someone reads'."
-    },
-    {
-      "id": "finding-mirror-mount-refused",
-      "taskId": "routing-hardening",
-      "acceptanceId": "AC-2",
-      "severity": "major",
-      "message": "A configuration that mirrors the host path into the container at its own path (`mounts: source == target`) was refused, and the container path was refused whenever it sat beneath the host path."
-    },
-    {
-      "id": "finding-picker-no-hasui",
-      "taskId": "routing-hardening",
-      "acceptanceId": "AC-4",
-      "severity": "minor",
-      "message": "The container picker was the only prompt in its file without a `hasUI` guard, so a print/json run could have hung or thrown."
-    },
-    {
-      "id": "finding-ledger-verbatim-argv",
-      "taskId": "routing-hardening",
-      "acceptanceId": "AC-1",
-      "severity": "minor",
-      "message": "The ledger stored argv verbatim, so a credential would have been rendered in `/devcontainer status`."
-    },
-    {
-      "id": "finding-guard-holes",
-      "taskId": "routing-hardening",
-      "acceptanceId": "AC-3",
-      "severity": "nit",
-      "message": "The guard does not see routed-shell text, `~`-relative or symlinked spellings, or a host path belonging to another workspace — all false negatives (status quo)."
-    },
-    {
-      "id": "finding-first-run-wording",
-      "taskId": "routing-hardening",
-      "acceptanceId": "AC-1",
-      "severity": "nit",
-      "message": "The notice said 'first host command' for a command that may never have run; a refused attempt consumes the one-shot."
-    },
-    {
-      "id": "finding-docs-breakage",
-      "taskId": "routing-hardening",
-      "acceptanceId": "AC-5",
-      "severity": "nit",
-      "message": "The new security section was inserted inside the gates table (orphaning rows), the English README listed `/devcontainer use` twice, and the Chinese README lacked the row."
-    }
-  ]
+  "findings": [],
+  "createdAt": "2026-09-17T19:20:00Z"
 }

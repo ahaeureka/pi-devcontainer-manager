@@ -222,3 +222,21 @@ kata-cli review --change <id> --confirm-host-model --approve --review-evidence <
 
 This formalises what a disciplined loop was already doing by hand; the practical consequence is that a
 brief must be treated as a frozen artifact, not as a prompt you rewrite as you go.
+
+## 15. Converging a repair loop: the fix is the next defect's address
+
+Observed over six adversarial passes on one task (`routing-hardening`): **every major was introduced by
+the author's own repair of the previous round.** A fix that is right in the case it was written for and
+wrong one step away is the characteristic failure of a repair loop. Three habits that catch it:
+
+- **Give the next pass the fix's address.** Brief the reviewer with what the last round changed, not just
+  the acceptance criteria; ask specifically whether the fix holds in the sibling case.
+- **Test the inverse of every new gate.** A tool option must be wired to the tool that READS it (assert
+  through that surface); an exemption must be asserted against the near-miss it must still refuse.
+- **Let the pass execute.** A pass that only reads is decoration; the useful ones re-run the gates,
+  rebuild the artefacts and drive the real code path.
+
+And on the kata gate itself: the adversarial record is **per node** (`verify` AND `review`) and per
+revision, so a task needs two recorded passes per revision, and any post-pass edit restarts both. Budget
+for it: on this task the loop cost five passes (10–27 minutes each) before converging, and the two
+majors it caught in the last three rounds would otherwise have shipped.
