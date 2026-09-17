@@ -1,0 +1,67 @@
+{
+  "taskId": "routing-hardening",
+  "result": "PASS",
+  "diffHash": "e432f68e845d2b34a623b1ea32ad9f3173e3b30962f81f704779a8d1b89deb65",
+  "acceptance": [
+    {
+      "id": "AC-1",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-2fbc6c3a-414d-41d0-9c85-4e2a538b0f07",
+        "evidence-a85e8971-cc0c-4e27-bdeb-c65a5f70e71e",
+        "evidence-d9d98fef-205c-486d-97be-61322d810986"
+      ]
+    },
+    {
+      "id": "AC-2",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-2fbc6c3a-414d-41d0-9c85-4e2a538b0f07",
+        "evidence-a85e8971-cc0c-4e27-bdeb-c65a5f70e71e",
+        "evidence-d9d98fef-205c-486d-97be-61322d810986"
+      ]
+    },
+    {
+      "id": "AC-3",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-2fbc6c3a-414d-41d0-9c85-4e2a538b0f07",
+        "evidence-a85e8971-cc0c-4e27-bdeb-c65a5f70e71e",
+        "evidence-d9d98fef-205c-486d-97be-61322d810986"
+      ]
+    },
+    {
+      "id": "AC-4",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-2fbc6c3a-414d-41d0-9c85-4e2a538b0f07",
+        "evidence-a85e8971-cc0c-4e27-bdeb-c65a5f70e71e",
+        "evidence-d9d98fef-205c-486d-97be-61322d810986"
+      ]
+    },
+    {
+      "id": "AC-5",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-2fbc6c3a-414d-41d0-9c85-4e2a538b0f07",
+        "evidence-a85e8971-cc0c-4e27-bdeb-c65a5f70e71e",
+        "evidence-d9d98fef-205c-486d-97be-61322d810986"
+      ]
+    },
+    {
+      "id": "AC-6",
+      "result": "PASS",
+      "evidenceIds": [
+        "evidence-2fbc6c3a-414d-41d0-9c85-4e2a538b0f07",
+        "evidence-a85e8971-cc0c-4e27-bdeb-c65a5f70e71e",
+        "evidence-d9d98fef-205c-486d-97be-61322d810986"
+      ]
+    }
+  ],
+  "evidenceIds": [
+    "evidence-2fbc6c3a-414d-41d0-9c85-4e2a538b0f07",
+    "evidence-a85e8971-cc0c-4e27-bdeb-c65a5f70e71e",
+    "evidence-d9d98fef-205c-486d-97be-61322d810986"
+  ],
+  "revisionId": "revision-b06b91fe2d61c0ff"
+}

@@ -1,7 +1,9 @@
 {
   "taskId": "routing-hardening",
-  "decision": "deferred",
-  "reason": "Awaiting a knowledge-closure decision.",
-  "candidateIds": [],
-  "updatedAt": "2026-09-17T09:13:45.492Z"
+  "decision": "captured",
+  "reason": "Routing hardening carries three reusable judgements: observability (a bounded session ledger + a first-use notice) is the right control for an agent-driven surface where an interactive confirmation would stall or rubber-stamp; a reverse routing guard must be a path-identity check on the structured surface rather than a heuristic over shell text; and per-session state (the ledger, the lifecycle generation) belongs in the closure that owns the session and is passed to the modules that need it.",
+  "candidateIds": [
+    "llmwiki-routing-hardening"
+  ],
+  "updatedAt": "2026-09-17T09:14:25.795Z"
 }
