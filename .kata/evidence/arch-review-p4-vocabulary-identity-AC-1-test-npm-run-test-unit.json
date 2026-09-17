@@ -1,16 +1,16 @@
 {
-  "id": "evidence-c2abe147-75e8-4fd5-839d-0789a7ae0e84",
+  "id": "evidence-b6c48c05-62ce-49cd-9d66-5220c4618c19",
   "taskId": "arch-review-p4-vocabulary-identity",
   "name": "AC-1-test-npm run test:unit",
   "kind": "test",
   "command": "npm run test:unit",
   "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
   "exitCode": 0,
-  "startedAt": "2026-09-16T14:59:40.205Z",
-  "finishedAt": "2026-09-16T14:59:42.839Z",
+  "startedAt": "2026-09-17T07:18:17.507Z",
+  "finishedAt": "2026-09-17T07:18:20.411Z",
   "diffHash": "c7ec06fab40c22f3c53fd3d8c685441f81ff40f8fa30a4650c4e2a7627e93e89",
-  "log": "\n> pi-devcontainer-manager@1.0.0 test:unit\n> vitest --run tests/unit\n\n\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  36 passed (36)\n      Tests  440 passed (440)\n   Start at  22:59:40\n   Duration  2.00s (transform 10.59s, setup 0ms, import 16.99s, tests 4.44s, environment 7ms)\n\n",
-  "revisionId": "revision-913cee03-31d8-4cf3-ae33-59d68e1ff552",
+  "log": "\n> pi-devcontainer-manager@1.0.0 test:unit\n> vitest --run tests/unit\n\n\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n Test Files  36 passed (36)\n      Tests  440 passed (440)\n   Start at  15:18:18\n   Duration  2.32s (transform 20.63s, setup 0ms, import 27.89s, tests 4.46s, environment 7ms)\n\n",
+  "revisionId": "revision-fc74cc9a-99a2-4548-8e5c-959479ce491c",
   "scope": {
     "paths": [
       "CHANGELOG.md",
@@ -25,6 +25,6 @@
       "src",
       "tests"
     ],
-    "hash": "d5f4f6f9321d4eb95d336544ab1110c1595f4ef20a05558bbf27841456681990"
+    "hash": "dc4c5d0509c6bb9e9cc3f34333bf675b8ef8159083dc7ba67f76b0dcb7dcb0af"
   }
 }

@@ -1,16 +1,16 @@
 {
-  "id": "evidence-89240c9f-537a-4b47-99a2-d11c1641da9b",
+  "id": "evidence-a104e0e5-c9e5-4a25-9f41-0c3532dcd8d3",
   "taskId": "arch-review-p4-vocabulary-identity",
   "name": "test",
   "kind": "test",
   "command": "/home/work/.nvm/versions/node/v24.19.0/bin/node node_modules/vitest/dist/cli.js run",
   "environment": "node=v24.19.0 platform=linux cwd=/data/work/ahaeureka/pi-devcontainer-manager",
   "exitCode": 0,
-  "startedAt": "2026-09-16T14:59:24.000Z",
-  "finishedAt": "2026-09-16T14:59:40.204Z",
+  "startedAt": "2026-09-17T07:17:54.123Z",
+  "finishedAt": "2026-09-17T07:18:17.507Z",
   "diffHash": "c7ec06fab40c22f3c53fd3d8c685441f81ff40f8fa30a4650c4e2a7627e93e89",
-  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n\n Test Files  39 passed (39)\n      Tests  456 passed (456)\n   Start at  22:59:24\n   Duration  15.78s (transform 11.66s, setup 0ms, import 18.48s, tests 41.76s, environment 8ms)\n\n",
-  "revisionId": "revision-913cee03-31d8-4cf3-ae33-59d68e1ff552",
+  "log": "\n RUN  v4.1.9 /data/work/ahaeureka/pi-devcontainer-manager\n\n\n> pi-devcontainer-manager@1.0.0 prepack\n> npm run build\n\n\n> pi-devcontainer-manager@1.0.0 build\n> tsc -p tsconfig.json\n\n\n> pi-devcontainer-manager@1.0.0 prepare\n> node scripts/prepare-package.mjs\n\n\n Test Files  39 passed (39)\n      Tests  456 passed (456)\n   Start at  15:17:54\n   Duration  22.87s (transform 26.74s, setup 0ms, import 38.85s, tests 51.67s, environment 8ms)\n\n",
+  "revisionId": "revision-fc74cc9a-99a2-4548-8e5c-959479ce491c",
   "scope": {
     "paths": [
       "CHANGELOG.md",
@@ -25,6 +25,6 @@
       "src",
       "tests"
     ],
-    "hash": "d5f4f6f9321d4eb95d336544ab1110c1595f4ef20a05558bbf27841456681990"
+    "hash": "dc4c5d0509c6bb9e9cc3f34333bf675b8ef8159083dc7ba67f76b0dcb7dcb0af"
   }
 }

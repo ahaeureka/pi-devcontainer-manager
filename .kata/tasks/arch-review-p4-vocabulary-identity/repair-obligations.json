@@ -7,7 +7,13 @@
       "acceptanceId": "AC-1",
       "severity": "blocking",
       "message": "Judge FAIL for AC-1",
-      "createdAt": "2026-09-17T07:11:12.001Z"
+      "createdAt": "2026-09-17T07:11:12.001Z",
+      "resolvedAt": "2026-09-17T07:18:42.029Z",
+      "resolvedByRevisionId": "revision-fc74cc9a-99a2-4548-8e5c-959479ce491c",
+      "resolvedEvidenceIds": [
+        "evidence-b6c48c05-62ce-49cd-9d66-5220c4618c19",
+        "evidence-a2255f5d-9ee5-4e72-a04d-d011c85dfef4"
+      ]
     },
     {
       "id": "obligation-4f38b207-099a-43b2-bf9f-8bcdcc28f450",
@@ -16,7 +22,13 @@
       "acceptanceId": "AC-2",
       "severity": "blocking",
       "message": "Judge FAIL for AC-2",
-      "createdAt": "2026-09-17T07:11:12.001Z"
+      "createdAt": "2026-09-17T07:11:12.001Z",
+      "resolvedAt": "2026-09-17T07:18:42.029Z",
+      "resolvedByRevisionId": "revision-fc74cc9a-99a2-4548-8e5c-959479ce491c",
+      "resolvedEvidenceIds": [
+        "evidence-b6c48c05-62ce-49cd-9d66-5220c4618c19",
+        "evidence-a2255f5d-9ee5-4e72-a04d-d011c85dfef4"
+      ]
     },
     {
       "id": "obligation-5dd9b200-fc89-4d0c-9d07-761ee56879a3",
@@ -25,7 +37,13 @@
       "acceptanceId": "AC-3",
       "severity": "blocking",
       "message": "Judge FAIL for AC-3",
-      "createdAt": "2026-09-17T07:11:12.001Z"
+      "createdAt": "2026-09-17T07:11:12.001Z",
+      "resolvedAt": "2026-09-17T07:18:42.029Z",
+      "resolvedByRevisionId": "revision-fc74cc9a-99a2-4548-8e5c-959479ce491c",
+      "resolvedEvidenceIds": [
+        "evidence-b6c48c05-62ce-49cd-9d66-5220c4618c19",
+        "evidence-a2255f5d-9ee5-4e72-a04d-d011c85dfef4"
+      ]
     },
     {
       "id": "obligation-b81a01d9-a2e3-4478-808e-b8d83e2a77b2",
@@ -34,7 +52,13 @@
       "acceptanceId": "AC-4",
       "severity": "blocking",
       "message": "Judge FAIL for AC-4",
-      "createdAt": "2026-09-17T07:11:12.001Z"
+      "createdAt": "2026-09-17T07:11:12.001Z",
+      "resolvedAt": "2026-09-17T07:18:42.029Z",
+      "resolvedByRevisionId": "revision-fc74cc9a-99a2-4548-8e5c-959479ce491c",
+      "resolvedEvidenceIds": [
+        "evidence-b6c48c05-62ce-49cd-9d66-5220c4618c19",
+        "evidence-a2255f5d-9ee5-4e72-a04d-d011c85dfef4"
+      ]
     },
     {
       "id": "obligation-4cc6fe24-8e83-4743-a0d0-d1e8ae452460",
@@ -43,7 +67,13 @@
       "acceptanceId": "AC-5",
       "severity": "blocking",
       "message": "Judge FAIL for AC-5",
-      "createdAt": "2026-09-17T07:11:12.001Z"
+      "createdAt": "2026-09-17T07:11:12.001Z",
+      "resolvedAt": "2026-09-17T07:18:42.029Z",
+      "resolvedByRevisionId": "revision-fc74cc9a-99a2-4548-8e5c-959479ce491c",
+      "resolvedEvidenceIds": [
+        "evidence-b6c48c05-62ce-49cd-9d66-5220c4618c19",
+        "evidence-a2255f5d-9ee5-4e72-a04d-d011c85dfef4"
+      ]
     },
     {
       "id": "obligation-7c3de96c-ab73-4ed2-8116-0929660fc814",
@@ -52,8 +82,14 @@
       "acceptanceId": "AC-6",
       "severity": "blocking",
       "message": "Judge FAIL for AC-6",
-      "createdAt": "2026-09-17T07:11:12.001Z"
+      "createdAt": "2026-09-17T07:11:12.001Z",
+      "resolvedAt": "2026-09-17T07:18:42.029Z",
+      "resolvedByRevisionId": "revision-fc74cc9a-99a2-4548-8e5c-959479ce491c",
+      "resolvedEvidenceIds": [
+        "evidence-b6c48c05-62ce-49cd-9d66-5220c4618c19",
+        "evidence-1fc7a5d8-b0e8-4f39-a0bf-d6711c095ca5"
+      ]
     }
   ],
-  "updatedAt": "2026-09-17T07:11:12.002Z"
+  "updatedAt": "2026-09-17T07:18:42.029Z"
 }
