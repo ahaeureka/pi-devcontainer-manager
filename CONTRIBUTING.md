@@ -69,7 +69,7 @@ structural casts that wire `src/` into Pi.
 
 | Command | What it does |
 |---|---|
-| `npm run typecheck` | strict `tsc --noEmit` (NodeNext, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`) |
+| `npm run typecheck` | strict `tsc --noEmit` twice: `tsconfig.json` (`src`, `extensions`) and `tsconfig.tests.json` (`tests/**`, `noEmit`) — a test file outside `tests/**` escapes BOTH |
 | `npm run test:unit` | deterministic unit tests — the fast local loop |
 | `npm test` | full vitest run (unit + integration + e2e + package smoke) |
 | `npx vitest run tests/integration` | real Docker + pinned Dev Containers CLI |
@@ -171,7 +171,7 @@ node scripts/smoke-pi-package.mjs --no-model
 ```
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs those on Node 22.19
-for every push to `master` and every pull request, plus a job that fails the build
+for every push to `main` and every pull request, plus a job that fails the build
 if a credential-looking string was committed.
 [`.github/workflows/integration.yml`](.github/workflows/integration.yml) runs the
 real-Docker suites separately (they need a Docker daemon and are slower).
@@ -185,7 +185,7 @@ security-relevant change without that reasoning will be sent back.
 The package version in `package.json` is the source of truth, and the release
 workflow refuses to publish when the git tag does not match it.
 
-1. Land everything for the release on `master`.
+1. Land everything for the release on `main`.
 2. Move the entries in [CHANGELOG.md](CHANGELOG.md) from `## [Unreleased]` into a
    dated `## [x.y.z] - YYYY-MM-DD` section, and update the link references at the
    bottom of that file.

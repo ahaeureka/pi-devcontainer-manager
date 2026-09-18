@@ -78,7 +78,6 @@ function makeConfig(overrides: Partial<EffectiveConfig> = {}): EffectiveConfig {
     devcontainerPath: cliPath,
     allowedWorkspaceRoots: [FIXTURES],
     discovery: { maxDepth: 3, excludedDirectories: ["node_modules", ".git", ".pi", "dist", "build"] },
-    destructive: { allowStop: true, allowRemove: false },
     ...overrides,
   });
 }
