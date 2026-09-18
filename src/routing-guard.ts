@@ -1,4 +1,4 @@
-import { isAtOrUnder } from "./workspace-path.js";
+import { isAtOrUnder, isSamePath } from "./workspace-path.js";
 
 /**
  * The REVERSE routing guard: a container-surface request that names the HOST workspace path.
@@ -51,8 +51,10 @@ export function detectHostPathOnContainerSurface(
   if (mapping === undefined) return undefined;
   const host = normalize(mapping.hostPath);
   const container = normalize(mapping.containerPath);
-  // Same path on both sides: the argument is correct as written.
-  if (host === container) return undefined;
+  // Same path on both sides: the argument is correct as written. The comparison goes through the shared
+  // predicate like every other one, so an equivalent spelling (`/host/proj/` vs `//host/proj`) is recognised
+  // instead of being refused (adversarial review).
+  if (isSamePath(mapping.hostPath, mapping.containerPath)) return undefined;
   if (host.length === 0) return undefined;
   const visible = (mapping.containerVisiblePaths ?? []).map((path) => normalize(expandVariables(path, mapping.hostPath)));
   // The shared segment test: one implementation for every place that asks "is this the base or beneath it",

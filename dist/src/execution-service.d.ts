@@ -95,6 +95,10 @@ export interface ExecutionServiceOptions {
      * Containers CLI still receives the host path, which it maps itself.
      * Returns undefined when no mapping exists (host path is shown unchanged).
      */
+    /**
+     * Optional presentation hook used when NO host<->container mapping is available (a container-only workspace):
+     * the exec path prefers the mapping it already read for the routing guard and only falls back to this.
+     */
     readonly resolveContainerWorkspace?: (hostWorkspace: string) => Promise<string | undefined>;
     /**
      * Optional probe deciding whether a workspace is itself a DevContainer project.

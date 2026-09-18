@@ -27,10 +27,26 @@ describe("documentation states the host-execution default the code implements", 
     expect(read("README.zh-CN.md")).toContain(expected);
   });
 
-  it("no operator-facing document still calls host execution deny-by-default", () => {
-    // The sentence an operator would read before the change; it must not survive anywhere.
+  it("no operator-facing document (either language) still calls host execution deny-by-default", () => {
+    // The SENTENCES an operator would read before the change. The Chinese bullet survived the posture change
+    // because the old check only grepped the English phrasing (adversarial review).
+    const forbidden = [
+      "`true` only when **both** grant it",
+      "destructive\n  actions, and host execution are all denied",
+      "破坏性操作和宿主机执行默认全部被拒",
+      "宿主机执行默认被拒",
+    ];
     for (const path of ["README.md", "README.zh-CN.md", "docs/configuration.md", "docs/security.md", "SECURITY.md", "docs/troubleshooting.md"]) {
-      expect(read(path), `${path} still describes the old posture`).not.toContain("`true` only when **both** grant it");
+      const text = read(path);
+      for (const sentence of forbidden) {
+        expect(text, `${path} still describes the old posture: ${sentence}`).not.toContain(sentence);
+      }
     }
+  });
+
+  it("the shipped posture sentence appears in both READMEs", () => {
+    // The positive direction: the grant-by-default must be stated, not merely not-contradicted.
+    expect(read("README.md")).toContain("host execution is the one surface granted by default");
+    expect(read("README.zh-CN.md")).toContain("宿主执行是唯一默认开启的面");
   });
 });

@@ -16,7 +16,11 @@ const config: EffectiveConfig = {
   destructive: { allowStop: false, allowRemove: false }, hostExecution: { allow: true },
 };
 
-async function harness(options: { mapping?: { hostPath: string; containerPath: string; containerVisiblePaths?: readonly string[] }; mappingFor?: () => Promise<never> } = {}) {
+async function harness(options: {
+  mapping?: { hostPath: string; containerPath: string; containerVisiblePaths?: readonly string[] };
+  mappingFor?: () => Promise<never>;
+  resolveContainerWorkspace?: (hostWorkspace: string) => Promise<string | undefined>;
+} = {}) {
   const store = new TargetStore({ clock: () => "x" });
   await store.select({
     status: "selected-valid",
@@ -34,6 +38,9 @@ async function harness(options: { mapping?: { hostPath: string; containerPath: s
     ...(options.mappingFor !== undefined
       ? { mappingFor: options.mappingFor }
       : { mappingFor: async () => options.mapping ?? { hostPath: "/host/proj", containerPath: "/workspaces/proj" } }),
+    ...(options.resolveContainerWorkspace !== undefined
+      ? { resolveContainerWorkspace: options.resolveContainerWorkspace }
+      : {}),
   });
   return { service, exec, records };
 }
@@ -84,5 +91,61 @@ describe("reverse routing guard through the service", () => {
     ).rejects.toThrow("docker daemon unavailable");
 
     expect(records.at(-1)?.errorSummary).toContain("docker daemon unavailable");
+  });
+});
+
+describe("one registry read per container exec", () => {
+  it("reuses the guard's mapping for the presentation instead of resolving it twice", async () => {
+    // Adversarial review: the guard read the mapping BEFORE the container command and the presentation hook
+    // re-resolved it AFTER it, so the two reads were separated by the whole command — no TTL can bridge that.
+    const calls: string[] = [];
+    let presentationReads = 0;
+    const { service } = await harness({
+      mappingFor: (async () => {
+        calls.push("mapping");
+        return { hostPath: "/host/proj", containerPath: "/workspaces/proj" };
+      }) as unknown as () => Promise<never>,
+      resolveContainerWorkspace: async () => {
+        presentationReads += 1;
+        calls.push("presentation");
+        return "/workspaces/proj-from-hook";
+      },
+    });
+
+    const outcome = await service.exec({
+      operation: "container-exec",
+      initiator: "tool",
+      workspace: "/host/proj",
+      cmd: "echo",
+      args: ["hi"],
+    });
+
+    // The mapping already answers the presentation question, so the hook is not consulted at all.
+    expect(presentationReads).toBe(0);
+    expect(calls).toEqual(["mapping"]);
+    expect(outcome.workspaceKey).toBe("/workspaces/proj");
+  });
+
+  it("falls back to the presentation hook when the workspace declares no mapping", async () => {
+    let presentationReads = 0;
+    const { service } = await harness({
+      mapping: undefined,
+      mappingFor: (async () => undefined) as unknown as () => Promise<never>,
+      resolveContainerWorkspace: async () => {
+        presentationReads += 1;
+        return "/workspaces/proj-from-hook";
+      },
+    });
+
+    const outcome = await service.exec({
+      operation: "container-exec",
+      initiator: "tool",
+      workspace: "/host/proj",
+      cmd: "echo",
+      args: ["hi"],
+    });
+
+    expect(presentationReads).toBe(1);
+    expect(outcome.workspaceKey).toBe("/workspaces/proj-from-hook");
   });
 });

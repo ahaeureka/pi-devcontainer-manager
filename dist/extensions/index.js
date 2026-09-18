@@ -41,6 +41,7 @@ import { NodeProcessRunner } from "../src/runtime/process-runner.js";
 import { NodeCapabilityService } from "../src/runtime/capabilities.js";
 import { NodeDockerAdapter } from "../src/runtime/docker-adapter.js";
 import { NodeDevcontainerAdapter } from "../src/runtime/devcontainer-adapter.js";
+import { createShortCache } from "../src/short-cache.js";
 import { NodeDockerLifecycleAdapter } from "../src/runtime/docker-lifecycle.js";
 import { buildWorkspaceRegistry, nodeTraversal, workspaceHasConfig, workspacePathFor } from "../src/runtime/host-discovery.js";
 import { findContainerPath, hostToContainer, readConfigFacts, } from "../src/path-mapper.js";
@@ -135,6 +136,11 @@ hostVisibility) {
     const reportUnparsableConfig = (message) => {
         discoveryDiagnostics.add([message]);
     };
+    // One command resolves the workspace TWICE (the routing guard's mapping and the presentation hook), and each
+    // resolution is a full discovery: `docker ps --all` plus a host traversal. The cache collapses the pair into
+    // one read; its window is far shorter than the timescale at which containers appear, and a failed read is not
+    // cached (adversarial review).
+    const registryCache = createShortCache({ ttlMs: 500 });
     const registry = async () => {
         const traversal = nodeTraversal();
         const dockerResult = await docker.listDevContainers();
@@ -142,6 +148,12 @@ hostVisibility) {
         discoveryDiagnostics.add([...result.diagnostics, ...dockerResult.errors]);
         return result;
     };
+    // A mutation of the world the extension itself performs must be seen immediately.
+    const registryFresh = async () => {
+        registryCache.clear();
+        return registryCache.get("registry", registry);
+    };
+    const registryForRead = async () => registryCache.get("registry", registry);
     /**
      * Auto-select the session-cwd workspace as the default target when none is
      * selected yet (empty-selection only — an explicit `/devcontainer use`
@@ -177,7 +189,7 @@ hostVisibility) {
      * declares no resolvable mapping.
      */
     const resolveContainerWorkspace = async (hostWorkspace) => {
-        const { entries } = await registry();
+        const { entries } = await registryForRead();
         const key = canonicalWorkspaceKey(hostWorkspace);
         const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
         const configPath = entry !== undefined ? configPathOf(entry) : undefined;
@@ -190,15 +202,19 @@ hostVisibility) {
     };
     /** Read the selected workspace's host<->container mapping (shared by both routing guards). */
     const readMapping = async (workspaceKey) => {
-        const { entries } = await registry();
+        const { entries } = await registryForRead();
         const key = canonicalWorkspaceKey(workspaceKey);
         const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
         const configPath = entry !== undefined ? configPathOf(entry) : undefined;
         if (entry === undefined || configPath === undefined)
             return undefined;
         const facts = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, configPath), reportUnparsableConfig);
-        if (facts.mapping === undefined)
+        if (facts.mapping === undefined) {
+            // Nothing to compare against, so the container-path guard cannot run. The escape hatch is granted by
+            // default, so say so rather than leaving the operator to assume the guard ran.
+            reportUnparsableConfig(`${configPath} declares no workspaceFolder/workspaceMount, so the ROUTING GUARDS are inactive for ${entry.workspacePath}: a container path could reach the host and a host path could be sent to the container.`);
             return undefined;
+        }
         // Paths the configuration makes visible in the container at their own path are NOT mis-routes:
         // the same file exists on both sides (the reverse guard must not refuse them).
         return {
@@ -243,21 +259,10 @@ hostVisibility) {
         targetStoreWorkspaceKey: () => targetStore.snapshot().workspaceKey,
         ledger: hostVisibility.ledger,
         onFirstHostRun: hostVisibility.onFirstHostRun,
-        guardMappingFor: async (workspaceKey) => {
-            const { entries } = await registry();
-            const key = canonicalWorkspaceKey(workspaceKey);
-            const entry = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === key);
-            const configPath = entry !== undefined ? configPathOf(entry) : undefined;
-            if (entry === undefined || configPath === undefined)
-                return undefined;
-            const facts = readWorkspaceConfig(effectiveConfigPath(entry.workspacePath, configPath), reportUnparsableConfig);
-            if (facts.mapping === undefined) {
-                // Nothing to compare against, so the container-path guard cannot run. The escape hatch is
-                // granted by default now, so say so rather than leaving the operator to assume it ran.
-                reportUnparsableConfig(`${configPath} declares no workspaceFolder/workspaceMount, so the container-path guard is inactive for ${entry.workspacePath}; a container path would reach the host if one is given.`);
-            }
-            return facts.mapping;
-        },
+        // ONE implementation of "what does this workspace map to": `readMapping` (which reads through the short
+        // cache), so the guard and the presentation hook cannot disagree AND cannot discover twice (adversarial
+        // review).
+        guardMappingFor: async (workspaceKey) => readMapping(workspaceKey),
     });
     const commandServices = {
         config,
@@ -266,7 +271,8 @@ hostVisibility) {
         targetStore,
         execution,
         registry,
-        refreshRegistry: registry,
+        // A refresh follows a mutation the extension itself performed, so it must not be served from the read cache.
+        refreshRegistry: registryFresh,
         hostRunner,
         setupCli: createSetupCli({ runner, audit, config, sessionWorkspace, env }),
     };
@@ -589,7 +595,11 @@ export default function (pi) {
                 }
                 const handler = rt.commandHandlers[verb];
                 if (handler === undefined) {
-                    ctx.ui.notify(`Unknown /devcontainer verb: ${verb}. Run /devcontainer to list verbs.`, "error");
+                    // Caller-supplied, so it is sanitized (no control/format characters, bounded) — but NOT run through
+                    // `displayProgram`, which is a host-argv renderer: it would turn a legitimate `/devcontainer --help`
+                    // into "(no command)" (adversarial review).
+                    const shownVerb = verb.replace(/[\u0000-\u001f\u007f-\u009f\p{Cf}]/gu, "").slice(0, 32);
+                    ctx.ui.notify(`Unknown /devcontainer verb: ${shownVerb.length > 0 ? shownVerb : "(empty)"}. Run /devcontainer to list verbs.`, "error");
                     return;
                 }
                 const cmdCtx = {

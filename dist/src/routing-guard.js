@@ -1,4 +1,4 @@
-import { isAtOrUnder } from "./workspace-path.js";
+import { isAtOrUnder, isSamePath } from "./workspace-path.js";
 /** Expand the devcontainer variable a `mounts` entry may use for the host workspace. */
 function expandVariables(path, hostPath) {
     return hostPath === undefined ? path : path.replaceAll("${localWorkspaceFolder}", hostPath);
@@ -21,8 +21,10 @@ export function detectHostPathOnContainerSurface(argv, mapping) {
         return undefined;
     const host = normalize(mapping.hostPath);
     const container = normalize(mapping.containerPath);
-    // Same path on both sides: the argument is correct as written.
-    if (host === container)
+    // Same path on both sides: the argument is correct as written. The comparison goes through the shared
+    // predicate like every other one, so an equivalent spelling (`/host/proj/` vs `//host/proj`) is recognised
+    // instead of being refused (adversarial review).
+    if (isSamePath(mapping.hostPath, mapping.containerPath))
         return undefined;
     if (host.length === 0)
         return undefined;
