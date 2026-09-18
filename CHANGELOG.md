@@ -270,3 +270,18 @@ macOS.
 
 [Unreleased]: https://github.com/ahaeureka/pi-devcontainer-manager/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/ahaeureka/pi-devcontainer-manager/releases/tag/v1.0.0
+
+### Follow-up round (routing hardening)
+
+- One workspace discovery per `devcontainer_exec` instead of two: the routing guard's mapping and the presentation
+  hook share a bounded 500 ms read cache (`src/short-cache.ts`), the guard delegates to the one resolver, and a
+  refresh after a mutation the extension performed bypasses the cache.
+- The container picker's labels are unique: two containers whose ids share their first 12 characters no longer
+  collapse onto one selectable row (the colliding label falls back to the full id).
+- `/devcontainer host-exec` validates its grammar BEFORE the policy gate, so a malformed invocation is a usage
+  error in both configurations, is not counted as a host attempt, and cannot consume the session's one-shot notice.
+- The reverse guard's same-path skip uses the shared path predicate, so an equivalent spelling of a same-path
+  mapping is recognised instead of refused; the unknown-verb diagnostic renders through the enforced renderer.
+- Docs: the README and `docs/security.md` state the posture that ships (host execution granted by default, withheld
+  with `false`), the ASCII-only limitation of the program-name rendering, the audit-side query/fragment gap, the
+  all-stopped ordering caveat, and the CLI version the host resolves (`0.89.0`).
