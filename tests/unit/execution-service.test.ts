@@ -20,23 +20,11 @@ import { TargetStore, type ExecutionContext } from "../../src/target-store.js";
 import type { DevcontainerAdapter, ExecResult, UpResult, BuildResult } from "../../src/runtime/devcontainer-adapter.js";
 import type { DockerLifecycleAdapter, LifecycleConfirmation, LifecycleResult } from "../../src/runtime/docker-lifecycle.js";
 import type { DockerContainer } from "../../src/runtime/docker-adapter.js";
+import { testConfig } from "../fixtures/config.js";
 
 function makeConfig(overrides: Partial<EffectiveConfig> = {}): EffectiveConfig {
-  return {
-    version: 1,
-    dockerPath: "docker",
-    devcontainerPath: "devcontainer",
-    routeMode: "container-required",
-    allowedWorkspaceRoots: ["/ws"],
-    environmentAllowlist: ["FOO"],
-    maxTimeoutSeconds: 900,
-    maxOutputBytes: 50 * 1024,
-    discovery: { maxDepth: 3, excludedDirectories: ["node_modules", ".git"] },
-    audit: { enabled: true, retentionDays: 90, commandCapture: "fingerprint-only" },
-    destructive: { allowStop: false, allowRemove: false },
-    hostExecution: { allow: false },
-    ...overrides,
-  };
+  // This suite asserts the environment FILTER, and the shipped default allowlists nothing.
+  return testConfig({ environmentAllowlist: ["FOO"], ...overrides });
 }
 
 function fakeTargetStore(snapshotStatus: string = "selected-valid"): { store: TargetStore; bound: ExecutionContext } {

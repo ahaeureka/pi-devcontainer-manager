@@ -14,16 +14,10 @@ import { isAtOrUnder, isSamePath } from "../../src/workspace-path.js";
 import { findContainerPath, hostToContainer } from "../../src/path-mapper.js";
 import { createAuditedHostRunner } from "../../src/host-runner.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
+import { testConfig } from "../fixtures/config.js";
 
 function makeConfig(overrides: Partial<EffectiveConfig> = {}): EffectiveConfig {
-  return {
-    version: 1, dockerPath: "docker", devcontainerPath: "devcontainer", routeMode: "container-required",
-    allowedWorkspaceRoots: ["/ws"], environmentAllowlist: [], maxTimeoutSeconds: 900, maxOutputBytes: 1024,
-    discovery: { maxDepth: 3, excludedDirectories: [".git"] },
-    audit: { enabled: true, retentionDays: 90, commandCapture: "fingerprint-only" },
-    destructive: { allowStop: false, allowRemove: false }, hostExecution: { allow: true },
-    ...overrides,
-  };
+  return testConfig(overrides);
 }
 
 describe("detectHostPathOnContainerSurface", () => {

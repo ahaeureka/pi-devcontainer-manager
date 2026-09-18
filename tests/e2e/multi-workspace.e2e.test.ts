@@ -36,6 +36,7 @@ import { ExecutionService } from "../../src/execution-service.js";
 import { buildWorkspaceRegistry, nodeTraversal } from "../../src/runtime/host-discovery.js";
 import type { AuditWriter } from "../../src/audit.js";
 import type { AuditRecord, EffectiveConfig, RegistryEntry } from "../../src/types.js";
+import { testConfig } from "../../tests/fixtures/config.js";
 
 const FIXTURES = resolve(process.cwd(), "tests", "fixtures");
 const FIXTURE_A = resolve(FIXTURES, "project-a");
@@ -72,21 +73,14 @@ const piPath = (() => {
 })();
 
 function makeConfig(overrides: Partial<EffectiveConfig> = {}): EffectiveConfig {
-  return {
-    version: 1,
-    dockerPath: "docker",
+  // One fixture for every suite (tests/fixtures/config.ts); the file-specific deltas are named here.
+  return testConfig({
     devcontainerPath: cliPath,
-    routeMode: "container-required",
     allowedWorkspaceRoots: [FIXTURES],
-    environmentAllowlist: [],
-    maxTimeoutSeconds: 900,
-    maxOutputBytes: 50 * 1024,
     discovery: { maxDepth: 3, excludedDirectories: ["node_modules", ".git", ".pi", "dist", "build"] },
-    audit: { enabled: true, retentionDays: 90, commandCapture: "fingerprint-only" },
-    destructive: { allowStop: false, allowRemove: false },
-    hostExecution: { allow: false },
+    destructive: { allowStop: true, allowRemove: false },
     ...overrides,
-  };
+  });
 }
 
 async function registryEntries(): Promise<RegistryEntry[]> {

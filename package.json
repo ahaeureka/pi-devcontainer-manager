@@ -22,7 +22,12 @@
     "docs",
     "examples"
   ],
-  "keywords": ["pi-package", "pi-extension", "devcontainer", "docker"],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "devcontainer",
+    "docker"
+  ],
   "author": "pi-devcontainer-manager contributors",
   "repository": {
     "type": "git",
@@ -33,7 +38,9 @@
     "url": "https://github.com/ahaeureka/pi-devcontainer-manager/issues"
   },
   "pi": {
-    "extensions": ["./dist/extensions/index.js"]
+    "extensions": [
+      "./dist/extensions/index.js"
+    ]
   },
   "engines": {
     "node": ">=22.19.0"
@@ -41,7 +48,7 @@
   "scripts": {
     "clean": "rm -rf dist",
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest --run",
     "test:unit": "vitest --run tests/unit",
     "pack:check": "npm pack --dry-run",

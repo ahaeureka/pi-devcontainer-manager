@@ -12,23 +12,10 @@ import { RuntimeError } from "../../src/errors.js";
 import { createSetupCli } from "../../src/setup-cli.js";
 import type { ProcessResult, ProcessRunner, ProcessRunnerOptions } from "../../src/runtime/process-runner.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
+import { testConfig } from "../fixtures/config.js";
 
 function makeConfig(overrides: Partial<EffectiveConfig> = {}): EffectiveConfig {
-  return {
-    version: 1,
-    dockerPath: "docker",
-    devcontainerPath: "devcontainer",
-    routeMode: "container-required",
-    allowedWorkspaceRoots: ["/ws"],
-    environmentAllowlist: [],
-    maxTimeoutSeconds: 900,
-    maxOutputBytes: 50 * 1024,
-    discovery: { maxDepth: 3, excludedDirectories: [".git"] },
-    audit: { enabled: true, retentionDays: 90, commandCapture: "fingerprint-only" },
-    destructive: { allowStop: false, allowRemove: false },
-    hostExecution: { allow: false },
-    ...overrides,
-  };
+  return testConfig(overrides);
 }
 
 /**
@@ -52,7 +39,7 @@ function harness(
   install: Handler,
   probe: Handler = () => result(),
   overrides: Partial<EffectiveConfig> = {},
-  auditOverride?: (record: AuditRecord) => void,
+  auditOverride?: (record: AuditRecord) => undefined,
 ) {
   const calls: { file: string; args: readonly string[]; options: ProcessRunnerOptions }[] = [];
   const runner: ProcessRunner = {
@@ -62,7 +49,7 @@ function harness(
     },
   };
   const records: AuditRecord[] = [];
-  const audit = { write: (record: AuditRecord) => void records.push(record), prune: () => undefined };
+  const audit = { write: (record: AuditRecord): undefined => { records.push(record); return undefined; }, prune: () => undefined };
   if (auditOverride !== undefined) audit.write = auditOverride;
   const setup = createSetupCli({
     runner,

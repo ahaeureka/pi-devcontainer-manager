@@ -10,6 +10,7 @@ import type {
   UpResult,
 } from "../../src/runtime/devcontainer-adapter.js";
 import type { DockerLifecycleAdapter } from "../../src/runtime/docker-lifecycle.js";
+import { testConfig } from "../fixtures/config.js";
 
 /**
  * AC-2, wiring half: the configuration an operator selected must be the
@@ -25,20 +26,7 @@ import type { DockerLifecycleAdapter } from "../../src/runtime/docker-lifecycle.
 const CONFIG_PATH = "/ws/project-a/.devcontainer/python/devcontainer.json";
 
 function makeConfig(): EffectiveConfig {
-  return {
-    version: 1,
-    dockerPath: "docker",
-    devcontainerPath: "devcontainer",
-    routeMode: "container-required",
-    allowedWorkspaceRoots: ["/ws"],
-    environmentAllowlist: [],
-    maxTimeoutSeconds: 900,
-    maxOutputBytes: 50 * 1024,
-    discovery: { maxDepth: 3, excludedDirectories: ["node_modules", ".git"] },
-    audit: { enabled: true, retentionDays: 90, commandCapture: "fingerprint-only" },
-    destructive: { allowStop: false, allowRemove: false },
-    hostExecution: { allow: false },
-  };
+  return testConfig();
 }
 
 function auditStub(): AuditWriter {

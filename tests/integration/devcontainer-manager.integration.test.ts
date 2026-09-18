@@ -46,6 +46,7 @@ import { buildWorkspaceRegistry, nodeTraversal } from "../../src/runtime/host-di
 import { primaryConfigOf } from "../../src/registry-entry.js";
 import type { AuditWriter } from "../../src/audit.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
+import { testConfig } from "../../tests/fixtures/config.js";
 
 const FIXTURE_A = resolve(process.cwd(), "tests", "fixtures", "project-a");
 const FIXTURE_B = resolve(process.cwd(), "tests", "fixtures", "project-b");
@@ -82,21 +83,14 @@ const cliOk = (() => {
 })();
 
 function makeConfig(overrides: Partial<EffectiveConfig> = {}): EffectiveConfig {
-  return {
-    version: 1,
-    dockerPath: "docker",
+  // One fixture for every suite (tests/fixtures/config.ts); the file-specific deltas are named here.
+  return testConfig({
     devcontainerPath: cliPath,
-    routeMode: "container-required",
     allowedWorkspaceRoots: [resolve(process.cwd(), "tests", "fixtures")],
-    environmentAllowlist: [],
-    maxTimeoutSeconds: 900,
-    maxOutputBytes: 50 * 1024,
     discovery: { maxDepth: 3, excludedDirectories: ["node_modules", ".git", ".pi", "dist", "build"] },
-    audit: { enabled: true, retentionDays: 90, commandCapture: "fingerprint-only" },
     destructive: { allowStop: true, allowRemove: false },
-    hostExecution: { allow: false },
     ...overrides,
-  };
+  });
 }
 
 interface Composed {

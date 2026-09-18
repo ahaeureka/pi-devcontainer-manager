@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { ExecutionService } from "../../src/execution-service.js";
 import { RuntimeError } from "../../src/errors.js";
-import type { AuditRecord, AuditWriter, EffectiveConfig } from "../../src/types.js";
+import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
+import type { AuditWriter } from "../../src/audit.js";
 import type { ExecutionContext, TargetStore } from "../../src/target-store.js";
 import type { DevcontainerAdapter, ExecResult } from "../../src/runtime/devcontainer-adapter.js";
 import type { DockerLifecycleAdapter } from "../../src/runtime/docker-lifecycle.js";
+import { testConfig } from "../fixtures/config.js";
 
 /**
  * AC-8: routing from outside the selected target.
@@ -26,21 +28,8 @@ const PLAIN_REPO = "/repo-plain";
 const OTHER_PROJECT = "/ws/project-b";
 
 function makeConfig(): EffectiveConfig {
-  return {
-    version: 1,
-    dockerPath: "docker",
-    devcontainerPath: "devcontainer",
-    routeMode: "container-required",
-    activation: "workspace",
-    allowedWorkspaceRoots: ["/ws", PLAIN_REPO],
-    environmentAllowlist: [],
-    maxTimeoutSeconds: 900,
-    maxOutputBytes: 50 * 1024,
-    discovery: { maxDepth: 3, excludedDirectories: ["node_modules", ".git"] },
-    audit: { enabled: true, retentionDays: 90, commandCapture: "fingerprint-only" },
-    destructive: { allowStop: false, allowRemove: false },
-    hostExecution: { allow: false },
-  };
+  // The root list is part of this suite's fixture: it routes from a plain repo OUTSIDE the selected target.
+  return testConfig({ allowedWorkspaceRoots: ["/ws", PLAIN_REPO] });
 }
 
 interface Harness {
