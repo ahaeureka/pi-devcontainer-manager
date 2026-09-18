@@ -20,7 +20,7 @@ describe("createShortCache", () => {
     }
   });
 
-  it("keys per workspace, bounds its size, and is clearable", async () => {
+  it("keys by whatever the caller passes, bounds its size, and is clearable", async () => {
     const cache = createShortCache<string>({ ttlMs: 10_000, limit: 2 });
     const load = (value: string) => async () => value;
 

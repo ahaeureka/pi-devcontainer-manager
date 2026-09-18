@@ -305,7 +305,7 @@ function composeRuntime(
       // Nothing to compare against, so the container-path guard cannot run. The escape hatch is granted by
       // default, so say so rather than leaving the operator to assume the guard ran.
       reportUnparsableConfig(
-        `${configPath} declares no workspaceFolder/workspaceMount, so the container-path guard is inactive for ${entry.workspacePath}; a container path would reach the host if one is given.`,
+        `${configPath} declares no workspaceFolder/workspaceMount, so the ROUTING GUARDS are inactive for ${entry.workspacePath}: a container path could reach the host and a host path could be sent to the container.`,
       );
       return undefined;
     }
@@ -721,10 +721,12 @@ export default function (pi: ExtensionAPI): void {
         }
         const handler = rt!.commandHandlers[verb];
         if (handler === undefined) {
-          // The verb is caller-supplied text: render it through the enforced renderer like every other
-          // operator-facing value (adversarial review).
+          // Caller-supplied, so it is sanitized (no control/format characters, bounded) — but NOT run through
+          // `displayProgram`, which is a host-argv renderer: it would turn a legitimate `/devcontainer --help`
+          // into "(no command)" (adversarial review).
+          const shownVerb = verb.replace(/[\u0000-\u001f\u007f-\u009f\p{Cf}]/gu, "").slice(0, 32);
           ctx.ui.notify(
-            `Unknown /devcontainer verb: ${displayProgram([verb])}. Run /devcontainer to list verbs.`,
+            `Unknown /devcontainer verb: ${shownVerb.length > 0 ? shownVerb : "(empty)"}. Run /devcontainer to list verbs.`,
             "error",
           );
           return;

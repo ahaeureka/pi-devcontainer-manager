@@ -533,11 +533,14 @@ describe("displayCommandResult", () => {
 
 describe("/devcontainer host-exec", () => {
   it("denies by policy without invoking the host runner", async () => {
+    // The input must be GRAMMATICAL: a malformed one is refused by the parser before the policy gate, so the
+    // test would pass even with the gate deleted (adversarial review).
     const hostRunner = { run: vi.fn() };
     const { handlers } = makeServices({ hostRunner });
     const ctx = makeCtx();
-    const result = await handlers["host-exec"]!("rm -rf /", ctx);
+    const result = await handlers["host-exec"]!("--argv rm --argv -rf --argv /", ctx);
     expect(result.text).toContain("[policy-denied]");
+    expect(result.text).toContain("hostExecution.allow: false");
     expect(hostRunner.run).not.toHaveBeenCalled();
   });
 

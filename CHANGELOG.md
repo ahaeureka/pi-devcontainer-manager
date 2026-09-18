@@ -268,6 +268,11 @@ macOS.
   because it cannot execute caller-supplied argv; it requires an interactive
   confirmation and is audited as `operation: "setup"`.
 
+
+
+[Unreleased]: https://github.com/ahaeureka/pi-devcontainer-manager/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/ahaeureka/pi-devcontainer-manager/releases/tag/v1.0.0
+
 [Unreleased]: https://github.com/ahaeureka/pi-devcontainer-manager/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/ahaeureka/pi-devcontainer-manager/releases/tag/v1.0.0
 

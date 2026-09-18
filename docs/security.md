@@ -165,7 +165,7 @@ is redacted as one space-joined string, so `--password a b` hides `--password a`
 inherently ambiguous to a rule and also survive: a **slash inside the password**
 (`https://alice:/hunter2@host` — a rule cannot tell it from a path) and a **URL-shaped argument that is not
 the whole argument** (`ssh alice:hunter2@host`, with no scheme to key on). Under the audit
-default `audit.commandCapture: "fingerprint-only"` no command text is recorded at all, so those three gaps
+default `audit.commandCapture: "fingerprint-only"` no command text is recorded at all, so these gaps
 matter only under `"redacted-text"` — but the in-session summary renders a program name, so a
 credential-shaped `argv[0]` is the one place they would have shown up there, which is why that rendering is
 enforced (`displayProgram`) rather than assumed: it takes the FIRST whitespace-delimited token of `argv[0]`,

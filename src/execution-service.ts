@@ -22,6 +22,7 @@
  */
 import { commandIdentity as commandIdentityFor, evaluatePolicy, buildChildEnvironment } from "./policy.js";
 import { workspaceHasConfig } from "./runtime/host-discovery.js";
+import { hostToContainer } from "./path-mapper.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
 import { RuntimeError } from "./errors.js";
 import type { AuditWriter } from "./audit.js";
@@ -129,6 +130,10 @@ export interface ExecutionServiceOptions {
    * Containers CLI still receives the host path, which it maps itself.
    * Returns undefined when no mapping exists (host path is shown unchanged).
    */
+  /**
+   * Optional presentation hook used when NO host<->container mapping is available (a container-only workspace):
+   * the exec path prefers the mapping it already read for the routing guard and only falls back to this.
+   */
   readonly resolveContainerWorkspace?: (hostWorkspace: string) => Promise<string | undefined>;
   /**
    * Optional probe deciding whether a workspace is itself a DevContainer project.
@@ -182,10 +187,12 @@ export class ExecutionService {
     // container, where that path either does not exist or exists for a different reason — refuse it
     // and name the container path to use instead. Routed-shell text is deliberately NOT inspected: the
     // Phase-5 review established that a heuristic over shell text cannot be made safe.
+    // Read ONCE and reuse: the guard below needs it and the presentation further down must not pay a second
+    // registry read (a time gap no cache can bridge — adversarial review).
+    let mapping: Awaited<ReturnType<NonNullable<typeof this.options.mappingFor>>>;
     if (request.operation === "container-exec" && this.options.mappingFor !== undefined) {
       // The mapping comes from a registry read (which can fail: a Docker probe), and a failure here
       // must land on a channel someone reads rather than escaping unaudited.
-      let mapping: Awaited<ReturnType<NonNullable<typeof this.options.mappingFor>>>;
       try {
         mapping = await this.options.mappingFor(ctx.workspaceKey);
       } catch (error) {
@@ -283,10 +290,15 @@ export class ExecutionService {
 
     // Present the workspace to the agent in container terms when a mapping
     // exists (host path otherwise). CLI calls above used the host path.
+    // Reuse the mapping the guard already read (above), so one command performs ONE registry read. Asking a
+    // second hook would re-resolve it AFTER the container command ran — a time gap no cache TTL can bridge
+    // (adversarial review).
     const presentedWorkspace =
-      this.options.resolveContainerWorkspace !== undefined
-        ? (await this.options.resolveContainerWorkspace(ctx.workspaceKey)) ?? ctx.workspaceKey
-        : ctx.workspaceKey;
+      mapping !== undefined
+        ? (hostToContainer(ctx.workspaceKey, mapping) ?? ctx.workspaceKey)
+        : this.options.resolveContainerWorkspace !== undefined
+          ? (await this.options.resolveContainerWorkspace(ctx.workspaceKey)) ?? ctx.workspaceKey
+          : ctx.workspaceKey;
     const outcome: ExecOutcome = {
       operation: request.operation,
       workspaceKey: presentedWorkspace,
