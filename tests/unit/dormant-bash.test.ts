@@ -39,7 +39,7 @@ describe("lazyBashOperations", () => {
     const localExec = vi.fn(async () => result("host"));
     const ops = lazyBashOperations(() => runtime(true, containerExec), localOperations(localExec));
 
-    const outcome = await ops.exec("pwd", "/ws/project-a", undefined as never);
+    const outcome = (await ops.exec("pwd", "/ws/project-a", undefined as never)) as { output?: string };
 
     expect(containerExec).toHaveBeenCalledTimes(1);
     expect(localExec).not.toHaveBeenCalled();
@@ -51,7 +51,7 @@ describe("lazyBashOperations", () => {
     const localExec = vi.fn(async () => result("host"));
     const ops = lazyBashOperations(() => runtime(false, containerExec), localOperations(localExec));
 
-    const outcome = await ops.exec("pwd", "/repo-plain", undefined as never);
+    const outcome = (await ops.exec("pwd", "/repo-plain", undefined as never)) as { output?: string };
 
     expect(localExec).toHaveBeenCalledWith("pwd", "/repo-plain", undefined);
     expect(containerExec).not.toHaveBeenCalled();

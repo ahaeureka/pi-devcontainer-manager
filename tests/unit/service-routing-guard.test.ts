@@ -7,14 +7,14 @@ import { ExecutionService } from "../../src/execution-service.js";
 import { TargetStore } from "../../src/target-store.js";
 import type { DevcontainerAdapter } from "../../src/runtime/devcontainer-adapter.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
+import { testConfig } from "../fixtures/config.js";
 
-const config: EffectiveConfig = {
-  version: 1, dockerPath: "docker", devcontainerPath: "devcontainer", routeMode: "container-required",
-  allowedWorkspaceRoots: ["/host"], environmentAllowlist: [], maxTimeoutSeconds: 900, maxOutputBytes: 1024,
+const config: EffectiveConfig = testConfig({
+  allowedWorkspaceRoots: ["/host"],
+  maxOutputBytes: 1024,
   discovery: { maxDepth: 3, excludedDirectories: [".git"] },
-  audit: { enabled: true, retentionDays: 90, commandCapture: "fingerprint-only" },
-  destructive: { allowStop: false, allowRemove: false }, hostExecution: { allow: true },
-};
+});
+
 
 async function harness(options: {
   mapping?: { hostPath: string; containerPath: string; containerVisiblePaths?: readonly string[] };
@@ -129,7 +129,6 @@ describe("one registry read per container exec", () => {
   it("falls back to the presentation hook when the workspace declares no mapping", async () => {
     let presentationReads = 0;
     const { service } = await harness({
-      mapping: undefined,
       mappingFor: (async () => undefined) as unknown as () => Promise<never>,
       resolveContainerWorkspace: async () => {
         presentationReads += 1;

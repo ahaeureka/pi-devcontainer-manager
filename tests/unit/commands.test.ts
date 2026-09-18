@@ -23,23 +23,12 @@ import type { ExecutionService, LifecycleServiceResult, UpBuildOutcome } from ".
 import type { TargetStore, TargetStoreSnapshot } from "../../src/target-store.js";
 import type { DockerContainer } from "../../src/runtime/docker-adapter.js";
 import type { SelectionRecord } from "../../src/selection-state.js";
+import { testConfig } from "../fixtures/config.js";
 
 function makeConfig(overrides: Partial<EffectiveConfig> = {}): EffectiveConfig {
-  return {
-    version: 1,
-    dockerPath: "docker",
-    devcontainerPath: "devcontainer",
-    routeMode: "container-required",
-    allowedWorkspaceRoots: ["/ws"],
-    environmentAllowlist: ["FOO"],
-    maxTimeoutSeconds: 900,
-    maxOutputBytes: 50 * 1024,
-    discovery: { maxDepth: 3, excludedDirectories: ["node_modules", ".git"] },
-    audit: { enabled: true, retentionDays: 90, commandCapture: "fingerprint-only" },
-    destructive: { allowStop: false, allowRemove: false },
-    hostExecution: { allow: false },
-    ...overrides,
-  };
+  // The suite's own deltas (an allowlisted env var; host execution withheld unless a test grants it), named
+  // rather than repeated.
+  return testConfig({ environmentAllowlist: ["FOO"], hostExecution: { allow: false }, ...overrides });
 }
 
 const entry: RegistryEntry = configEntry({
@@ -91,7 +80,6 @@ function makeServices(overrides: Partial<CommandServices> = {}): CommandServices
     } as unknown as ExecutionService,
     registry: vi.fn(async () => ({ entries: [entry], diagnostics: [] })),
     refreshRegistry: vi.fn(async () => ({ entries: [entry], diagnostics: [] })),
-    logs: vi.fn(async () => ({ exitCode: 0, output: "log-line", truncated: false })),
     hostRunner: {
       run: vi.fn(async () => ({ exitCode: 0, signal: null, stdout: "host-out", stderr: "", truncated: false })),
     },
@@ -193,7 +181,7 @@ describe("/devcontainer use", () => {
 
     // The picker replaces the refusal, not the decision: the operator chooses, Docker order never does.
     expect(ctx.ui.select).toHaveBeenCalled();
-    expect(ctx.ui.select.mock.calls[0]?.[1]).toContain("aa12 — running — devcontainer:latest");
+    expect((ctx.ui.select as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]).toContain("aa12 — running — devcontainer:latest");
     expect(result.text).toContain("container `aa12`");
     expect(result.target?.candidateId).toBe("aa12");
   });
@@ -324,7 +312,7 @@ describe("/devcontainer use", () => {
     const { handlers, targetStore } = makeServices();
     const ctx = makeCtx();
     await handlers["use"]!("project-a", ctx);
-    const selection = targetStore.select.mock.calls[0]![0] as { candidate?: { configPath?: string } };
+    const selection = (targetStore.select as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { candidate?: { configPath?: string } };
     // `.devcontainer/devcontainer.json` is resolved by the CLI itself, so argv
     // must stay exactly as it is today.
     expect(selection.candidate?.configPath).toBeUndefined();
@@ -343,7 +331,7 @@ describe("/devcontainer use", () => {
     });
     const ctx = makeCtx();
     await handlers["use"]!("project-a", ctx);
-    const selection = targetStore.select.mock.calls[0]![0] as { candidate?: { configPath?: string } };
+    const selection = (targetStore.select as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { candidate?: { configPath?: string } };
     expect(selection.candidate?.configPath).toBe(namedPath);
   });
 
@@ -360,7 +348,7 @@ describe("/devcontainer use", () => {
     });
     const ctx = makeCtx();
     const result = await handlers["use"]!("project-a --config python", ctx);
-    const selection = targetStore.select.mock.calls[0]![0] as { candidate?: { configPath?: string } };
+    const selection = (targetStore.select as unknown as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { candidate?: { configPath?: string } };
     expect(selection.candidate?.configPath).toBe(pythonPath);
     expect(result.text).toContain("Selected `/ws/project-a`");
   });
@@ -541,7 +529,7 @@ describe("/devcontainer host-exec", () => {
     const result = await handlers["host-exec"]!("--argv rm --argv -rf --argv /", ctx);
     expect(result.text).toContain("[policy-denied]");
     expect(result.text).toContain("hostExecution.allow: false");
-    expect(hostRunner.run).not.toHaveBeenCalled();
+    expect(hostRunner!.run).not.toHaveBeenCalled();
   });
 
   it("runs argv on the host when allowed", async () => {
@@ -587,7 +575,7 @@ describe("/devcontainer host-exec", () => {
     // found ambiguous, so the old form fails closed and names the new one.
     expect(result.text).toContain("[policy-denied]");
     expect(result.text).toContain("--argv");
-    expect(hostRunner.run).not.toHaveBeenCalled();
+    expect(hostRunner!.run).not.toHaveBeenCalled();
   });
 
   it("refuses a --argv flag with no value", async () => {
@@ -596,7 +584,7 @@ describe("/devcontainer host-exec", () => {
     const result = await handlers["host-exec"]!("--argv", makeCtx());
 
     expect(result.text).toContain("[policy-denied]");
-    expect(hostRunner.run).not.toHaveBeenCalled();
+    expect(hostRunner!.run).not.toHaveBeenCalled();
   });
 
   it("refuses a flag-looking word that is not --argv", async () => {
@@ -607,7 +595,7 @@ describe("/devcontainer host-exec", () => {
     const result = await handlers["host-exec"]!("--argverbose", makeCtx());
 
     expect(result.text).toContain("[policy-denied]");
-    expect(hostRunner.run).not.toHaveBeenCalled();
+    expect(hostRunner!.run).not.toHaveBeenCalled();
   });
 
   it("ends an --argv=<value> at the next --argv word", async () => {
@@ -634,7 +622,7 @@ describe("/devcontainer host-exec", () => {
     const result = await handlers["host-exec"]!("", makeCtx());
 
     expect(result.text).toContain("--argv");
-    expect(hostRunner.run).not.toHaveBeenCalled();
+    expect(hostRunner!.run).not.toHaveBeenCalled();
   });
 
   it("keeps stderr when the host command also wrote stdout", async () => {
@@ -757,7 +745,6 @@ describe("reconcileSelection identity validation", () => {
   it("keeps a persisted id the registry still offers", async () => {
     const { services, ctx } = harness([
       running({
-        containerId: "keep-me",
         containerCandidates: [
           { id: "keep-me", state: "running" },
           { id: "other", state: "exited" },
@@ -802,7 +789,7 @@ describe("CommandResult.target (L1-06)", () => {
   });
 
   it("use reports no target when the operator cancels", async () => {
-    const ctx = makeCtx({ ui: undefined });
+    const ctx = makeCtx();
     ctx.ui.select = vi.fn(async () => undefined);
     const multi = [
       configEntry({ workspacePath: "/ws/a", containers: [candidate("abc123456789")] }),
@@ -974,12 +961,10 @@ describe("reconcileSelection keeps the selected configuration (L1-04)", () => {
 describe("reconcileSelection preserves an already-selected configuration (L1-04 regression)", () => {
   const named = "/ws/project-a/.devcontainer/python/devcontainer.json";
   const entryWithBoth: RegistryEntry = {
-    ...entry,
-    containerState: "running",
-    containerId: "c1",
-    containerCandidates: [{ id: "c1", state: "running" }],
-    configPath: "/ws/project-a/.devcontainer/devcontainer.json",
-    configKind: ".devcontainer/devcontainer.json",
+    ...configEntry({
+      workspacePath: "/ws/project-a",
+      containers: [candidate("c1", "running")],
+    }),
     configCandidates: [
       { configPath: "/ws/project-a/.devcontainer/devcontainer.json", configKind: ".devcontainer/devcontainer.json" },
       { configPath: named, configKind: ".devcontainer/<name>/devcontainer.json" },
@@ -1032,7 +1017,7 @@ describe("/devcontainer host-exec denial remedy (AC-4)", () => {
     expect(result.text).toContain("project");
     expect(result.text).toContain("global");
     expect(result.text).not.toContain("allow=true");
-    expect(hostRunner.run).not.toHaveBeenCalled();
+    expect(hostRunner!.run).not.toHaveBeenCalled();
   });
 });
 
@@ -1051,12 +1036,12 @@ describe("host-exec grammar precedes the policy gate", () => {
       const handlers = createCommandHandlers(services);
 
       // A flag with no value and an empty string are usage errors, in BOTH configurations.
-      expect((await handlers["host-exec"]("--argv", ctx)).text).toMatch(/--argv|usage/i);
-      expect((await handlers["host-exec"]("", ctx)).text).toMatch(/--argv|usage/i);
+      expect((await handlers["host-exec"]!("--argv", ctx)).text).toMatch(/--argv|usage/i);
+      expect((await handlers["host-exec"]!("", ctx)).text).toMatch(/--argv|usage/i);
       expect(seen).toEqual([]);
 
       // …and a grammatical attempt is the one that is counted (only when policy withholds it).
-      await handlers["host-exec"]("--argv echo --argv hi", ctx);
+      await handlers["host-exec"]!("--argv echo --argv hi", ctx);
       attempts.push(...seen);
       seen.length = 0;
     }
@@ -1091,7 +1076,7 @@ describe("the container picker labels are unique", () => {
       refreshRegistry: vi.fn(async () => ({ entries: [entry], diagnostics: [] })),
     });
     const handlers = createCommandHandlers(services);
-    const result = await handlers.use("project-a", ctx);
+    const result = await handlers.use!("project-a", ctx);
 
     expect(new Set(labels).size).toBe(labels.length);
     expect(labels[1]).toContain(idB);

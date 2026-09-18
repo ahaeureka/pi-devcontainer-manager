@@ -4,21 +4,23 @@ import { resolveUserBash } from "../../extensions/index.js";
 describe("resolveUserBash (user_bash fail-closed contract)", () => {
   it("returns a failing result when the runtime is not initialized (never host fallback)", () => {
     const resolved = resolveUserBash(undefined);
+    expect(resolved).toBeDefined();
     // Must NOT return undefined (Pi would fall through to host local bash) and
     // must NOT be a throw (emitUserBash swallows handler errors -> host bash).
-    expect("result" in resolved).toBe(true);
-    if ("result" in resolved) {
+    expect(resolved !== undefined && "result" in resolved).toBe(true);
+    if (resolved !== undefined && "result" in resolved) {
       expect(resolved.result.exitCode).toBe(1);
       expect(resolved.result.cancelled).toBe(false);
       expect(resolved.result.output).toContain("not initialized");
     }
-    expect("operations" in resolved).toBe(false);
+    expect(resolved !== undefined && "operations" in resolved).toBe(false);
   });
 
   it("uses the full guidance message for `!` (in-context)", () => {
     const resolved = resolveUserBash(undefined, { command: "ls", cwd: "/w", excludeFromContext: false });
-    expect("result" in resolved).toBe(true);
-    if ("result" in resolved) {
+    expect(resolved).toBeDefined();
+    expect(resolved !== undefined && "result" in resolved).toBe(true);
+    if (resolved !== undefined && "result" in resolved) {
       expect(resolved.result.output).toContain("DevContainer runtime is not initialized");
       expect(resolved.result.output).toContain("/reload");
     }
@@ -26,8 +28,9 @@ describe("resolveUserBash (user_bash fail-closed contract)", () => {
 
   it("uses a terse message for `!!` (excluded from context)", () => {
     const resolved = resolveUserBash(undefined, { command: "ls", cwd: "/w", excludeFromContext: true });
-    expect("result" in resolved).toBe(true);
-    if ("result" in resolved) {
+    expect(resolved).toBeDefined();
+    expect(resolved !== undefined && "result" in resolved).toBe(true);
+    if (resolved !== undefined && "result" in resolved) {
       expect(resolved.result.output).toContain("runtime not initialized");
       expect(resolved.result.output).not.toContain("DevContainer runtime is not initialized");
     }

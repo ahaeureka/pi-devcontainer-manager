@@ -246,10 +246,14 @@ describe("buildWorkspaceRegistry — configuration candidates", () => {
       "/repo/.devcontainer/python/devcontainer.json",
       "/repo/.devcontainer/node/devcontainer.json",
     ]);
-    expect(entries[0]?.configCandidates.map((candidate) => candidate.configPath)).toEqual([
+    // `configCandidates` exists on the CONFIG variant of the union: narrow first (the union is the point).
+    const entry = entries[0];
+    expect(entry?.kind).toBe("config");
+    if (entry?.kind !== "config") throw new Error("expected a config entry");
+    expect(entry.configCandidates.map((candidate) => candidate.configPath)).toEqual([
       "/repo/.devcontainer/node/devcontainer.json",
       "/repo/.devcontainer/python/devcontainer.json",
     ]);
-    expect(entries[0]?.configCandidates.every((candidate) => candidate.configKind === ".devcontainer/<name>/devcontainer.json")).toBe(true);
+    expect(entry.configCandidates.every((candidate) => candidate.configKind === ".devcontainer/<name>/devcontainer.json")).toBe(true);
   });
 });
