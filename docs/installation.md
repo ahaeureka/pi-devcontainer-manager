@@ -12,7 +12,7 @@ prerequisites, and the optional host state that uninstall leaves behind.
 | Node.js | `>= 22.19.0` | Enforced by the package `engines` field |
 | Pi | a Pi CLI install | Extension tools/commands register at Pi startup |
 | Docker | Docker Engine or Docker Desktop | Linux or macOS only (see [compatibility.md](compatibility.md)) |
-| Dev Containers CLI | `@devcontainers/cli@0.88.0` | Exact pin; see below |
+| Dev Containers CLI | `@devcontainers/cli@0.88.0` (`0.89.0` also verified) | Exact pin; see below |
 
 ### The Dev Containers CLI
 

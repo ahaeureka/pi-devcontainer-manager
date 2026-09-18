@@ -315,12 +315,23 @@ export function createCommandHandlers(services) {
         const chooseAmbiguousContainer = async (entry, ctx) => {
             const ids = entry.containerCandidates.map((c) => c.id);
             const refusal = `[ambiguous-candidate] Multiple running containers for \`${entry.workspacePath}\`${ids.length > 0 ? `: ${ids.map((id) => `\`${id}\``).join(", ")}` : ""}.\nRun /devcontainer use <container-id> to pick one.`;
-            const labels = entry.containerCandidates.map((c) => `${c.id.slice(0, 12)} — ${c.state}${c.image !== undefined ? ` — ${c.image}` : ""}`);
+            // The label is a DISPLAY string and Pi's select returns it, so the labels must be unique: two container ids
+            // sharing their first 12 characters (and state and image) would otherwise collapse onto the first index and
+            // make the second row unselectable (adversarial review).
+            const label = (c, short) => `${short ? c.id.slice(0, 12) : c.id} — ${c.state}${c.image !== undefined ? ` — ${c.image}` : ""}`;
+            const shortLabels = entry.containerCandidates.map((c) => label(c, true));
+            const collides = new Set(shortLabels.filter((value, index) => shortLabels.indexOf(value) !== index));
+            const labels = entry.containerCandidates.map((c) => {
+                const short = label(c, true);
+                return collides.has(short) ? label(c, false) : short;
+            });
             if (labels.length === 0 || !ctx.hasUI)
                 return { ok: false, text: refusal };
             const picked = await ctx.ui.select(`Select the container for ${entry.workspacePath}`, labels, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);
             if (picked === undefined)
                 return { ok: false, text: refusal };
+            // By INDEX, never by the label string: two candidates whose ids share their first 12 characters render the
+            // same label, and `indexOf` would silently bind the first one (adversarial review).
             const index = labels.indexOf(picked);
             const chosen = index === -1 ? undefined : entry.containerCandidates[index];
             if (chosen === undefined)
@@ -536,11 +547,16 @@ export function createCommandHandlers(services) {
         }
     };
     handlers["host-exec"] = async (args, ctx) => {
+        // The GRAMMAR comes first, in both configurations: a usage error is reported as one, and a malformed
+        // invocation is not counted as a host attempt nor allowed to consume the session's one-shot notice
+        // (adversarial review — the withheld path used to count before parsing).
+        const parsed = parseHostExecArgv(args);
+        if (!parsed.ok)
+            return { text: parsed.text };
         if (!services.config.hostExecution.allow) {
-            // A withheld attempt is exactly what the operator needs to see: count it before answering.
-            const attempted = parseHostExecArgv(args);
-            // The RAW first token: the ledger renders it.
-            services.onWithheldHostAttempt?.(attempted.ok ? attempted.argv[0] ?? "" : args.trim().split(/\s+/)[0] ?? "");
+            // A withheld attempt is exactly what the operator needs to see: count it before answering. The RAW first
+            // token: the ledger renders it.
+            services.onWithheldHostAttempt?.(parsed.argv[0] ?? "");
             return {
                 text: "[policy-denied] Host execution is disabled by policy.\n" +
                     "This installation withholds it by configuration: remove `hostExecution.allow: false` from the project file " +
@@ -550,9 +566,6 @@ export function createCommandHandlers(services) {
         if (services.hostRunner === undefined) {
             return { text: "[unexpected] Host runner is not wired in this environment." };
         }
-        const parsed = parseHostExecArgv(args);
-        if (!parsed.ok)
-            return { text: parsed.text };
         const argv = parsed.argv;
         try {
             const result = await services.hostRunner.run(argv, ctx.signal !== undefined ? { signal: ctx.signal } : undefined);

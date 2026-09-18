@@ -309,8 +309,10 @@ Every key, default, and merge rule is documented in
 - **Pi never runs inside a container.** No session, extension, skill,
   configuration, credential, or API key is installed, copied, mounted, or
   persisted in a target container.
-- **Default deny.** Workspace roots, forwarded environment names, destructive
-  actions, and host execution are all denied unless explicitly granted.
+- **Deny unless configured, and a layer can only withhold.** Workspace roots,
+  forwarded environment names, and destructive actions are denied unless
+  explicitly granted; host execution is the one surface granted by default
+  (`hostExecution.allow` ships `true`) and is withheld with `false` anywhere.
 - **Fresh validation before every action.** Selection intent is persisted as a
   stable workspace key plus candidate discriminator; each operation re-resolves
   the target and freezes an immutable policy snapshot before any spawn, so a

@@ -32,7 +32,7 @@ output and tool output both use the shape:
 | `docker-cli-failure` | The Docker CLI returned a nonzero exit for `stop`/`remove`; the exit code is carried on the error. | Check Docker daemon reachability and the container state. |
 | `timeout` | The operation exceeded its timeout (`maxTimeoutSeconds` ceiling). | Raise `maxTimeoutSeconds`, or narrow the command. |
 | `cancelled` | The operation was cancelled; the whole process group was killed. | Nothing to fix. |
-| `parse-failure` | A CLI/Docker response could not be parsed. | Usually a CLI version mismatch — check the pinned `@devcontainers/cli@0.88.0`. |
+| `parse-failure` | A CLI/Docker response could not be parsed. | Usually a CLI version mismatch — check the pinned `@devcontainers/cli@0.88.0` (`0.89.0` also verified). |
 | `unexpected` | Anything else, including a **nonzero container-side exit code**. | For a nonzero exit, read the command output printed with the error; the exit code is intentional, not a bug. |
 
 Every spawn failure names the OS error code, so the three ways a command can fail to start are

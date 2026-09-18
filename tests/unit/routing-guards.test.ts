@@ -234,6 +234,27 @@ describe("the visibility records no command text", () => {
   });
 });
 
+describe("the guard's own comparisons use the shared predicate", () => {
+  it("recognises an equivalent spelling of a same-path mapping instead of refusing", () => {
+    // Adversarial review: the skip compared RAW spellings while every other comparison normalized, so a mapping
+    // written `/host/proj/` -> `//host/proj` refused a legitimate host command.
+    for (const mapping of [
+      { hostPath: "/host/proj/", containerPath: "//host/proj" },
+      { hostPath: "/host/proj", containerPath: "/host/./proj" },
+      { hostPath: "/host//proj", containerPath: "/host/proj" },
+    ]) {
+      expect(detectHostPathOnContainerSurface(["cat", "/host/proj/README.md"], mapping)).toBeUndefined();
+    }
+    // A mapping that is genuinely NOT a same-path mount still refuses the host path.
+    expect(
+      detectHostPathOnContainerSurface(["cat", "/host/proj/README.md"], {
+        hostPath: "/host/proj",
+        containerPath: "/workspaces/proj",
+      }),
+    ).toBe("/host/proj/README.md");
+  });
+});
+
 describe("the segment predicate is shared and complete", () => {
   it("handles root bases, trailing slashes, `.`, `..` and prefix-sharing siblings", () => {
     expect(isAtOrUnder("/etc/passwd", "/")).toBe(true);

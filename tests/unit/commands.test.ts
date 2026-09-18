@@ -1032,3 +1032,66 @@ describe("/devcontainer host-exec denial remedy (AC-4)", () => {
     expect(hostRunner.run).not.toHaveBeenCalled();
   });
 });
+
+describe("host-exec grammar precedes the policy gate", () => {
+  it("does not count a malformed invocation, nor let it consume the one-shot notice", async () => {
+    // Adversarial review: the withheld path counted and announced a usage error, so the first REAL attempt was
+    // never announced and the same input counted differently per configuration.
+    const attempts: string[] = [];
+    const seen: string[] = [];
+    for (const allow of [false, true]) {
+      const services = makeServices({
+        config: makeConfig({ hostExecution: { allow } }),
+        onWithheldHostAttempt: (program: string) => void seen.push(program),
+      });
+      const ctx = makeCtx();
+      const handlers = createCommandHandlers(services);
+
+      // A flag with no value and an empty string are usage errors, in BOTH configurations.
+      expect((await handlers["host-exec"]("--argv", ctx)).text).toMatch(/--argv|usage/i);
+      expect((await handlers["host-exec"]("", ctx)).text).toMatch(/--argv|usage/i);
+      expect(seen).toEqual([]);
+
+      // …and a grammatical attempt is the one that is counted (only when policy withholds it).
+      await handlers["host-exec"]("--argv echo --argv hi", ctx);
+      attempts.push(...seen);
+      seen.length = 0;
+    }
+    expect(attempts).toEqual(["echo"]);
+  });
+});
+
+describe("the container picker labels are unique", () => {
+  it("uses the full id for candidates whose short ids collide", async () => {
+    // Adversarial review: two containers whose ids share their first 12 characters produced identical labels,
+    // and `indexOf` bound the first row, making the second unselectable.
+    const idA = "aaaaaaaaaaaa1111";
+    const idB = "aaaaaaaaaaaa2222";
+    const entry: RegistryEntry = configEntry({
+      workspacePath: "/ws/project-a",
+      containers: [candidate(idA, "running"), candidate(idB, "running")],
+    });
+
+    let labels: readonly string[] = [];
+    const ui = {
+      select: vi.fn(async (_title: string, options: readonly string[]) => {
+        labels = options;
+        return options[1];
+      }),
+      confirm: vi.fn(async () => true),
+      notify: vi.fn(),
+    };
+    const ctx = { ...makeCtx(), hasUI: true, ui } as unknown as CommandContextLike;
+
+    const services = makeServices({
+      registry: vi.fn(async () => ({ entries: [entry], diagnostics: [] })),
+      refreshRegistry: vi.fn(async () => ({ entries: [entry], diagnostics: [] })),
+    });
+    const handlers = createCommandHandlers(services);
+    const result = await handlers.use("project-a", ctx);
+
+    expect(new Set(labels).size).toBe(labels.length);
+    expect(labels[1]).toContain(idB);
+    expect(result.text).toContain(idB);
+  });
+});

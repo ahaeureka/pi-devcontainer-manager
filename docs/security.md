@@ -175,15 +175,19 @@ fragment — renders `(no command)`, the same text used when nothing was named. 
 purpose: eleven adversarial passes each found a credential reaching the summary through a richer rule (a userinfo
 pair, a URL query, a webhook path, a bracket literal, a colon that was not a port), so the rendering no longer
 parses structure at all. What CAN still reach the surfaces is a credential a caller spells as a bare program word
-(`argv[0]="hunter2"`), which no command line produces in practice; the audit trail remains the authoritative
-record of what actually ran, and the summary's count still shows how many host commands there were.
+(`argv[0]="hunter2"`), which no command line produces in practice; the rule is ASCII-only, so a program whose NAME
+carries non-ASCII letters renders `(no command)` as well. On the audit side, `redactText` also does not name a URL's
+query or fragment keys (`…?access_code=…`) — the same ambiguity class as the slash-in-password case above. The audit
+trail remains the authoritative record of what actually ran, and the summary's count still shows how many there were.
 A rule that guessed at unflagged secrets would redact ordinary arguments
 too, so extending it is a policy decision rather than a bug fix, and belongs in its own change.
 
 The **in-session visibility deliberately keeps no command text at all**: `/devcontainer status` reports a
 count and the program names, and the one-shot notice names the program. Adversarial passes found
 credentials reachable through a rendered command line (two of them through fixes for the previous one), so
-the surface that produced them was removed rather than patched again.
+the surface that produced them was removed rather than patched again. One ordering caveat: a workspace whose
+containers are ALL stopped binds the FIRST one Docker lists, because ambiguity is defined as more than one RUNNING
+container — `/devcontainer use <container-id>` overrides it.
 
 ### How the host escape hatch is gated (a deliberate asymmetry)
 

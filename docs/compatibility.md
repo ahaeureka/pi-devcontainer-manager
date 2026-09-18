@@ -10,8 +10,8 @@ guessing.
 
 | Platform | Docker | Dev Containers CLI | Notes |
 |---|---|---|---|
-| Linux | Docker Engine / Desktop | `@devcontainers/cli@0.88.0` | Primary target; CI runs here |
-| macOS (darwin) | Docker Desktop | `@devcontainers/cli@0.88.0` | Audit path under `~/Library/Application Support/...` |
+| Linux | Docker Engine / Desktop | `@devcontainers/cli@0.88.0` (`0.89.0` also verified on the admin host) | Primary target; CI runs here |
+| macOS (darwin) | Docker Desktop | `@devcontainers/cli@0.88.0` (`0.89.0` also verified on the admin host) | Audit path under `~/Library/Application Support/...` |
 
 The CLI can be installed with `/devcontainer setup`, which runs
 `npm install -g @devcontainers/cli` on the host after an interactive
