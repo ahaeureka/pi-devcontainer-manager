@@ -79,7 +79,9 @@ supports them.
 - Merges host-config entries with Docker label candidates
   (`devcontainer.local_folder`) into one registry keyed by canonical workspace
   path. Config-only (never-started) projects are first-class entries;
-  docker-only candidates are retained for diagnostics.
+  docker-only candidates are retained for diagnostics. Docker is queried with the label filter
+  (`docker ps --all --filter label=devcontainer.local_folder`), so containers that carry no
+  DevContainer label are not listed at all — an unrelated container is not a degraded scan.
 - Stopped containers are discoverable and selectable; execution on a stopped
   target fails closed with `target-stopped` until you run `/devcontainer up`.
 

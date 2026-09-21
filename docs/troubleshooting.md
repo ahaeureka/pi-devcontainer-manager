@@ -189,17 +189,41 @@ path (see [Configuration → `audit`](configuration.md#audit)). Retention
 shipped extension does not schedule pruning, so rotate the dated `.jsonl` files
 yourself if you need bounded disk usage.
 
+### `build` or `up` fails with `Failed to download package for ghcr.io/…`
+
+The Dev Containers CLI fetches a Feature over OCI **before** any Docker work, with its own HTTP
+client, and a Feature's proxy build args (`build.args`) do not cover that fetch — they only reach the
+Docker build that comes later. The CLI resolves its proxy from `process.env` (`proxy-agent` →
+`proxy-from-env`), so the extension passes the operator's proxy variables through to it: `HTTP_PROXY`,
+`HTTPS_PROXY`, `NO_PROXY`, `ALL_PROXY` and the lower-case spellings. If `env | grep -i proxy` shows
+them in the shell that started `pi`, the download has them too.
+
+If `pi` was started without them, the CLI connects directly. The manifest and token requests can
+still succeed (they are small) while the blob download fails — `Error getting blob:
+AggregateError` in the output at `--log-level trace`, then `Failed to download package for
+ghcr.io/…`. Start `pi` from the shell that has the proxy set (or export it in whatever launches the
+session) and `/reload`.
+
+The proxy is never read from the extension's own configuration: the value is site-specific and
+already belongs to the session environment.
+
 ### `/devcontainer` prints `[devcontainer-manager] …` warnings
 
-Those are discovery diagnostics: the host scan could not finish, or a Docker record could not be
-parsed. Typical lines are `cannot read directory <dir>`, `max depth N reached; not traversing
-<dir>`, `not traversing <dir>: resolves outside allowed workspace root`, and `no
-devcontainer.local_folder label`. Each distinct line is reported **once per session** (the sink
-dedupes, because the registry is re-read on every command), and they are shown to you only — they
-never enter the model's context and are never written to the audit file. An empty workspace scan
-and a scan that stopped half way used to look identical; now they do not. Fix the reported cause
-(permissions on a workspace root, a `discovery.maxDepth` that is too shallow, a container started
-without the Dev Container label) or ignore the line if the workspace it names is irrelevant.
+Those are discovery diagnostics: the host scan could not finish. Typical lines are `cannot read
+directory <dir>`, `max depth N reached; not traversing <dir>`, `not traversing <dir>: resolves
+outside allowed workspace root`, and `docker ps output truncated at N bytes; DevContainer containers
+beyond that point are missing from the registry`. Each distinct line is reported **once per
+session** (the sink dedupes, because the registry is re-read on every command), and they are shown
+to you only — they never enter the model's context and are never written to the audit file. An
+empty workspace scan and a scan that stopped half way used to look identical; now they do not.
+Fix the reported cause (permissions on a workspace root, a `discovery.maxDepth` that is too
+shallow) or ignore the line if the workspace it names is irrelevant.
+
+Discovery lists the DevContainer-labelled containers only — the label IS the container's workspace
+identity — so the unrelated containers on a dev host are not reported. A `truncated` line is the
+one to act on: containers past the cut are absent from the registry, DevContainer ones included.
+The listing uses at least 1 MiB (`DISCOVERY_MAX_OUTPUT_BYTES`) regardless of `maxOutputBytes`, so
+reaching that cap means a very large fleet; raise `maxOutputBytes` and `/reload` if you have one.
 
 ### The host cannot start any executable (`ENOTCONN`)
 

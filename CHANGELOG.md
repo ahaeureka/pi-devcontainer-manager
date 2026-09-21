@@ -109,6 +109,29 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **The Dev Containers CLI can reach a registry through the operator's proxy again.** The host child
+  environment was a fixed `PATH`/`HOME`/`XDG_STATE_HOME` literal, so `HTTP_PROXY`/`HTTPS_PROXY` (and
+  the other spellings) never reached the CLI — whose Feature download is an HTTP request of its own,
+  resolved from `process.env`. On a host whose egress needs the proxy, `devcontainer build` failed
+  with `Failed to download package for ghcr.io/…` even though the manifest and token requests had
+  already succeeded (the blob fetch is what needs the route), and no configuration could fix it: a
+  Feature's proxy build args only apply to the Docker build that comes later. Every host child is now
+  composed by one function (`composeHostEnvironment`) that keeps the executable/cache basics and
+  passes the proxy variables through; nothing else is added.
+- **Discovery lists only DevContainer-labelled containers, and says so when the listing is cut.** It
+  asked Docker for every container on the host, so each unrelated one produced a `… has no
+  devcontainer.local_folder label` warning on the first `/devcontainer` command of a session — the
+  normal case reported as a discovery failure — dozens of lines on one developer host, burying the
+  diagnostics that were real. A listing was also bounded like a command's output, which it is not:
+  at roughly 1–3 KiB per labelled record the 50 KiB default covered only ~20 containers, the rest
+  were silently dropped from the registry, and whichever record the cut landed inside was blamed on
+  a parse error (`unparseable … record`) rather than the truncation that caused it. Discovery now
+  filters with `--filter label=devcontainer.local_folder`, uses a 1 MiB floor for the listing, and
+  reports a capped listing as truncation naming the containers that are missing from the registry.
+- **An empty `devcontainer.local_folder` label is no longer treated as a workspace.**
+  `canonicalWorkspaceKey("")` resolves to the process cwd, so a container labelled
+  `devcontainer.local_folder=` registered as the extension's own working directory. Absent and empty
+  are both "no workspace identity", which the registry reports instead of inventing one.
 - A refused `/devcontainer setup` install (npm missing, the install timing out, an abort) is
   now audited and reported through the structured `[setup-failed] …` path. The install stage
   used to run without a `try`/`catch`, so it skipped its `setup` audit record entirely and

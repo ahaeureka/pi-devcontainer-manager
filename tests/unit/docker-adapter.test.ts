@@ -3,7 +3,9 @@ import { NodeDockerAdapter, type DockerContainer } from "../../src/runtime/docke
 import type { ProcessRunner } from "../../src/runtime/process-runner.js";
 import { RuntimeError } from "../../src/errors.js";
 
-function fakeRunner(respond: (args: readonly string[]) => { stdout: string; exitCode?: number }): ProcessRunner {
+function fakeRunner(
+  respond: (args: readonly string[]) => { stdout: string; exitCode?: number; truncated?: boolean },
+): ProcessRunner {
   return {
     async exec(file, args, options) {
       const response = respond(args);
@@ -15,7 +17,7 @@ function fakeRunner(respond: (args: readonly string[]) => { stdout: string; exit
         exitCode: response.exitCode ?? 0,
         signal: null,
         durationMs: 1,
-        truncated: false,
+        truncated: response.truncated ?? false,
         ...(options.onData === undefined ? { stdout: response.stdout } : {}),
         ...(options.onStderr === undefined ? { stderr: (response as { stderr?: string }).stderr ?? "" } : {}),
       };
@@ -57,8 +59,17 @@ describe("NodeDockerAdapter.listDevContainers", () => {
       return { stdout: psRecord() };
     });
     const result = await adapter(runner).listDevContainers();
-    expect(seenArgs.slice(0, 5)).toEqual(["ps", "--all", "--no-trunc", "--format",
-      "{{json .ID}}\n{{json .Names}}\n{{json .State}}\n{{json .Status}}\n{{json .Image}}\n{{json .CreatedAt}}\n{{json .Labels}}\n"]);
+    // Discovery asks Docker for the DevContainer-labelled containers only: the label IS the workspace
+    // identity, so an unrelated container is not a discovery diagnostic waiting to happen.
+    expect(seenArgs.slice(0, 7)).toEqual([
+      "ps",
+      "--all",
+      "--no-trunc",
+      "--filter",
+      "label=devcontainer.local_folder",
+      "--format",
+      "{{json .ID}}\n{{json .Names}}\n{{json .State}}\n{{json .Status}}\n{{json .Image}}\n{{json .CreatedAt}}\n{{json .Labels}}\n",
+    ]);
     const container = result.containers[0] as DockerContainer;
     expect(container.id).toHaveLength(64);
     expect(container.name).toBe("/proj-a");
@@ -94,6 +105,40 @@ describe("NodeDockerAdapter.listDevContainers", () => {
     expect(result.containers).toHaveLength(1);
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]).toContain("unparseable");
+  });
+
+  it("reports a byte-capped listing as truncation, not as a parse error", async () => {
+    // The real shape of the failure: the cap lands inside the FINAL record, leaving seven lines whose
+    // last one is an unterminated JSON string. That used to surface as `unparseable … record` — the
+    // symptom — while the loss that actually matters (every container past the cut) went unmentioned.
+    const cutRecord = psRecord().slice(0, -8);
+    const runner = fakeRunner(() => ({ stdout: `${psRecord()}${cutRecord}`, truncated: true }));
+    const result = await adapter(runner).listDevContainers();
+    // The complete record before the cut is still discovered…
+    expect(result.containers).toHaveLength(1);
+    expect(result.truncated).toBe(true);
+    // …the truncation is named once, as the cause…
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("truncated");
+    // …and the half-written record is not additionally blamed on a parse error.
+    expect(result.errors.join("\n")).not.toContain("unparseable");
+  });
+
+  it("keeps a complete final record when a truncated stream ends on its last byte", async () => {
+    const runner = fakeRunner(() => ({ stdout: psRecord(), truncated: true }));
+    const result = await adapter(runner).listDevContainers();
+    expect(result.containers).toHaveLength(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("truncated");
+  });
+
+  it("treats an EMPTY devcontainer.local_folder as no workspace identity", async () => {
+    // `canonicalWorkspaceKey("")` resolves to the process cwd, so an empty label would silently key
+    // the container to wherever the extension happens to run instead of being reported as unusable.
+    const runner = fakeRunner(() => ({ stdout: psRecord({ Labels: "devcontainer.local_folder=" }) }));
+    const result = await adapter(runner).listDevContainers();
+    expect(result.containers[0]?.localFolder).toBeUndefined();
+    expect(result.containers[0]?.workspaceKey).toBeUndefined();
   });
 
   it("treats a container without devcontainer.local_folder as candidate without workspaceKey", async () => {
@@ -165,5 +210,19 @@ describe("NodeDockerAdapter.inspectContainer", () => {
     const result = await adapter(runner).inspectContainer("abc");
     expect(result.container).toBeUndefined();
     expect(result.errors).toHaveLength(1);
+  });
+
+  it("treats an EMPTY devcontainer.local_folder in inspect output as no workspace identity", async () => {
+    const inspectJson = JSON.stringify({
+      Id: "d".repeat(64),
+      Name: "/proj-a",
+      State: { Status: "running" },
+      Config: { Image: "img", Labels: { "devcontainer.local_folder": "" } },
+      Created: "2026-08-30T10:00:00.000Z",
+    });
+    const runner = fakeRunner(() => ({ stdout: `${inspectJson}\n` }));
+    const result = await adapter(runner).inspectContainer("d".repeat(64));
+    expect(result.container?.localFolder).toBeUndefined();
+    expect(result.container?.workspaceKey).toBeUndefined();
   });
 });

@@ -41,6 +41,18 @@ export declare class NodeDockerAdapter implements DockerAdapter {
     });
     listDevContainers(signal?: AbortSignal): Promise<DockerDiscoveryResult>;
     inspectContainer(id: string, signal?: AbortSignal): Promise<DockerInspectResult>;
+    /** The byte cap that applies to a call that does not name one. */
+    private outputLimit;
+    /**
+     * Discovery's own cap.
+     *
+     * A container listing scales with how many DevContainer-labelled containers the host has (each
+     * record carries its full label set), not with the size of a command's output, so the
+     * command-sized default cuts a busy host short and silently drops every record past the cut —
+     * which is exactly how a labelled container stops being discoverable. See
+     * `DISCOVERY_MAX_OUTPUT_BYTES`.
+     */
+    private discoveryOutputLimit;
     private safeRun;
     private parsePsAll;
     /** Parse one 7-line container record (one JSON string per field). */

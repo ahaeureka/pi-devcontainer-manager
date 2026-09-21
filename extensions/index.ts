@@ -29,7 +29,6 @@
  * `src/` modules stay Pi-dependency-free; this file performs the structural
  * casts that wire them into the Pi runtime.
  */
-import { homedir } from "node:os";
 import { readFileSync } from "node:fs";
 import type {
   ExtensionAPI,
@@ -48,6 +47,7 @@ import {
   primaryCandidate,
 } from "../src/registry-entry.js";
 import { JsonlAuditWriter, defaultAuditDirectory } from "../src/audit.js";
+import { composeHostEnvironment } from "../src/host-environment.js";
 import { NodeProcessRunner } from "../src/runtime/process-runner.js";
 import { NodeCapabilityService } from "../src/runtime/capabilities.js";
 import { NodeDockerAdapter } from "../src/runtime/docker-adapter.js";
@@ -161,11 +161,11 @@ function composeRuntime(
   });
   void capabilities.check().catch(() => undefined);
 
-  const env = {
-    PATH: process.env.PATH ?? "",
-    HOME: process.env.HOME ?? homedir(),
-    ...(process.env.XDG_STATE_HOME !== undefined ? { XDG_STATE_HOME: process.env.XDG_STATE_HOME } : {}),
-  };
+  // One definition of what a host child sees (`src/host-environment.ts`), shared by every adapter
+  // below — docker, the Dev Containers CLI, the lifecycle commands, the host runner, `setup` — so the
+  // composed environment cannot drift between them. It carries the executable/cache basics and the
+  // operator's proxy variables, which the CLI's own OCI Feature fetch needs to reach the registry.
+  const env = composeHostEnvironment(process.env);
 
   const docker = new NodeDockerAdapter(runner, {
     dockerPath: config.dockerPath,

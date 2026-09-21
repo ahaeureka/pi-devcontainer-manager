@@ -142,6 +142,17 @@ extension keeps them separate:
 - The extension's replacement `bash` tool is registered with
   `exposeSessionEnvironment: false`, so the container never sees Pi session
   metadata.
+- **Host children** — the `docker` and Dev Containers CLIs, the lifecycle commands, the host runner,
+  and `npm` in `/devcontainer setup` — get one composed environment, never Pi's own: `PATH`, `HOME`,
+  `XDG_STATE_HOME`, and the standard proxy variables (`HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`/
+  `ALL_PROXY` in both spellings) when the session defines them. The proxy group has to cross: the
+  Dev Containers CLI resolves its own HTTP proxy from `process.env` and downloads Features before any
+  Docker work, so withholding it turned a working build into `Failed to download package for
+  ghcr.io/…` (see [troubleshooting](troubleshooting.md#build-or-up-fails-with-failed-to-download-package-for-ghcrio)).
+  A proxy URL may embed credentials, so these values are never rendered — no diagnostic,
+  system-prompt block, or audit record carries an environment value. Nothing else is added, and
+  `environmentAllowlist` governs the **container** side only (a boundary further out than the host
+  child), not this one.
 
 ## Destructive and host-escape gates
 
@@ -263,10 +274,17 @@ operation.
 - **Both** stdout and stderr are bounded by `maxOutputBytes` (each stream
   independently), and overflow sets `truncated`; a stderr flood cannot exhaust
   the extension process.
+- One exception, because a container LISTING is not command output: `docker ps --all` discovery is
+  capped at `max(maxOutputBytes, 1 MiB)` (`DISCOVERY_MAX_OUTPUT_BYTES`). Its size is set by how many
+  DevContainer-labelled containers the host has times each record's full label set, so the
+  command-sized default silently covered only ~20 of them and the records past the cut stopped being
+  discoverable. A listing that still hits the cap reports the truncation as a diagnostic naming what
+  is missing, instead of leaving a half-written record to be blamed on a parse error.
 - Children are spawned as their own process group, and timeout/cancellation
   kills the **group**, so a shell that forks background work cannot outlive the
   operation that was reported as cancelled.
-- Only read-only `docker ps --all` / `inspect` exist on the discovery adapter;
+- Only read-only `docker ps --all` (filtered to the `devcontainer.local_folder` label, which is the
+  container's workspace identity) and `inspect` exist on the discovery adapter;
   the lifecycle adapter is the *sole* owner of `docker logs`, `stop`, and
   `rm -f`.
 

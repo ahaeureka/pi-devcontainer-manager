@@ -66,6 +66,17 @@ export const DEFAULT_MAX_OUTPUT_BYTES = 50 * 1024;
 /** `docker logs` is expected to return far more context than a lifecycle command. */
 export const LOGS_MAX_OUTPUT_BYTES = 256 * 1024;
 
+/**
+ * Byte cap for container LISTINGS (`docker ps --all` discovery).
+ *
+ * A listing is not command output: its size is set by how many DevContainer-labelled containers the
+ * host has times the size of each record's full label set (measured at roughly 1–3 KiB per container
+ * on a real host), so the command-sized default covers only ~20 containers and quietly drops the
+ * rest — a labelled container past the cut stops being discoverable at all. This floor keeps a whole
+ * fleet visible while still bounding what the extension holds in memory.
+ */
+export const DISCOVERY_MAX_OUTPUT_BYTES = 1024 * 1024;
+
 export type SpawnedChild = ChildProcessByStdio<null, import("node:stream").Readable, import("node:stream").Readable>;
 
 /**

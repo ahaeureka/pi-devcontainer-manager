@@ -1,4 +1,4 @@
-import { DEFAULT_MAX_OUTPUT_BYTES, runBounded } from "./process-runner.js";
+import { DEFAULT_MAX_OUTPUT_BYTES, DISCOVERY_MAX_OUTPUT_BYTES, runBounded, } from "./process-runner.js";
 import { dockerSpawnErrorSpec } from "./spawn-error.js";
 import { RuntimeError } from "../errors.js";
 import { canonicalWorkspaceKey } from "../workspace-path.js";
@@ -23,6 +23,18 @@ const PS_ALL_FORMAT = '{{json .ID}}\n' +
     '{{json .Labels}}\n';
 /** Field order of the minimal template above. */
 const PS_FIELDS = ["ID", "Names", "State", "Status", "Image", "CreatedAt", "Labels"];
+/**
+ * Discovery asks Docker for the DevContainer-labelled containers only.
+ *
+ * `docker ps --all` on a developer host also returns every unrelated container, and each one used
+ * to be reported to the operator as `docker candidate <id> has no devcontainer.local_folder label`
+ * — the normal case described as a discovery failure, once per container, on the first
+ * `/devcontainer` command of a session. The label IS the container's workspace identity (see
+ * `buildWorkspaceRegistry`), so Docker filters it and the noise never reaches the operator. An
+ * empty label value still matches a `label=` filter, which is why the value is validated where the
+ * identity is derived.
+ */
+const DISCOVERY_LABEL_FILTER = "label=devcontainer.local_folder";
 function parseLabels(labelsValue) {
     const out = {};
     if (!labelsValue)
@@ -39,6 +51,21 @@ function parseLabels(labelsValue) {
     return out;
 }
 /**
+ * The container's workspace identity, or `undefined` when it has none.
+ *
+ * A label Docker returns must still be USABLE: `canonicalWorkspaceKey("")` resolves to the process
+ * cwd, so a container carrying `devcontainer.local_folder=` (present but empty — exactly the shape a
+ * `docker run --label devcontainer.local_folder= …` produces) would silently register its workspace
+ * as this process's working directory. Absent and empty are the same answer here: no identity, which
+ * the registry reports as a diagnostic instead of inventing a workspace.
+ */
+function workspaceIdentityOf(labels) {
+    const localFolder = labels["devcontainer.local_folder"];
+    if (localFolder === undefined || localFolder.trim().length === 0)
+        return undefined;
+    return { localFolder, workspaceKey: canonicalWorkspaceKey(localFolder) };
+}
+/**
  * Adapter over the host Docker CLI for read-only discovery and inspection.
  * Every invocation uses fixed argv (no shell), the injected runner, and a
  * sanitized environment. No mutation commands exist on this adapter.
@@ -51,8 +78,9 @@ export class NodeDockerAdapter {
         this.options = options;
     }
     async listDevContainers(signal) {
-        const { result, stdout } = await this.safeRun(["ps", "--all", "--no-trunc", "--format", PS_ALL_FORMAT], signal);
-        return this.parsePsAll(result, stdout, "listDevContainers");
+        const maxOutputBytes = this.discoveryOutputLimit();
+        const { result, stdout } = await this.safeRun(["ps", "--all", "--no-trunc", "--filter", DISCOVERY_LABEL_FILTER, "--format", PS_ALL_FORMAT], signal, maxOutputBytes);
+        return this.parsePsAll(result, stdout, "listDevContainers", maxOutputBytes);
     }
     async inspectContainer(id, signal) {
         if (id.length === 0) {
@@ -65,18 +93,34 @@ export class NodeDockerAdapter {
         const { result, stdout } = await this.safeRun(["inspect", "--format", "{{json .}}", id], signal);
         return this.parseInspect(result, stdout, "inspectContainer");
     }
-    async safeRun(args, signal) {
+    /** The byte cap that applies to a call that does not name one. */
+    outputLimit() {
+        return this.options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
+    }
+    /**
+     * Discovery's own cap.
+     *
+     * A container listing scales with how many DevContainer-labelled containers the host has (each
+     * record carries its full label set), not with the size of a command's output, so the
+     * command-sized default cuts a busy host short and silently drops every record past the cut —
+     * which is exactly how a labelled container stops being discoverable. See
+     * `DISCOVERY_MAX_OUTPUT_BYTES`.
+     */
+    discoveryOutputLimit() {
+        return Math.max(this.outputLimit(), DISCOVERY_MAX_OUTPUT_BYTES);
+    }
+    async safeRun(args, signal, maxOutputBytes = this.outputLimit()) {
         const result = await runBounded(this.runner, this.options.dockerPath, args, {
             cwd: this.options.cwd,
             env: this.options.env,
-            maxOutputBytes: this.options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
+            maxOutputBytes,
             timeoutMs: 30_000,
             ...(signal !== undefined ? { signal } : {}),
             spawnError: dockerSpawnErrorSpec(this.options.dockerPath),
         });
         return { result, stdout: Buffer.from(result.stdout ?? "", "utf8") };
     }
-    parsePsAll(result, stdout, source) {
+    parsePsAll(result, stdout, source, maxOutputBytes) {
         if (result.exitCode !== 0) {
             throw new RuntimeError({
                 kind: "daemon-unavailable",
@@ -87,6 +131,12 @@ export class NodeDockerAdapter {
         }
         const containers = [];
         const errors = [];
+        if (result.truncated) {
+            // The byte cap cut the listing. Report that ONCE, first, because it is the whole story: the
+            // containers past the cut are missing from the registry, and the half-written record the
+            // cut leaves behind is a symptom of it — not a parse bug, which is how it used to read.
+            errors.push(`docker ps output truncated at ${maxOutputBytes} bytes; DevContainer containers beyond that point are missing from the registry`);
+        }
         const text = stdout.toString("utf8");
         // The minimal template emits exactly PS_FIELDS.length lines per container
         // followed by one blank line; ps itself never emits a bare blank line
@@ -95,22 +145,28 @@ export class NodeDockerAdapter {
         let group = [];
         for (const raw of rawLines) {
             if (raw.trim().length === 0) {
-                this.pushPsContainer(group, containers, errors, source);
+                this.pushPsContainer(group, containers, errors, source, false);
                 group = [];
                 continue;
             }
             group.push(raw);
         }
-        // Trailing record without a terminating blank line.
-        this.pushPsContainer(group, containers, errors, source);
+        // Trailing record without a terminating blank line — which, in a truncated read, is the record
+        // the byte cap cut in half. `partialLast` keeps it from being blamed on a parse error on top of
+        // the truncation diagnostic above (a complete final record is still parsed and kept).
+        this.pushPsContainer(group, containers, errors, source, result.truncated);
         return { containers, truncated: result.truncated, errors };
     }
     /** Parse one 7-line container record (one JSON string per field). */
-    pushPsContainer(group, containers, errors, source) {
+    pushPsContainer(group, containers, errors, source, partialLast) {
         if (group.length === 0)
             return;
         if (group.length !== PS_FIELDS.length) {
-            errors.push(`unparseable ${source} record (${group.length} lines): ${group[0]?.slice(0, 120) ?? ""}`);
+            // A short FINAL group is the byte cap's cut, not a malformed record; the truncation itself was
+            // already reported by the caller.
+            if (!partialLast) {
+                errors.push(`unparseable ${source} record (${group.length} lines): ${group[0]?.slice(0, 120) ?? ""}`);
+            }
             return;
         }
         try {
@@ -121,8 +177,7 @@ export class NodeDockerAdapter {
                 values[field] = typeof parsed === "string" ? parsed : "";
             }
             const labels = parseLabels(values.Labels);
-            const localFolder = labels["devcontainer.local_folder"];
-            const workspaceKey = localFolder !== undefined ? canonicalWorkspaceKey(localFolder) : undefined;
+            const identity = workspaceIdentityOf(labels);
             containers.push({
                 id: values.ID,
                 name: values.Names,
@@ -131,12 +186,12 @@ export class NodeDockerAdapter {
                 image: values.Image,
                 created: values.CreatedAt,
                 labels,
-                ...(localFolder !== undefined ? { localFolder } : {}),
-                ...(workspaceKey !== undefined ? { workspaceKey } : {}),
+                ...(identity ?? {}),
             });
         }
         catch (error) {
-            errors.push(`unparseable ${source} record: ${group[0]?.slice(0, 120) ?? ""}`);
+            if (!partialLast)
+                errors.push(`unparseable ${source} record: ${group[0]?.slice(0, 120) ?? ""}`);
         }
     }
     parseInspect(result, stdout, source) {
@@ -154,9 +209,8 @@ export class NodeDockerAdapter {
         try {
             const parsed = JSON.parse(text);
             const labels = parsed.Config?.Labels ?? {};
-            const localFolder = labels["devcontainer.local_folder"];
+            const identity = workspaceIdentityOf(labels);
             const state = parsed.State?.Status ?? (parsed.State?.Running ? "running" : "");
-            const workspaceKey = localFolder !== undefined ? canonicalWorkspaceKey(localFolder) : undefined;
             const container = {
                 id: parsed.Id ?? "",
                 name: (parsed.Name ?? "").replace(/^\//, ""),
@@ -165,8 +219,7 @@ export class NodeDockerAdapter {
                 image: parsed.Config?.Image ?? "",
                 created: parsed.Created ?? "",
                 labels,
-                ...(localFolder !== undefined ? { localFolder } : {}),
-                ...(workspaceKey !== undefined ? { workspaceKey } : {}),
+                ...(identity ?? {}),
             };
             return { container, errors: [] };
         }

@@ -172,6 +172,10 @@ tools; use `devcontainer_exec` (container-side `cat`/`find`) to reach them.
   (`api_key`, `token`, `secret`, `password`, `credential`, `auth`, `bearer`).
   Requesting a denied name raises `policy-denied`
   (`environment-variable-denied`).
+- This list governs the container surfaces only. Host-side children (the `docker` and Dev Containers
+  CLIs, the lifecycle commands, the host runner, `npm` in `/devcontainer setup`) get a fixed baseline
+  instead — `PATH`, `HOME`, `XDG_STATE_HOME`, and the operator's proxy variables — which no
+  configuration widens. See [Security → Environment control](security.md#environment-control).
 
 ### `maxTimeoutSeconds`
 
@@ -186,6 +190,10 @@ tools; use `devcontainer_exec` (container-side `cat`/`find`) to reach them.
   independently, so a command that floods stderr cannot exhaust the extension
   process; overflow sets the `truncated` flag while the streams keep draining
   (no pipe deadlock). Captured memory is therefore at most 2× this value.
+  A container LISTING is capped at `max(this value, 1 MiB)`: `docker ps --all` discovery scales with
+  the number of DevContainer-labelled containers on the host, not with a command's output, and the
+  records past a lower cap would silently leave the registry. A listing that still hits the cap is
+  reported as a `truncated` discovery diagnostic naming what is missing.
 
 ### `discovery`
 
