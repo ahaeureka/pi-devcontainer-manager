@@ -213,6 +213,70 @@ export class ExecutionService {
             policyAuthorized: snapshot.authorized,
         };
     }
+    /**
+     * Delete the workspace's existing container and recreate it from the configuration as it is now.
+     *
+     * The confirmation is required UNCONDITIONALLY, not only when the caller happened to resolve a
+     * container: that lookup can be stale (a container created outside the extension, a registry read
+     * that raced), and a gate whose strength depends on a discovery result is one more thing to get
+     * wrong. The flag this runs is unconditional too.
+     */
+    async rebuild(request) {
+        const snapshot = this.authorize({
+            operation: "rebuild",
+            initiator: request.initiator,
+            workspace: request.workspace,
+        });
+        const startedAt = Date.now();
+        const workspaceKey = canonicalWorkspaceKey(request.workspace);
+        if (!matchesRebuildConfirmation(workspaceKey, request.confirmation)) {
+            // Audited like a lifecycle refusal: the attempt reached the service and was refused, which is
+            // exactly what the trail is for.
+            this.audit(snapshot, undefined, request, {
+                durationMs: Date.now() - startedAt,
+                exitCode: null,
+                outputTruncated: false,
+                errorSummary: "confirmation required",
+            });
+            return {
+                status: "confirmation-required",
+                workspaceKey,
+                ...(request.confirmation?.containerId !== undefined ? { containerId: request.confirmation.containerId } : {}),
+                instruction: "Rebuild REPLACES the workspace's container, so it needs an interactive confirmation: run /devcontainer rebuild from a session with a UI.",
+            };
+        }
+        let result;
+        try {
+            result = await this.options.devcontainer.up(request.workspace, {
+                removeExistingContainer: true,
+                ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
+                ...(request.configPath !== undefined ? { configPath: request.configPath } : {}),
+                ...(request.noCache === true ? { noCache: true } : {}),
+                ...(request.signal !== undefined ? { signal: request.signal } : {}),
+            });
+        }
+        catch (error) {
+            this.audit(snapshot, undefined, request, {
+                durationMs: Date.now() - startedAt,
+                exitCode: null,
+                outputTruncated: false,
+                errorSummary: this.asAuditError(error).message,
+            });
+            throw error;
+        }
+        this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false }, result.containerId);
+        return {
+            status: "done",
+            outcome: {
+                operation: "rebuild",
+                workspaceKey,
+                candidateId: result.containerId,
+                ...(result.remoteUser !== undefined ? { remoteUser: result.remoteUser } : {}),
+                ...(result.remoteWorkspaceFolder !== undefined ? { remoteWorkspaceFolder: result.remoteWorkspaceFolder } : {}),
+                policyAuthorized: snapshot.authorized,
+            },
+        };
+    }
     async build(request) {
         const startedAt = Date.now();
         const snapshot = this.authorize({
@@ -448,6 +512,18 @@ export class ExecutionService {
     asAuditError(error) {
         return error instanceof Error ? error : new Error(String(error));
     }
+}
+/**
+ * Is this a confirmation a rebuild may act on?
+ *
+ * The token only has to be non-empty: what makes a confirmation FRESH is that an interactive caller
+ * constructed it after a human answered `ctx.ui.confirm`, which no other caller can do. The binding
+ * that matters is the workspace, because that is the scope of the removal the CLI performs.
+ */
+function matchesRebuildConfirmation(workspaceKey, confirmation) {
+    if (confirmation === undefined)
+        return false;
+    return confirmation.token.length >= 1 && canonicalWorkspaceKey(confirmation.workspaceKey) === workspaceKey;
 }
 /** Convenience for building the shell form of a routed bash command. */
 export function shellForm(cmd) {

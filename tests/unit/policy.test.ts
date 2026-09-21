@@ -26,6 +26,24 @@ describe("policy", () => {
     expect(snapshot.denialReason).toBe("destructive-operation-disabled");
   });
 
+  it("gates rebuild on the removal it performs", () => {
+    // `rebuild` deletes the container before recreating it, so it answers to
+    // `destructive.allowRemove` rather than to a key of its own — a configuration that withheld the
+    // grant must not be widened by a second spelling of the same question.
+    const withheld = evaluatePolicy(compileConfig({ destructive: { allowRemove: false } }), {
+      operation: "rebuild",
+      initiator: "slash-command",
+    });
+    expect(withheld.authorized).toBe(false);
+    expect(withheld.denialReason).toBe("destructive-operation-disabled");
+
+    const granted = evaluatePolicy(compileConfig({ destructive: { allowRemove: true } }), {
+      operation: "rebuild",
+      initiator: "slash-command",
+    });
+    expect(granted.authorized).toBe(true);
+  });
+
   it("requires host-execution policy grant", () => {
     // Host execution is granted by DEFAULT (the shipped posture) and withheld only by a
     // configuration, so both sides of the gate are asserted explicitly here rather than leaning on

@@ -19,7 +19,12 @@ import { RuntimeError } from "../../src/errors.js";
 import { candidate, configCandidate, configEntry } from "./fixtures/registry-entry.js";
 import type { EffectiveConfig } from "../../src/types.js";
 import type { RegistryEntry } from "../../src/types.js";
-import type { ExecutionService, LifecycleServiceResult, UpBuildOutcome } from "../../src/execution-service.js";
+import type {
+  ExecutionService,
+  LifecycleServiceResult,
+  RebuildServiceResult,
+  UpBuildOutcome,
+} from "../../src/execution-service.js";
 import type { TargetStore, TargetStoreSnapshot } from "../../src/target-store.js";
 import type { DockerContainer } from "../../src/runtime/docker-adapter.js";
 import type { SelectionRecord } from "../../src/selection-state.js";
@@ -75,6 +80,7 @@ function makeServices(overrides: Partial<CommandServices> = {}): CommandServices
       exec: vi.fn(),
       up: vi.fn(async (): Promise<UpBuildOutcome> => ({ operation: "up", workspaceKey: "/ws/project-a", candidateId: "up123", remoteUser: "vscode", policyAuthorized: true })),
       build: vi.fn(async (): Promise<UpBuildOutcome> => ({ operation: "build", workspaceKey: "/ws/project-a", imageName: "img:tag", policyAuthorized: true })),
+      rebuild: vi.fn(async (): Promise<RebuildServiceResult> => ({ status: "done", outcome: { operation: "rebuild", workspaceKey: "/ws/project-a", candidateId: "new123", policyAuthorized: true } })),
       lifecycle: vi.fn(async (): Promise<LifecycleServiceResult> => ({ status: "done", action: "stop", containerId: "abc123456789" })),
       logs: vi.fn(async () => ({ exitCode: 0, output: "log-line", truncated: false })),
     } as unknown as ExecutionService,
@@ -105,7 +111,9 @@ function makeCtx(overrides: Partial<CommandContextLike> = {}): CommandContextLik
     restoreSelection: () => undefined,
     ...overrides,
   };
-  return { ...ctx, ui, persisted };
+  // `ctx.ui` — not the local `ui` — is what a caller overrode: returning the local one made every
+  // `ui` override silently ignored (the default confirm always answered true).
+  return { ...ctx, ui: ctx.ui as typeof ui, persisted };
 }
 
 describe("/devcontainer list + status", () => {
@@ -403,6 +411,128 @@ describe("/devcontainer up + build", () => {
   });
 });
 
+describe("/devcontainer rebuild", () => {
+  const refreshedTo = (id: string) =>
+    vi.fn(async () => ({ entries: [configEntry({ workspacePath: "/ws/project-a", containers: [candidate(id)] })], diagnostics: [] }));
+
+  it("confirms, naming the container it is about to delete", async () => {
+    const rebuild = vi.fn(
+      async (): Promise<RebuildServiceResult> => ({
+        status: "done",
+        outcome: { operation: "rebuild", workspaceKey: "/ws/project-a", candidateId: "new123", policyAuthorized: true },
+      }),
+    );
+    const { handlers } = makeServices({
+      execution: { rebuild } as unknown as ExecutionService,
+      refreshRegistry: refreshedTo("new123"),
+    });
+    const ctx = makeCtx();
+
+    const result = await handlers["rebuild"]!("", ctx);
+
+    expect(ctx.ui.confirm).toHaveBeenCalledTimes(1);
+    expect(ctx.ui.confirm.mock.calls[0]![1]).toContain("abc123456789".slice(0, 12));
+    // The confirmation is bound to the WORKSPACE and names the container the operator was shown.
+    expect(rebuild).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: "rebuild",
+        workspace: "/ws/project-a",
+        confirmation: { token: "fresh-token", workspaceKey: "/ws/project-a", containerId: "abc123456789" },
+      }),
+    );
+    expect(result.text).toContain("Rebuild: /ws/project-a → `new123`");
+    expect(result.text).toContain("removed: `abc123456789`");
+    expect(result.text).toContain("selection: selected-valid");
+    expect(result.target).toMatchObject({ candidateId: "new123" });
+  });
+
+  it("cancels without touching the container", async () => {
+    const rebuild = vi.fn();
+    const { handlers } = makeServices({ execution: { rebuild } as unknown as ExecutionService });
+    const ctx = makeCtx({ ui: { select: vi.fn(async () => undefined), confirm: vi.fn(async () => false), notify: vi.fn() } });
+
+    const result = await handlers["rebuild"]!("", ctx);
+
+    expect(result.text).toBe("rebuild cancelled.");
+    expect(rebuild).not.toHaveBeenCalled();
+  });
+
+  it("needs an interactive confirmation (a noninteractive caller cannot delete a container)", async () => {
+    const rebuild = vi.fn();
+    const { handlers } = makeServices({ execution: { rebuild } as unknown as ExecutionService });
+
+    const result = await handlers["rebuild"]!("", makeCtx({ hasUI: false }));
+
+    expect(result.text).toContain("[confirmation-required]");
+    expect(rebuild).not.toHaveBeenCalled();
+  });
+
+  it("passes --no-cache through and offers to create a container when none exists", async () => {
+    const rebuild = vi.fn(
+      async (): Promise<RebuildServiceResult> => ({
+        status: "done",
+        outcome: { operation: "rebuild", workspaceKey: "/ws/project-a", candidateId: "new123", policyAuthorized: true },
+      }),
+    );
+    const { handlers } = makeServices({
+      execution: { rebuild } as unknown as ExecutionService,
+      registry: vi.fn(async () => ({ entries: [configEntry({ workspacePath: "/ws/project-a", containers: [] })], diagnostics: [] })),
+      refreshRegistry: refreshedTo("new123"),
+    });
+    const ctx = makeCtx();
+
+    const result = await handlers["rebuild"]!("--no-cache", ctx);
+
+    expect(ctx.ui.confirm.mock.calls[0]![1]).toContain("No container is registered");
+    // No container was named, so the confirmation carries none — and never a guessed one.
+    expect(rebuild).toHaveBeenCalledWith(expect.objectContaining({
+      noCache: true,
+      confirmation: { token: "fresh-token", workspaceKey: "/ws/project-a" },
+    }));
+    expect(result.text).not.toContain("removed:");
+  });
+
+  it("surfaces the service's typed refusal instead of pretending to rebuild", async () => {
+    const rebuild = vi.fn(
+      async (): Promise<RebuildServiceResult> => ({
+        status: "confirmation-required",
+        workspaceKey: "/ws/project-a",
+        instruction: "Rebuild REPLACES the workspace's container.",
+      }),
+    );
+    const { handlers } = makeServices({ execution: { rebuild } as unknown as ExecutionService });
+
+    const result = await handlers["rebuild"]!("", makeCtx());
+
+    expect(result.text).toContain("[confirmation-required]");
+    expect(result.text).toContain("REPLACES");
+  });
+});
+
+describe("/devcontainer up reuse notice", () => {
+  it("says when the container already existed (nothing was applied)", async () => {
+    // `up` reuses a container the CLI finds without comparing it against the configuration, so an id
+    // the registry already knew means the run changed nothing about the container.
+    const { handlers } = makeServices({
+      execution: {
+        up: vi.fn(async (): Promise<UpBuildOutcome> => ({ operation: "up", workspaceKey: "/ws/project-a", candidateId: "abc123456789", policyAuthorized: true })),
+      } as unknown as ExecutionService,
+    });
+
+    const result = await handlers["up"]!("", makeCtx());
+
+    expect(result.text).toContain("reused: `abc123456789`");
+    expect(result.text).toContain("/devcontainer rebuild");
+  });
+
+  it("stays quiet when the run produced a container the registry did not know", async () => {
+    const { handlers } = makeServices();
+
+    const result = await handlers["up"]!("", makeCtx());
+
+    expect(result.text).not.toContain("reused:");
+  });
+});
 describe("/devcontainer stop + remove", () => {
   it("confirms, generates a fresh token, and runs the lifecycle operation", async () => {
     const { handlers, execution } = makeServices({

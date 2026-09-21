@@ -207,6 +207,31 @@ session) and `/reload`.
 The proxy is never read from the extension's own configuration: the value is site-specific and
 already belongs to the session environment.
 
+### I changed `devcontainer.json` or the Dockerfile and nothing changed
+
+`up` REUSES an existing container: the CLI finds it by its id labels and starts it, without ever
+comparing it against the configuration. A changed `devcontainer.json` (features, `runArgs`,
+`containerEnv`, mounts) or a changed Dockerfile therefore takes effect only when the container is
+REPLACED:
+
+```
+/devcontainer rebuild             # delete the container, recreate it from the current configuration
+/devcontainer rebuild --no-cache  # …and rebuild the image without layer cache
+```
+
+`rebuild` is a removal followed by a create, so it needs the same grant as `/devcontainer stop` /
+`remove` — `"destructive": { "allowRemove": true }` in the effective configuration, in **both**
+layers if both set it — plus the interactive confirmation naming the container it is about to
+delete; `/reload` after adding the grant. Two things that do NOT need it:
+
+- the extension's host↔container mapping (the system-prompt block and the container-path guard) is
+  re-read from `devcontainer.json` on every command, so edits there apply immediately;
+- `/devcontainer build` alone only produces the image — it never replaces the container that is
+  running.
+
+`up` says when it reused a container (`reused: <id> already existed — configuration changes are NOT
+applied to an existing container`), so a silent no-op is no longer silent.
+
 ### `/devcontainer` prints `[devcontainer-manager] …` warnings
 
 Those are discovery diagnostics: the host scan could not finish. Typical lines are `cannot read

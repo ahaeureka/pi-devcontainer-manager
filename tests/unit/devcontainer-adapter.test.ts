@@ -74,6 +74,30 @@ describe("NodeDevcontainerAdapter.up", () => {
     expect(result.remoteWorkspaceFolder).toBe("/workspaces/p");
   });
 
+  it("passes the recreate flags that make `up` delete instead of reuse", async () => {
+    const { runner, calls } = fakeRunner([ok(0, '{"outcome":"success","containerId":"abc123"}\n')]);
+    const adapter = makeAdapter(runner);
+
+    await adapter.up("/ws/project-a", { removeExistingContainer: true, noCache: true });
+
+    expect(calls[0]!.args).toEqual([
+      "up",
+      "--workspace-folder",
+      "/ws/project-a",
+      "--remove-existing-container",
+      "--build-no-cache",
+    ]);
+  });
+
+  it("omits the recreate flags for a plain up (the container is reused)", async () => {
+    const { runner, calls } = fakeRunner([ok(0, '{"outcome":"success","containerId":"abc123"}\n')]);
+    const adapter = makeAdapter(runner);
+
+    await adapter.up("/ws/project-a");
+
+    expect(calls[0]!.args).toEqual(["up", "--workspace-folder", "/ws/project-a"]);
+  });
+
   it("maps error outcome to devcontainer-cli-failure", async () => {
     const { runner } = fakeRunner([ok(1, '{"outcome":"error","message":"config invalid","description":"x"}\n ')]);
     const adapter = makeAdapter(runner);

@@ -12,7 +12,12 @@
  * `CommandContextLike` structural interfaces it needs, and `extensions/index.ts`
  * adapts Pi's `ExtensionCommandContext` to them.
  */
-import type { ExecutionService, LifecycleServiceResult, UpBuildOutcome } from "./execution-service.js";
+import type {
+  ExecutionService,
+  LifecycleServiceResult,
+  RebuildServiceResult,
+  UpBuildOutcome,
+} from "./execution-service.js";
 import { displayProgram } from "./policy.js";
 import type { TargetStore, TargetStoreSnapshot, TargetSelection } from "./target-store.js";
 import type { DockerContainer } from "./runtime/docker-adapter.js";
@@ -21,7 +26,7 @@ import { RuntimeError, errorKindOf } from "./errors.js";
 import { isWorkspaceAllowed, isEnvironmentAllowed } from "./policy.js";
 import { combineCommandOutput } from "./tool-output.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
-import type { ConfigCandidate, EffectiveConfig, RegistryEntry } from "./types.js";
+import type { ConfigCandidate, EffectiveConfig, RegistryCandidate, RegistryEntry } from "./types.js";
 import { configCandidatesOf, configPathOf, containerStateOf, primaryCandidate, primaryConfigOf } from "./registry-entry.js";
 import { SELECTION_ENTRY_KIND, SELECTION_PAYLOAD_VERSION } from "./selection-state.js";
 import { needsExplicitConfig } from "./runtime/devcontainer-adapter.js";
@@ -324,6 +329,44 @@ export async function reconcileSelection(
   return selection;
 }
 
+/**
+ * Split `/devcontainer rebuild [<path>] [--config <name|path>] [--no-cache]`.
+ *
+ * `--config` is left to `parseUseArgs` (shared with `use`/`up`/`build`); `--no-cache` is stripped
+ * FIRST, because `parseUseArgs` treats anything it does not know as the workspace selector — the flag
+ * would become a path and resolve to `no-candidate`.
+ */
+export function parseRebuildArgs(args: string): { args: string; noCache: boolean } {
+  const noCache = /(?:^|\s)--no-cache(?=\s|$)/.test(args);
+  return { args: args.replace(/(?:^|\s)--no-cache(?=\s|$)/g, " ").trim(), noCache };
+}
+
+/**
+ * The registry entry for a workspace, by canonical key.
+ *
+ * One implementation: `use` and `up`/`build`/`rebuild` all ask the same question, and three copies of
+ * the same comparison is how their answers drift apart.
+ */
+function entryOf(entries: readonly RegistryEntry[], workspace: string): RegistryEntry | undefined {
+  const key = canonicalWorkspaceKey(workspace);
+  return entries.find((entry) => canonicalWorkspaceKey(entry.workspacePath) === key);
+}
+
+/** Every container id the registry already knows for a workspace. */
+function knownContainerIds(entries: readonly RegistryEntry[], workspace: string): ReadonlySet<string> {
+  const entry = entryOf(entries, workspace);
+  return new Set(entry !== undefined ? entry.containerCandidates.map((candidate) => candidate.id) : []);
+}
+
+/** The container a `rebuild` would replace, as discovery sees it (undefined when there is none). */
+function primaryCandidateOf(
+  entries: readonly RegistryEntry[],
+  workspace: string,
+): RegistryCandidate | undefined {
+  const entry = entryOf(entries, workspace);
+  return entry !== undefined ? primaryCandidate(entry) : undefined;
+}
+
 /** Split `/devcontainer use <selector> [--config <name|path>]`. */
 export function parseUseArgs(args: string): { selector: string; config?: string } {
   const match = /(?:^|\s)--config(?:=|\s+)(\S+)/.exec(args);
@@ -564,8 +607,7 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     const { selector, config } = parseUseArgs(args);
     const workspace = selector.length > 0 ? selector : ctx.cwd;
     const { entries } = await services.registry();
-    const key = canonicalWorkspaceKey(workspace);
-    const entry = entries.find((candidate) => canonicalWorkspaceKey(candidate.workspacePath) === key);
+    const entry = entryOf(entries, workspace);
     if (entry === undefined) {
       // Nothing discovered for this path: keep the CLI's own lookup and its own error,
       // unless a configuration was requested explicitly — then nothing can resolve it.
@@ -591,10 +633,47 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     };
   };
 
+  /**
+   * Finish an `up`-like operation: render it, then make the result usable.
+   *
+   * A successful start must re-resolve the selection against the REFRESHED registry, otherwise exec
+   * fails with `target-stopped` right after it (config-only / previously-missing selections) and the
+   * surfaces stay unusable (L2-01). `rebuild` shares this: the only difference between the two verbs
+   * is what they tell the CLI to do with the container it finds.
+   */
+  const finishUpLike = async (
+    ctx: CommandContextLike,
+    label: "Up" | "Rebuild",
+    workspace: string,
+    outcome: UpBuildOutcome,
+    note: string,
+  ): Promise<CommandResult> => {
+    const id = outcome.candidateId !== undefined ? `\`${outcome.candidateId}\`` : "(no container id)";
+    let reconciled = "";
+    let established: EstablishedTarget | undefined;
+    try {
+      // The entries resolved BEFORE the start cannot describe the container it just created, so
+      // re-discover and reconcile against fresh ones.
+      const refreshed = await services.refreshRegistry();
+      const selection = await reconcileSelection(services, ctx, { workspaceKey: workspace }, refreshed.entries);
+      reconciled = `\nselection: ${selection.status}`;
+      established = establishedTarget(selection);
+    } catch (error) {
+      reconciled = `\nselection: (reconcile failed: ${error instanceof Error ? error.message : String(error)})`;
+    }
+    const text = `${label}: ${outcome.workspaceKey} → ${id}${reconciled}${note}\n${outcome.remoteUser !== undefined ? `remote user: ${outcome.remoteUser}\n` : ""}${outcome.remoteWorkspaceFolder !== undefined ? `remote folder: ${outcome.remoteWorkspaceFolder}` : ""}`;
+    return established !== undefined ? { text, target: established } : { text };
+  };
+
   handlers["up"] = async (args, ctx) => {
     const target = await resolveUpBuildTarget(args, ctx);
     if (target.ok === false) return { text: target.text };
     const { workspace } = target;
+    // What the registry already knew about this workspace's containers, so the result can say whether
+    // `up` STARTED something or merely REUSED it: the CLI reuses a container it finds without
+    // comparing it against the configuration, which is how a changed devcontainer.json looks applied
+    // when it is not.
+    const known = knownContainerIds(target.entries, workspace);
     let outcome: UpBuildOutcome;
     try {
       outcome = await services.execution.up({
@@ -606,25 +685,57 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     } catch (error) {
       return { text: describeError(error) };
     }
-    const id = outcome.candidateId !== undefined ? `\`${outcome.candidateId}\`` : "(no container id)";
-    // A successful `up` must make the selection usable: re-resolve it against
-    // the refreshed registry so exec does not fail with target-stopped right
-    // after a successful start (config-only / previously-missing selections).
-    let reconciled = "";
-    let established: EstablishedTarget | undefined;
-    try {
-      // The entries resolved BEFORE the start cannot describe the container it just created, so
-      // re-discover and reconcile against fresh ones — otherwise the selection stays
-      // `selected-missing` and the surfaces are unusable right after a successful start (L2-01).
-      const refreshed = await services.refreshRegistry();
-      const selection = await reconcileSelection(services, ctx, { workspaceKey: workspace }, refreshed.entries);
-      reconciled = `\nselection: ${selection.status}`;
-      established = establishedTarget(selection);
-    } catch (error) {
-      reconciled = `\nselection: (reconcile failed: ${error instanceof Error ? error.message : String(error)})`;
+    const reused = outcome.candidateId !== undefined && known.has(outcome.candidateId);
+    const note = reused
+      ? `\nreused: \`${outcome.candidateId}\` already existed — configuration changes are NOT applied to an existing container; run /devcontainer rebuild to recreate it`
+      : "";
+    return finishUpLike(ctx, "Up", workspace, outcome, note);
+  };
+
+  handlers["rebuild"] = async (args, ctx) => {
+    const { args: rest, noCache } = parseRebuildArgs(args);
+    const target = await resolveUpBuildTarget(rest, ctx);
+    if (target.ok === false) return { text: target.text };
+    const { workspace } = target;
+    // The container about to be DELETED, when the registry can name one: it goes into the
+    // confirmation the operator answers and into the result, so the destructive half is visible.
+    const replaced = primaryCandidateOf(target.entries, workspace);
+    if (!ctx.hasUI) {
+      return {
+        text:
+          "[confirmation-required] rebuild replaces the workspace's container and needs an interactive confirmation; not available in this mode (rebuild cancelled).",
+      };
     }
-    const text = `Up: ${outcome.workspaceKey} → ${id}${reconciled}\n${outcome.remoteUser !== undefined ? `remote user: ${outcome.remoteUser}\n` : ""}${outcome.remoteWorkspaceFolder !== undefined ? `remote folder: ${outcome.remoteWorkspaceFolder}` : ""}`;
-    return established !== undefined ? { text, target: established } : { text };
+    const confirmed = await ctx.ui.confirm(
+      "Rebuild container",
+      replaced !== undefined
+        ? `Remove container \`${replaced.id.slice(0, 12)}\` and recreate it from the configuration as it is now?`
+        : `No container is registered for \`${workspace}\` yet. Build and create it now?`,
+      ctx.signal !== undefined ? { signal: ctx.signal } : undefined,
+    );
+    if (!confirmed) return { text: "rebuild cancelled." };
+    let result: RebuildServiceResult;
+    try {
+      result = await services.execution.rebuild({
+        operation: "rebuild",
+        initiator: "slash-command",
+        workspace,
+        ...(target.configPath !== undefined ? { configPath: target.configPath } : {}),
+        ...(noCache ? { noCache: true } : {}),
+        confirmation: {
+          token: tokenFor(services),
+          workspaceKey: workspace,
+          ...(replaced !== undefined ? { containerId: replaced.id } : {}),
+        },
+      });
+    } catch (error) {
+      return { text: describeError(error) };
+    }
+    if (result.status === "confirmation-required") {
+      return { text: `[confirmation-required] ${result.instruction}` };
+    }
+    const removed = replaced !== undefined ? `\nremoved: \`${replaced.id.slice(0, 12)}\`` : "";
+    return finishUpLike(ctx, "Rebuild", workspace, result.outcome, removed);
   };
 
   handlers["build"] = async (args, ctx) => {

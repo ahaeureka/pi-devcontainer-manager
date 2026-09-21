@@ -704,7 +704,8 @@ export default function (pi: ExtensionAPI): void {
   // --- Commands ----------------------------------------------------------
 
   pi.registerCommand("devcontainer", {
-    description: "DevContainer management (list, use, status, up, build, stop, remove, logs, host-exec, setup, off)",
+    description:
+      "DevContainer management (list, use, status, up, build, rebuild, stop, remove, logs, host-exec, setup, off)",
     handler: async (args, ctx) => {
       const rt = runtime;
       if (rt === undefined) {
@@ -761,7 +762,7 @@ export default function (pi: ExtensionAPI): void {
         // stays the authority on what a later bind() would do, so it is checked too.
         const storeStatus = rt!.targetStore.snapshot().status;
         const bindable = storeStatus === "selected-valid" || storeStatus === "selected-stopped";
-        if ((verb === "use" || verb === "up") && result.target !== undefined && bindable) {
+        if ((verb === "use" || verb === "up" || verb === "rebuild") && result.target !== undefined && bindable) {
           engageDevcontainerSurfaces(pi, rt!, () => runtime, () => lifecycle.invalidate());
         }
         if (verb === "off") {
@@ -920,7 +921,10 @@ async function showVerbPicker(
   run: (verbArg: string) => Promise<void>,
 ): Promise<void> {
   if (!ctx.hasUI) {
-    ctx.ui.notify("DevContainer management: list, status, use, up, build, stop, remove, logs, host-exec, setup, off. Try /devcontainer <verb>.", "info");
+    ctx.ui.notify(
+      "DevContainer management: list, status, use, up, build, rebuild, stop, remove, logs, host-exec, setup, off. Try /devcontainer <verb>.",
+      "info",
+    );
     return;
   }
   const choice = await ctx.ui.select(
@@ -931,6 +935,7 @@ async function showVerbPicker(
       "use [path] - select a target",
       "up [path] - start a container",
       "build [path] - build a container",
+      "rebuild [--no-cache] - delete + recreate the container (confirmed)",
       "stop - stop selected container (confirmed)",
       "remove - delete selected container (confirmed)",
       "logs [--tail N] - container logs",

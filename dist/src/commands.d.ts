@@ -167,6 +167,17 @@ export declare function reconcileSelection(services: Pick<CommandServices, "targ
  * scan and `docker ps` twice for one command (review finding on revision-8e6c0670).
  */
 preloaded?: readonly RegistryEntry[]): Promise<TargetSelection>;
+/**
+ * Split `/devcontainer rebuild [<path>] [--config <name|path>] [--no-cache]`.
+ *
+ * `--config` is left to `parseUseArgs` (shared with `use`/`up`/`build`); `--no-cache` is stripped
+ * FIRST, because `parseUseArgs` treats anything it does not know as the workspace selector — the flag
+ * would become a path and resolve to `no-candidate`.
+ */
+export declare function parseRebuildArgs(args: string): {
+    args: string;
+    noCache: boolean;
+};
 /** Split `/devcontainer use <selector> [--config <name|path>]`. */
 export declare function parseUseArgs(args: string): {
     selector: string;

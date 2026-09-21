@@ -43,10 +43,20 @@ export interface ExecOptions {
     readonly signal?: AbortSignal;
 }
 export interface DevcontainerAdapter {
-    /** `devcontainer up --workspace-folder <workspace>`. Reuses an existing container by default. */
+    /**
+     * `devcontainer up --workspace-folder <workspace> [--remove-existing-container] [--build-no-cache]`.
+     *
+     * `up` REUSES a container the CLI already finds — `--remove-existing-container` is what makes it
+     * delete and recreate one instead, so a changed configuration has no effect until that flag is
+     * passed (the CLI never compares the existing container against the configuration).
+     */
     up(workspace: string, options?: {
         dockerPath?: string;
         configPath?: string;
+        /** Delete the existing container first, so it is recreated from the current configuration. */
+        removeExistingContainer?: boolean;
+        /** `--build-no-cache`: rebuild the image without layer cache. */
+        noCache?: boolean;
         signal?: AbortSignal;
     }): Promise<UpResult>;
     /** `devcontainer build [--workspace-folder <workspace>] [--no-cache]`. */
@@ -93,6 +103,8 @@ export declare class NodeDevcontainerAdapter implements DevcontainerAdapter {
     up(workspace: string, options?: {
         dockerPath?: string;
         configPath?: string;
+        removeExistingContainer?: boolean;
+        noCache?: boolean;
         signal?: AbortSignal;
     }): Promise<UpResult>;
     build(workspace: string, options?: {

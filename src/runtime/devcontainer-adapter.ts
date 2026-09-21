@@ -65,8 +65,25 @@ export interface ExecOptions {
 }
 
 export interface DevcontainerAdapter {
-  /** `devcontainer up --workspace-folder <workspace>`. Reuses an existing container by default. */
-  up(workspace: string, options?: { dockerPath?: string; configPath?: string; signal?: AbortSignal }): Promise<UpResult>;
+  /**
+   * `devcontainer up --workspace-folder <workspace> [--remove-existing-container] [--build-no-cache]`.
+   *
+   * `up` REUSES a container the CLI already finds — `--remove-existing-container` is what makes it
+   * delete and recreate one instead, so a changed configuration has no effect until that flag is
+   * passed (the CLI never compares the existing container against the configuration).
+   */
+  up(
+    workspace: string,
+    options?: {
+      dockerPath?: string;
+      configPath?: string;
+      /** Delete the existing container first, so it is recreated from the current configuration. */
+      removeExistingContainer?: boolean;
+      /** `--build-no-cache`: rebuild the image without layer cache. */
+      noCache?: boolean;
+      signal?: AbortSignal;
+    },
+  ): Promise<UpResult>;
 
   /** `devcontainer build [--workspace-folder <workspace>] [--no-cache]`. */
   build(
@@ -121,11 +138,19 @@ export class NodeDevcontainerAdapter implements DevcontainerAdapter {
 
   public async up(
     workspace: string,
-    options: { dockerPath?: string; configPath?: string; signal?: AbortSignal } = {},
+    options: {
+      dockerPath?: string;
+      configPath?: string;
+      removeExistingContainer?: boolean;
+      noCache?: boolean;
+      signal?: AbortSignal;
+    } = {},
   ): Promise<UpResult> {
     const args: string[] = ["up", "--workspace-folder", workspace];
     if (options.dockerPath !== undefined) args.push("--docker-path", options.dockerPath);
     if (options.configPath !== undefined) args.push("--config", options.configPath);
+    if (options.removeExistingContainer === true) args.push("--remove-existing-container");
+    if (options.noCache === true) args.push("--build-no-cache");
     const { result, stdout, stderr } = await this.runCli(args, options.signal);
     return this.parseUp(result, stdout, stderr);
   }

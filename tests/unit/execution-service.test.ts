@@ -398,6 +398,82 @@ describe("ExecutionService.up/build", () => {
   });
 });
 
+describe("ExecutionService.rebuild", () => {
+  // `rebuild` deletes the container first, so it answers to the removal grant (see policy).
+  const granted = () => makeConfig({ destructive: { allowStop: false, allowRemove: true } });
+
+  it("refuses without a confirmation and audits the refusal", async () => {
+    const { adapter, up } = fakeDevcontainer([execOk]);
+    const { service, audit } = makeService({ devcontainer: adapter, config: granted() });
+
+    const result = await service.rebuild({ operation: "rebuild", initiator: "tool", workspace: "/ws/project-a" });
+
+    expect(result.status).toBe("confirmation-required");
+    expect(up).not.toHaveBeenCalled();
+    const record = (audit.write as ReturnType<typeof vi.fn>).mock.calls[0]![0] as AuditRecord;
+    expect(record.operation).toBe("rebuild");
+    expect(record.errorSummary).toBe("confirmation required");
+    expect(record.exitCode).toBe(null);
+  });
+
+  it("requires the confirmation to name the workspace being replaced", async () => {
+    const { adapter, up } = fakeDevcontainer([execOk]);
+    const { service } = makeService({ devcontainer: adapter, config: granted() });
+
+    const result = await service.rebuild({
+      operation: "rebuild",
+      initiator: "tool",
+      workspace: "/ws/project-a",
+      confirmation: { token: "fresh", workspaceKey: "/ws/other-project" },
+    });
+
+    expect(result.status).toBe("confirmation-required");
+    expect(up).not.toHaveBeenCalled();
+  });
+
+  it("recreates the container and audits the resulting target", async () => {
+    const { adapter, up } = fakeDevcontainer([execOk]);
+    const { service, audit } = makeService({ devcontainer: adapter, config: granted() });
+
+    const result = await service.rebuild({
+      operation: "rebuild",
+      initiator: "slash-command",
+      workspace: "/ws/project-a",
+      noCache: true,
+      confirmation: { token: "fresh", workspaceKey: "/ws/project-a", containerId: "old123" },
+    });
+
+    expect(result.status).toBe("done");
+    if (result.status !== "done") throw new Error("unreachable");
+    expect(result.outcome).toMatchObject({ operation: "rebuild", candidateId: "up123", policyAuthorized: true });
+    // The flag that makes `up` delete instead of reuse is this operation's whole point.
+    expect(up).toHaveBeenCalledWith("/ws/project-a", expect.objectContaining({ removeExistingContainer: true, noCache: true }));
+    const record = (audit.write as ReturnType<typeof vi.fn>).mock.calls[0]![0] as AuditRecord;
+    expect(record.operation).toBe("rebuild");
+    expect(record.targetId).toBe("up123");
+    expect(record.exitCode).toBe(0);
+  });
+
+  it("denies a rebuild without the removal grant, before the adapter runs", async () => {
+    const { adapter, up } = fakeDevcontainer([execOk]);
+    const { service, audit } = makeService({
+      devcontainer: adapter,
+      config: makeConfig({ destructive: { allowStop: false, allowRemove: false } }),
+    });
+
+    await expect(
+      service.rebuild({
+        operation: "rebuild",
+        initiator: "tool",
+        workspace: "/ws/project-a",
+        confirmation: { token: "fresh", workspaceKey: "/ws/project-a" },
+      }),
+    ).rejects.toMatchObject({ kind: "policy-denied" });
+    expect(up).not.toHaveBeenCalled();
+    const record = (audit.write as ReturnType<typeof vi.fn>).mock.calls[0]![0] as AuditRecord;
+    expect(record.policyDenialReason).toBe("destructive-operation-disabled");
+  });
+});
 describe("ExecutionService.lifecycle", () => {
   it("requires confirmation when none is provided (noninteractive cannot bypass)", async () => {
     const { adapter, calls } = fakeDockerLifecycle();

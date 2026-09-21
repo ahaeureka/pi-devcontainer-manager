@@ -54,8 +54,52 @@ export interface UpBuildRequest {
     readonly imageName?: string;
     readonly signal?: AbortSignal;
 }
+/**
+ * `/devcontainer rebuild`: replace the workspace's container from the configuration as it is NOW.
+ *
+ * `up` reuses a container the CLI finds, so this is the only way a changed `devcontainer.json` or
+ * Dockerfile reaches a workspace that already ran. It is a REMOVAL followed by a create, which is why
+ * it is gated like `remove` (see `evaluatePolicy`) and why it carries a confirmation.
+ */
+export interface RebuildRequest {
+    readonly operation: "rebuild";
+    readonly initiator: Initiator;
+    readonly workspace: string;
+    readonly dockerPath?: string;
+    /** Named configuration to rebuild (`--config`); absent uses the CLI default. */
+    readonly configPath?: string;
+    /** `--build-no-cache`: rebuild the image without layer cache. */
+    readonly noCache?: boolean;
+    readonly confirmation?: RebuildConfirmation;
+    readonly signal?: AbortSignal;
+}
+/**
+ * The interactive caller's authorization to replace one workspace's container.
+ *
+ * Bound to the WORKSPACE because that is the scope of the destructive act: the CLI deletes whatever
+ * container its id labels match for that workspace, which this process cannot always name in advance
+ * (a container created outside the extension is still that workspace's container).
+ */
+export interface RebuildConfirmation {
+    /** Non-empty token the interactive caller generated after the operator confirmed. */
+    readonly token: string;
+    /** The workspace whose container is replaced. */
+    readonly workspaceKey: string;
+    /** The container the operator was shown, when one could be resolved (informational). */
+    readonly containerId?: string;
+}
+export type RebuildServiceResult = {
+    readonly status: "confirmation-required";
+    readonly workspaceKey: string;
+    readonly containerId?: string;
+    /** What the operator must do to proceed. */
+    readonly instruction: string;
+} | {
+    readonly status: "done";
+    readonly outcome: UpBuildOutcome;
+};
 export interface UpBuildOutcome {
-    readonly operation: "up" | "build";
+    readonly operation: "up" | "build" | "rebuild";
     readonly workspaceKey: string;
     readonly candidateId?: string;
     readonly remoteUser?: string;
@@ -113,6 +157,15 @@ export declare class ExecutionService {
     constructor(options: ExecutionServiceOptions);
     exec(request: ExecRequest): Promise<ExecOutcome>;
     up(request: UpBuildRequest): Promise<UpBuildOutcome>;
+    /**
+     * Delete the workspace's existing container and recreate it from the configuration as it is now.
+     *
+     * The confirmation is required UNCONDITIONALLY, not only when the caller happened to resolve a
+     * container: that lookup can be stale (a container created outside the extension, a registry read
+     * that raced), and a gate whose strength depends on a discovery result is one more thing to get
+     * wrong. The flag this runs is unconditional too.
+     */
+    rebuild(request: RebuildRequest): Promise<RebuildServiceResult>;
     build(request: UpBuildRequest): Promise<UpBuildOutcome>;
     lifecycle(request: LifecycleRequest): Promise<LifecycleServiceResult>;
     /**

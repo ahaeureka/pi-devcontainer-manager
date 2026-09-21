@@ -6,8 +6,26 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **`/devcontainer rebuild [<path>] [--config <name|path>] [--no-cache]`** — deletes this workspace's
+  container and recreates it from the configuration as it is NOW (`devcontainer up
+  --remove-existing-container`, plus `--build-no-cache` for the image). `up` reuses a container the CLI
+  finds and never compares it against the configuration, so a changed `devcontainer.json` or Dockerfile
+  had no way to reach a workspace that had already run; `build` produces an image but replaces
+  nothing. Because it is a removal, `rebuild` is gated exactly like `remove` — `destructive.allowRemove`
+  in the effective configuration — and asks for an interactive confirmation naming the container it is
+  about to delete. The confirmation is required even when no container could be resolved, so the gate
+  never depends on a discovery result. Audited as `operation: "rebuild"`, with the container it creates
+  as the record's `targetId`.
+
 ### Changed
 
+- **`/devcontainer up` says when it REUSED a container.** The CLI reuses a container it finds (it never
+  compares one against the configuration), so an `up` on a workspace that already had a container was
+  indistinguishable from one that applied something. When the returned container id was already in the
+  registry, the result now carries `reused: <id> already existed — configuration changes are NOT applied
+  to an existing container; run /devcontainer rebuild to recreate it`. The start itself is unchanged.
 - **Behaviour change — the container surfaces refuse a host path.** `devcontainer_exec` now fails
   closed (`policy-denied`, naming the container path to use) when an argv element IS the host workspace
   path or lies beneath it, and the workspace's configuration mounts it somewhere else. Before this, such

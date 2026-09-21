@@ -160,6 +160,7 @@ extension keeps them separate:
 |---|---|---|
 | `/devcontainer stop` | `destructive.allowStop = true` | Fresh per-action confirmation naming the exact action + container ID; noninteractive callers receive `confirmation-required` and can never bypass |
 | `/devcontainer remove` | `destructive.allowRemove = true` | Same confirmation contract |
+| `/devcontainer rebuild` | `destructive.allowRemove = true` — the removal it performs, not a key of its own | Interactive confirmation naming the container about to be deleted; audited as `operation: "rebuild"`, with the container it creates as the record's `targetId`. A caller that could not resolve a container still needs the confirmation: the gate never depends on a discovery result |
 | `logs` / `/devcontainer stop` / `/devcontainer remove` | a target must be selected (`selected-valid` or `selected-stopped` — a stopped container is exactly what these are for) | The requested container id must be the BOUND target's candidate; anything else is refused before Docker runs, and the audit `targetId` comes from the binding |
 | `devcontainer_host_exec` / `/devcontainer host-exec` | `hostExecution.allow` (granted by default; a configuration can withhold it with `false`) | Audited with `operation: "host-exec"`, `initiator: "host-escape"` |
 | `/devcontainer setup` | **none** — not gated by `hostExecution.allow` | Interactive confirmation naming the exact command; fixed argv (`npm install -g @devcontainers/cli`), audited as `operation: "setup"`, 300 s timeout |
@@ -247,7 +248,9 @@ persisted. `audit.directory` (global-only) is honored when set; otherwise the
 platform default below is used. Default retention is **90 days** with
 **`fingerprint-only` command capture**. Denied attempts are audited too (a
 policy probe is visible, not silent), and adapter failures for
-`up`/`build`/`lifecycle`/`logs` record an `errorSummary` instead of vanishing.
+`up`/`build`/`rebuild`/`lifecycle`/`logs` record an `errorSummary` instead of vanishing, and a
+refused `rebuild` (no confirmation) is recorded as an attempt that reached the service and was
+refused — the same shape a lifecycle refusal has.
 `/devcontainer logs` is now policy-checked and audited like every other
 operation.
 

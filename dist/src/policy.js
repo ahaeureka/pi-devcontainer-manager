@@ -10,7 +10,11 @@ export function evaluatePolicy(config, input, now = () => new Date()) {
         denialReason = "workspace-not-allowed";
     }
     else if ((input.operation === "stop" && !config.destructive.allowStop) ||
-        (input.operation === "remove" && !config.destructive.allowRemove)) {
+        // `rebuild` REMOVES the container before recreating it, so it is gated by the grant for the
+        // removal it performs rather than by a key of its own: a configuration that already answered
+        // "may this extension delete my containers?" must not have to answer it again, and one that
+        // withheld it must not answer it by accident.
+        ((input.operation === "remove" || input.operation === "rebuild") && !config.destructive.allowRemove)) {
         denialReason = "destructive-operation-disabled";
     }
     else if (input.operation === "host-exec" && !config.hostExecution.allow) {

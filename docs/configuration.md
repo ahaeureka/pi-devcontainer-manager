@@ -248,6 +248,10 @@ own; for every other form the extension passes the discovered path as
   interactive flow still requires a fresh per-action confirmation naming the
   exact action and target container; a noninteractive caller gets a typed
   `confirmation-required` result and can never bypass the gate.
+- `/devcontainer rebuild` answers to `allowRemove`: it DELETES the workspace's container before
+  recreating it from the current configuration (this is what a changed `devcontainer.json` or
+  Dockerfile needs, because `up` reuses an existing container). It asks for the same interactive
+  confirmation and names the container it is about to delete.
 
 ### `hostExecution`
 

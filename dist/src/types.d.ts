@@ -1,7 +1,7 @@
 export declare const CONFIG_VERSION: 1;
 export type RouteMode = "container-required" | "container-preferred" | "host-only";
 export type CommandCaptureMode = "none" | "fingerprint-only" | "redacted-text";
-export type OperationKind = "discover" | "status" | "logs" | "up" | "build" | "container-exec" | "routed-bash" | "user-bash" | "host-exec" | "stop" | "remove" | "setup";
+export type OperationKind = "discover" | "status" | "logs" | "up" | "build" | "rebuild" | "container-exec" | "routed-bash" | "user-bash" | "host-exec" | "stop" | "remove" | "setup";
 export type Initiator = "tool" | "slash-command" | "routed-bash" | "user-bash" | "host-escape";
 export type ContainerState = "running" | "exited" | "created" | "paused" | "unknown";
 export type DevcontainerConfigKind = "root/devcontainer.json" | "root/.devcontainer.json" | ".devcontainer/devcontainer.json" | ".devcontainer/<name>/devcontainer.json";

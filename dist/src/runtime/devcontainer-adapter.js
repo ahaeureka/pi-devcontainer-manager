@@ -57,6 +57,10 @@ export class NodeDevcontainerAdapter {
             args.push("--docker-path", options.dockerPath);
         if (options.configPath !== undefined)
             args.push("--config", options.configPath);
+        if (options.removeExistingContainer === true)
+            args.push("--remove-existing-container");
+        if (options.noCache === true)
+            args.push("--build-no-cache");
         const { result, stdout, stderr } = await this.runCli(args, options.signal);
         return this.parseUp(result, stdout, stderr);
     }

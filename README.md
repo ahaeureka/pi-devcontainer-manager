@@ -207,8 +207,9 @@ If the Dev Containers CLI is missing, run `/devcontainer setup` once.
 | `/devcontainer` | Interactive verb picker (or a usage line when no UI is available) |
 | `/devcontainer list` | Discover + render the registry; also repairs a stale selection |
 | `/devcontainer status` | Same status block (target, registry, route, caps) plus `host runs:` — this session's host-command attempt count and the programs they named |
-| `/devcontainer up [path]` | `devcontainer up --workspace-folder`; re-resolves the selection on success |
-| `/devcontainer build [path]` | `devcontainer build` |
+| `/devcontainer up [path]` | `devcontainer up --workspace-folder`; re-resolves the selection on success. It **reuses** an existing container (the CLI never compares one against the configuration), and the result says so when it did |
+| `/devcontainer rebuild [--no-cache]` | Delete this workspace's container and recreate it from the current `devcontainer.json` / Dockerfile (`devcontainer up --remove-existing-container`). This is what a configuration change needs; shares `destructive.allowRemove` and a fresh confirmation naming the container |
+| `/devcontainer build [path]` | `devcontainer build` — produces the image, does **not** replace a running container |
 | `/devcontainer stop` | Docker stop — policy grant + fresh confirmation |
 | `/devcontainer remove` | Docker `rm -f` — policy grant + fresh confirmation |
 | `/devcontainer logs [--tail N]` | Bounded `docker logs` (default 100 lines); policy-checked and audited |
@@ -237,7 +238,7 @@ instance — so the two surfaces cannot drift.
 | `devcontainer_exec`, routed `bash` (`bash` tool, `!`, `!!`) | the selected container |
 | `devcontainer_host_exec`, `/devcontainer host-exec` | the host (explicit, policy-gated) |
 | `/devcontainer setup` | the host (one fixed `npm install -g` behind a confirmation) |
-| `/devcontainer stop` / `remove` / `logs`, `up` / `build` | Docker / the Dev Containers CLI on the host, against the container |
+| `/devcontainer stop` / `remove` / `logs` / `rebuild`, `up` / `build` | Docker / the Dev Containers CLI on the host, against the container |
 | `read` / `write` / `edit` / `grep` / `find` / `ls` | **always the host** |
 | everything, while **dormant** | nothing was registered: Pi's built-in host surfaces, unchanged |
 

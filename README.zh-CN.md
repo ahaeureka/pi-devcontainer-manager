@@ -145,8 +145,9 @@ bash "pytest -q"
 | `/devcontainer` | 交互式动词选择器（无 UI 时输出用法提示） |
 | `/devcontainer list` | 发现并渲染注册表；同时修复失效的选择 |
 | `/devcontainer status` | 同一个状态块（目标、注册表、路由、上限），并额外显示 `host runs:`——本会话宿主命令的**尝试次数**与**程序名** |
-| `/devcontainer up [path]` | `devcontainer up --workspace-folder`；成功后重新解析选择 |
-| `/devcontainer build [path]` | `devcontainer build` |
+| `/devcontainer up [path]` | `devcontainer up --workspace-folder`；成功后重新解析选择。它**复用**已存在的容器（CLI 从不拿容器和配置做比对），复用时结果里会明说 |
+| `/devcontainer rebuild [--no-cache]` | 删除该工作区的容器，并按当前的 `devcontainer.json` / Dockerfile 重建（`devcontainer up --remove-existing-container`）。改了配置就要用它；与 `remove` 共用 `destructive.allowRemove`，并需要一次点名容器的新鲜确认 |
+| `/devcontainer build [path]` | `devcontainer build`——只产出镜像，**不会**替换正在运行的容器 |
 | `/devcontainer stop` | Docker stop——策略授权 + 一次性确认 |
 | `/devcontainer remove` | Docker `rm -f`——策略授权 + 一次性确认 |
 | `/devcontainer logs [--tail N]` | 有界 `docker logs`（默认 100 行）；受策略校验并被审计 |
@@ -175,7 +176,7 @@ bash "pytest -q"
 | `devcontainer_exec`、被路由的 `bash`（`bash` 工具、`!`、`!!`） | 选中的容器 |
 | `devcontainer_host_exec`、`/devcontainer host-exec` | 宿主机（显式、受策略管控） |
 | `/devcontainer setup` | 宿主机（确认后执行一条固定的 `npm install -g`） |
-| `/devcontainer stop` / `remove` / `logs`、`up` / `build` | 宿主机上的 Docker / Dev Containers CLI，作用于该容器 |
+| `/devcontainer stop` / `remove` / `logs` / `rebuild`、`up` / `build` | 宿主机上的 Docker / Dev Containers CLI，作用于该容器 |
 | `read` / `write` / `edit` / `grep` / `find` / `ls` | **始终为宿主机** |
 
 ### 发现与选择
