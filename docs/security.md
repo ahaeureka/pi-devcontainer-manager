@@ -270,6 +270,16 @@ operation.
   pruning itself, so operators who want bounded disk usage should rotate or
   delete the dated `.jsonl` files (one file per day) externally.
 
+## Lifecycle diagnostic transcripts
+
+Lifecycle operations keep a separate VS Code Dev Containers-style troubleshooting transcript: `up`, `build`, `rebuild`, `/devcontainer setup`, `stop`, and `remove` tee their raw process stdout/stderr there. This is deliberately **not** an extension of audit JSONL: audit remains a redacted metadata trail, while transcripts may contain registry credentials, proxy values, or build secrets.
+
+- Directory mode is `0700`, every transcript is re-chmodded to `0600`.
+- Linux: `$XDG_STATE_HOME/pi-devcontainer-manager/lifecycle-logs` (default `~/.local/state/pi-devcontainer-manager/lifecycle-logs`); macOS: `~/Library/Application Support/pi-devcontainer-manager/lifecycle-logs`.
+- Each file is capped at 10 MiB and explicitly marks truncation; logs older than 14 days are pruned when a new transcript starts.
+- A write or retention failure never blocks the lifecycle operation. Raw content is never appended to model context, command text, or an audit record. `/devcontainer status` exposes only the newest local path and, for the current session, the outcome.
+- Treat these as local secret-bearing diagnostic artifacts: inspect them with normal host tools and delete them if your own retention requirements are stricter.
+
 ## Process boundary
 
 - All host and container processes are spawned with `shell: false`, a fixed

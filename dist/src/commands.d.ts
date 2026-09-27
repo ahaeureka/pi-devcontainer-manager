@@ -77,6 +77,21 @@ export interface CommandServices {
     readonly hostRuns?: {
         summary(): string;
     };
+    /** Latest local lifecycle diagnostic transcript; raw content is never rendered into the UI. */
+    readonly lifecycleLogs?: {
+        latestRun(): {
+            path: string;
+            operation: string;
+            startedAt?: string;
+            completedAt?: string;
+            outcome?: {
+                state: string;
+            };
+            warning?: string;
+            persisted?: true;
+        } | undefined;
+        latestWarning?(): string | undefined;
+    };
     /** Report a host attempt that configuration refused before the runner (so it is still visible). */
     readonly onWithheldHostAttempt?: (program: string) => void;
     /**
@@ -125,6 +140,19 @@ export declare function generateConfirmationToken(): string;
 /** Render the selection + registry state as a compact status block. */
 export declare function renderStatus(snapshot: TargetStoreSnapshot, entries: readonly import("./types.js").RegistryEntry[], config: EffectiveConfig, hostRuns?: {
     summary(): string;
+}, lifecycleLogs?: {
+    latestRun(): {
+        path: string;
+        operation: string;
+        startedAt?: string;
+        completedAt?: string;
+        outcome?: {
+            state: string;
+        };
+        warning?: string;
+        persisted?: true;
+    } | undefined;
+    latestWarning?(): string | undefined;
 }): string;
 /** Resolve a selection state back into the store, or return an error text. */
 export declare function applySelection(services: CommandServices, target: TargetSelection, ctx: CommandContextLike): Promise<EstablishedTarget | undefined>;

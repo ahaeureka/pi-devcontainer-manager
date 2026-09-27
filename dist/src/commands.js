@@ -27,7 +27,7 @@ function tokenFor(services) {
     return services.generateToken !== undefined ? services.generateToken() : generateConfirmationToken();
 }
 /** Render the selection + registry state as a compact status block. */
-export function renderStatus(snapshot, entries, config, hostRuns) {
+export function renderStatus(snapshot, entries, config, hostRuns, lifecycleLogs) {
     const lines = [];
     lines.push(`**DevContainer target:** ${snapshot.status}`);
     if (snapshot.workspaceKey !== undefined)
@@ -47,6 +47,15 @@ export function renderStatus(snapshot, entries, config, hostRuns) {
     lines.push(`route: \`${config.routeMode}\` · maxTimeout: ${config.maxTimeoutSeconds}s · maxOutput: ${(config.maxOutputBytes / 1024).toFixed(0)}KiB`);
     if (hostRuns !== undefined)
         lines.push(`host runs: ${hostRuns.summary()}`);
+    const lifecycleLog = lifecycleLogs?.latestRun();
+    if (lifecycleLog !== undefined) {
+        const state = lifecycleLog.outcome?.state ?? (lifecycleLog.persisted === true ? "previous" : "running");
+        const at = lifecycleLog.completedAt ?? lifecycleLog.startedAt;
+        lines.push(`lifecycle log: \`${lifecycleLog.path}\` (${lifecycleLog.operation} · ${state}${at === undefined ? "" : ` · ${at}`})`);
+    }
+    const lifecycleWarning = lifecycleLogs?.latestWarning?.();
+    if (lifecycleWarning !== undefined)
+        lines.push(`lifecycle log warning: ${lifecycleWarning}`);
     return lines.join("\n");
 }
 /** Resolve a selection state back into the store, or return an error text. */
@@ -302,12 +311,12 @@ export function createCommandHandlers(services) {
         }
         const { entries } = await services.registry();
         const snapshot = services.targetStore.snapshot();
-        return { text: renderStatus(snapshot, entries, services.config, services.hostRuns) };
+        return { text: renderStatus(snapshot, entries, services.config, services.hostRuns, services.lifecycleLogs) };
     };
     handlers["status"] = async (_args, _ctx) => {
         const { entries } = await services.registry();
         const snapshot = services.targetStore.snapshot();
-        return { text: renderStatus(snapshot, entries, services.config, services.hostRuns) };
+        return { text: renderStatus(snapshot, entries, services.config, services.hostRuns, services.lifecycleLogs) };
     };
     /**
      * Return to the dormant state: clear the target so the session's execution

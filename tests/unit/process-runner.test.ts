@@ -76,6 +76,23 @@ describe("NodeProcessRunner", () => {
     expect(total).toBeLessThanOrEqual(10);
   });
 
+
+  it("tees every raw byte to observers without changing bounded callback semantics", async () => {
+    const streamed: Buffer[] = [];
+    const observed: Buffer[] = [];
+    const result = await runner.exec("node", ["-e", "process.stdout.write('x'.repeat(100))"], {
+      cwd: process.cwd(),
+      env: { PATH: process.env.PATH ?? "" },
+      maxOutputBytes: 10,
+      onData: (chunk) => streamed.push(chunk),
+      observeStdout: (chunk) => observed.push(chunk),
+    });
+
+    expect(result.truncated).toBe(true);
+    expect(Buffer.concat(streamed)).toHaveLength(10);
+    expect(Buffer.concat(observed)).toHaveLength(100);
+    expect(result.stdout).toBeUndefined();
+  });
   it("rejects with timeout when a process runs too long", async () => {
     await expect(
       runner.exec("node", ["-e", "setTimeout(() => {}, 5000)"], {

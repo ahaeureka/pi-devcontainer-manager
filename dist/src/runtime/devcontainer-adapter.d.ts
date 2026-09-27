@@ -22,6 +22,7 @@
  */
 import { type ProcessRunner } from "./process-runner.js";
 import type { DevcontainerConfigKind } from "../types.js";
+import type { LifecycleLogRun } from "../lifecycle-log.js";
 /** Whether a discovered configuration has to be passed to the CLI explicitly. */
 export declare function needsExplicitConfig(kind: DevcontainerConfigKind): boolean;
 /** Success payload of `devcontainer up` (0.88.0), minus dispose/functions. */
@@ -42,6 +43,14 @@ export interface ExecOptions {
     readonly remoteEnv?: Readonly<Record<string, string>>;
     readonly signal?: AbortSignal;
 }
+export interface LifecycleCliOptions {
+    readonly dockerPath?: string;
+    readonly configPath?: string;
+    readonly noCache?: boolean;
+    readonly signal?: AbortSignal;
+    /** Raw process transcript owned by the lifecycle diagnostic logger. */
+    readonly lifecycleLog?: LifecycleLogRun;
+}
 export interface DevcontainerAdapter {
     /**
      * `devcontainer up --workspace-folder <workspace> [--remove-existing-container] [--build-no-cache]`.
@@ -58,6 +67,8 @@ export interface DevcontainerAdapter {
         /** `--build-no-cache`: rebuild the image without layer cache. */
         noCache?: boolean;
         signal?: AbortSignal;
+        /** Raw process transcript owned by the lifecycle diagnostic logger. */
+        lifecycleLog?: LifecycleLogRun;
     }): Promise<UpResult>;
     /** `devcontainer build [--workspace-folder <workspace>] [--no-cache]`. */
     build(workspace: string, options?: {
@@ -66,6 +77,7 @@ export interface DevcontainerAdapter {
         noCache?: boolean;
         imageName?: string;
         signal?: AbortSignal;
+        lifecycleLog?: LifecycleLogRun;
     }): Promise<BuildResult>;
     /**
      * `devcontainer exec --workspace-folder <ws> --container-id <id>
@@ -100,23 +112,16 @@ export declare class NodeDevcontainerAdapter implements DevcontainerAdapter {
         readonly cwd: string;
         readonly limits?: AdapterLimits;
     });
-    up(workspace: string, options?: {
-        dockerPath?: string;
-        configPath?: string;
-        removeExistingContainer?: boolean;
-        noCache?: boolean;
-        signal?: AbortSignal;
+    up(workspace: string, options?: LifecycleCliOptions & {
+        readonly removeExistingContainer?: boolean;
     }): Promise<UpResult>;
-    build(workspace: string, options?: {
-        dockerPath?: string;
-        configPath?: string;
-        noCache?: boolean;
-        imageName?: string;
-        signal?: AbortSignal;
+    build(workspace: string, options?: LifecycleCliOptions & {
+        readonly imageName?: string;
     }): Promise<BuildResult>;
     exec(workspace: string, containerId: string, cmd: string, args: readonly string[], options?: ExecOptions): Promise<ExecResult>;
     /** Shared argv runner for up/build/exec with error mapping. */
     private runCli;
+    private finishLifecycleLog;
     private parseUp;
     private parseBuild;
     /** Structured failure: prefer the CLI's own `message`/`description` when present. */

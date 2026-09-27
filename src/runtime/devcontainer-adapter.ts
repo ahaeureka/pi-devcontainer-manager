@@ -25,6 +25,7 @@ import { devcontainerSpawnErrorSpec } from "./spawn-error.js";
 import type { DevcontainerConfigKind } from "../types.js";
 import { RuntimeError } from "../errors.js";
 
+import type { LifecycleLogRun } from "../lifecycle-log.js";
 /**
  * Forms the pinned CLI resolves on its own, in this order:
  * `.devcontainer/devcontainer.json`, then `.devcontainer.json` — verified with
@@ -63,6 +64,15 @@ export interface ExecOptions {
   readonly remoteEnv?: Readonly<Record<string, string>>;
   readonly signal?: AbortSignal;
 }
+export interface LifecycleCliOptions {
+  readonly dockerPath?: string;
+  readonly configPath?: string;
+  readonly noCache?: boolean;
+  readonly signal?: AbortSignal;
+  /** Raw process transcript owned by the lifecycle diagnostic logger. */
+  readonly lifecycleLog?: LifecycleLogRun;
+}
+
 
 export interface DevcontainerAdapter {
   /**
@@ -82,13 +92,22 @@ export interface DevcontainerAdapter {
       /** `--build-no-cache`: rebuild the image without layer cache. */
       noCache?: boolean;
       signal?: AbortSignal;
+      /** Raw process transcript owned by the lifecycle diagnostic logger. */
+      lifecycleLog?: LifecycleLogRun;
     },
   ): Promise<UpResult>;
 
   /** `devcontainer build [--workspace-folder <workspace>] [--no-cache]`. */
   build(
     workspace: string,
-    options?: { dockerPath?: string; configPath?: string; noCache?: boolean; imageName?: string; signal?: AbortSignal },
+    options?: {
+      dockerPath?: string;
+      configPath?: string;
+      noCache?: boolean;
+      imageName?: string;
+      signal?: AbortSignal;
+      lifecycleLog?: LifecycleLogRun;
+    },
   ): Promise<BuildResult>;
 
   /**
@@ -138,34 +157,46 @@ export class NodeDevcontainerAdapter implements DevcontainerAdapter {
 
   public async up(
     workspace: string,
-    options: {
-      dockerPath?: string;
-      configPath?: string;
-      removeExistingContainer?: boolean;
-      noCache?: boolean;
-      signal?: AbortSignal;
-    } = {},
+    options: LifecycleCliOptions & { readonly removeExistingContainer?: boolean } = {},
   ): Promise<UpResult> {
     const args: string[] = ["up", "--workspace-folder", workspace];
     if (options.dockerPath !== undefined) args.push("--docker-path", options.dockerPath);
     if (options.configPath !== undefined) args.push("--config", options.configPath);
     if (options.removeExistingContainer === true) args.push("--remove-existing-container");
     if (options.noCache === true) args.push("--build-no-cache");
-    const { result, stdout, stderr } = await this.runCli(args, options.signal);
-    return this.parseUp(result, stdout, stderr);
+    let result: ProcessResult | undefined;
+    try {
+      const run = await this.runCli(args, options.signal, options.lifecycleLog);
+      result = run.result;
+      const parsed = this.parseUp(run.result, run.stdout, run.stderr);
+      this.finishLifecycleLog(options.lifecycleLog, result);
+      return parsed;
+    } catch (error) {
+      this.finishLifecycleLog(options.lifecycleLog, result, error);
+      throw error;
+    }
   }
 
   public async build(
     workspace: string,
-    options: { dockerPath?: string; configPath?: string; noCache?: boolean; imageName?: string; signal?: AbortSignal } = {},
+    options: LifecycleCliOptions & { readonly imageName?: string } = {},
   ): Promise<BuildResult> {
     const args: string[] = ["build", "--workspace-folder", workspace];
     if (options.dockerPath !== undefined) args.push("--docker-path", options.dockerPath);
     if (options.noCache === true) args.push("--no-cache");
     if (options.imageName !== undefined) args.push("--image-name", options.imageName);
     if (options.configPath !== undefined) args.push("--config", options.configPath);
-    const { result, stdout, stderr } = await this.runCli(args, options.signal);
-    return this.parseBuild(result, stdout, stderr);
+    let result: ProcessResult | undefined;
+    try {
+      const run = await this.runCli(args, options.signal, options.lifecycleLog);
+      result = run.result;
+      const parsed = this.parseBuild(run.result, run.stdout, run.stderr);
+      this.finishLifecycleLog(options.lifecycleLog, result);
+      return parsed;
+    } catch (error) {
+      this.finishLifecycleLog(options.lifecycleLog, result, error);
+      throw error;
+    }
   }
 
   public async exec(
@@ -220,13 +251,20 @@ export class NodeDevcontainerAdapter implements DevcontainerAdapter {
   private async runCli(
     args: readonly string[],
     signal?: AbortSignal,
+    lifecycleLog?: LifecycleLogRun,
   ): Promise<{ result: ProcessResult; stdout: Buffer; stderr: Buffer }> {
-    const result = await runBounded(this.runner, this.options.devcontainerPath, args, {
+    // `--log-level debug` is public CLI syntax. Apply it only to lifecycle operations; exec remains
+    // unchanged and its potentially sensitive command output is deliberately not logged here.
+    const invocation = lifecycleLog === undefined ? args : [...args, "--log-level", "debug"];
+    lifecycleLog?.setCommand([this.options.devcontainerPath, ...invocation]);
+    const result = await runBounded(this.runner, this.options.devcontainerPath, invocation, {
       cwd: this.options.cwd,
       env: this.options.env,
       maxOutputBytes: this.options.limits?.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
       timeoutMs: this.options.limits?.timeoutMs ?? CLI_TIMEOUT_MS,
       ...(signal !== undefined ? { signal } : {}),
+      ...(lifecycleLog !== undefined ? { observeStdout: (chunk: Buffer) => lifecycleLog.stdout(chunk) } : {}),
+      ...(lifecycleLog !== undefined ? { observeStderr: (chunk: Buffer) => lifecycleLog.stderr(chunk) } : {}),
       spawnError: devcontainerSpawnErrorSpec(this.options.devcontainerPath),
     });
     return {
@@ -234,6 +272,21 @@ export class NodeDevcontainerAdapter implements DevcontainerAdapter {
       stdout: Buffer.from(result.stdout ?? "", "utf8"),
       stderr: Buffer.from(result.stderr ?? "", "utf8"),
     };
+  }
+
+  private finishLifecycleLog(
+    log: LifecycleLogRun | undefined,
+    result: ProcessResult | undefined,
+    error?: unknown,
+  ): void {
+    if (log === undefined) return;
+    const message = error instanceof Error ? error.message : error === undefined ? undefined : String(error);
+    log.finish({
+      state: error === undefined ? "completed" : error instanceof RuntimeError && error.kind === "cancelled" ? "cancelled" : "failed",
+      exitCode: result?.exitCode ?? null,
+      ...(result !== undefined ? { durationMs: result.durationMs, outputTruncated: result.truncated } : {}),
+      ...(message !== undefined ? { error: message } : {}),
+    });
   }
 
   private parseUp(result: ProcessResult, stdout: Buffer, stderr: Buffer): UpResult {

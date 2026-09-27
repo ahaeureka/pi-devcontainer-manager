@@ -18,6 +18,7 @@ to [Semantic Versioning](https://semver.org/).
   about to delete. The confirmation is required even when no container could be resolved, so the gate
   never depends on a discovery result. Audited as `operation: "rebuild"`, with the container it creates
   as the record's `targetId`.
+- **Lifecycle diagnostic transcripts** — `up`, `build`, `rebuild`, `setup`, `stop`, and `remove` now persist their raw stdout/stderr to protected local troubleshooting files (directory `0700`, files `0600`, 10 MiB each, 14-day retention). This is intentionally separate from the redacted audit JSONL; transcripts can contain secrets and are never sent to model context. `/devcontainer status` reports only the latest transcript path, and the current session's outcome when available.
 
 ### Changed
 

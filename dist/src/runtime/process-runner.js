@@ -102,6 +102,7 @@ export class NodeProcessRunner {
                 fail(toSpawnError(file, error));
             });
             child.stdout.on("data", (chunk) => {
+                options.observeStdout?.(chunk);
                 if (stdoutBytes >= maxOutput) {
                     truncated = true;
                     return;
@@ -118,6 +119,7 @@ export class NodeProcessRunner {
                 }
             });
             child.stderr.on("data", (chunk) => {
+                options.observeStderr?.(chunk);
                 if (stderrBytes >= maxOutput) {
                     truncated = true;
                     return;
@@ -236,6 +238,8 @@ export async function runBounded(runner, file, args, options) {
             ...(options.signal !== undefined ? { signal: options.signal } : {}),
             ...(options.onData !== undefined ? { onData: options.onData } : {}),
             ...(options.onStderr !== undefined ? { onStderr: options.onStderr } : {}),
+            ...(options.observeStdout !== undefined ? { observeStdout: options.observeStdout } : {}),
+            ...(options.observeStderr !== undefined ? { observeStderr: options.observeStderr } : {}),
         });
     }
     catch (error) {

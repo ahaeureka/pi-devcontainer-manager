@@ -23,6 +23,7 @@ import { combineCommandOutput } from "../tool-output.js";
 import { RuntimeError } from "../errors.js";
 import type { DockerContainer } from "./docker-adapter.js";
 
+import type { LifecycleLogRun } from "../lifecycle-log.js";
 /**
  * One-line, bounded rendering of what a failed Docker call printed.
  *
@@ -69,12 +70,14 @@ export interface DockerLifecycleAdapter {
   stop(
     container: DockerContainer,
     confirmation: LifecycleConfirmation | undefined,
+    options?: { lifecycleLog?: LifecycleLogRun },
   ): Promise<LifecycleResult>;
 
   /** Remove a resolved unique container after a matching fresh confirmation. */
   remove(
     container: DockerContainer,
     confirmation: LifecycleConfirmation | undefined,
+    options?: { lifecycleLog?: LifecycleLogRun },
   ): Promise<LifecycleResult>;
 }
 
@@ -123,15 +126,17 @@ export class NodeDockerLifecycleAdapter implements DockerLifecycleAdapter {
   public async stop(
     container: DockerContainer,
     confirmation: LifecycleConfirmation | undefined,
+    options: { lifecycleLog?: LifecycleLogRun } = {},
   ): Promise<LifecycleResult> {
-    return this.destructive("stop", container, confirmation, ["stop", container.id]);
+    return this.destructive("stop", container, confirmation, ["stop", container.id], options.lifecycleLog);
   }
 
   public async remove(
     container: DockerContainer,
     confirmation: LifecycleConfirmation | undefined,
+    options: { lifecycleLog?: LifecycleLogRun } = {},
   ): Promise<LifecycleResult> {
-    return this.destructive("remove", container, confirmation, ["rm", "-f", container.id]);
+    return this.destructive("remove", container, confirmation, ["rm", "-f", container.id], options.lifecycleLog);
   }
 
   private async destructive(
@@ -139,6 +144,7 @@ export class NodeDockerLifecycleAdapter implements DockerLifecycleAdapter {
     container: DockerContainer,
     confirmation: LifecycleConfirmation | undefined,
     argv: readonly string[],
+    lifecycleLog?: LifecycleLogRun,
   ): Promise<LifecycleResult> {
     if (!this.isFreshConfirmation(action, container.id, confirmation)) {
       return {
@@ -149,27 +155,50 @@ export class NodeDockerLifecycleAdapter implements DockerLifecycleAdapter {
         instruction: `Type "confirm ${action} ${container.id.slice(0, 12)}" to proceed.`,
       };
     }
-    const result = await runBounded(this.runner, this.options.dockerPath, [...argv], {
-      cwd: this.options.cwd,
-      env: this.options.env,
-      maxOutputBytes: this.options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
-      timeoutMs: 60_000,
-      spawnError: dockerSpawnErrorSpec(this.options.dockerPath),
-    });
+    lifecycleLog?.setCommand([this.options.dockerPath, ...argv]);
+    let result: Awaited<ReturnType<typeof runBounded>>;
+    try {
+      result = await runBounded(this.runner, this.options.dockerPath, [...argv], {
+        cwd: this.options.cwd,
+        env: this.options.env,
+        maxOutputBytes: this.options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
+        timeoutMs: 60_000,
+        ...(lifecycleLog !== undefined ? { observeStdout: (chunk: Buffer) => lifecycleLog.stdout(chunk) } : {}),
+        ...(lifecycleLog !== undefined ? { observeStderr: (chunk: Buffer) => lifecycleLog.stderr(chunk) } : {}),
+        spawnError: dockerSpawnErrorSpec(this.options.dockerPath),
+      });
+    } catch (error) {
+      this.finishLifecycleLog(lifecycleLog, undefined, error);
+      throw error;
+    }
     if (result.exitCode !== 0) {
       // A destructive failure used to report only the exit code, so the daemon's own reason
       // ('Error response from daemon: …') never reached the operator.
       const detail = describeOutput(
         combineCommandOutput(result.stdout ?? "", result.stderr ?? ""),
       );
-      throw new RuntimeError({
+      const error = new RuntimeError({
         kind: "docker-cli-failure",
         message: `docker ${action} failed with exit ${result.exitCode}${detail.length > 0 ? `: ${detail}` : "."}`,
         exitCode: result.exitCode,
         remedy: "Check Docker daemon reachability and the container state.",
       });
+      this.finishLifecycleLog(lifecycleLog, result, error);
+      throw error;
     }
+    this.finishLifecycleLog(lifecycleLog, result);
     return { status: "done", action, containerId: container.id };
+  }
+
+  private finishLifecycleLog(log: LifecycleLogRun | undefined, result: Awaited<ReturnType<typeof runBounded>> | undefined, error?: unknown): void {
+    if (log === undefined) return;
+    const message = error instanceof Error ? error.message : error === undefined ? undefined : String(error);
+    log.finish({
+      state: error === undefined ? "completed" : "failed",
+      exitCode: result?.exitCode ?? null,
+      ...(result !== undefined ? { durationMs: result.durationMs, outputTruncated: result.truncated } : {}),
+      ...(message !== undefined ? { error: message } : {}),
+    });
   }
 
   /**

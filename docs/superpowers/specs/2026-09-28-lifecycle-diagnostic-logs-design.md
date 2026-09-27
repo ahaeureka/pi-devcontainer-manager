@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Persist a VS Code Dev Containers-style troubleshooting transcript for container lifecycle work. The transcript must make an `up`, build, initialization, setup, stop, removal, or discovery failure diagnosable after the Pi turn ends.
+Persist a VS Code Dev Containers-style troubleshooting transcript for container lifecycle work. The transcript must make an `up`, build, initialization, setup, stop, or removal failure diagnosable after the Pi turn ends.
 
 This is **not** a replacement for the existing JSONL audit trail. Audit records remain small, queryable, and redacted/fingerprint-oriented. Diagnostic logs are raw, operator-local process transcripts.
 
@@ -19,7 +19,7 @@ A lifecycle log is created for each parsed attempt of:
 - `/devcontainer stop`
 - `/devcontainer remove`
 
-The log records relevant registry/discovery diagnostics, command start/end metadata, actual CLI argv, stdout, stderr, exit/signal outcome, duration, and bounded-output or log truncation.
+The log records command start/end metadata, actual CLI argv, stdout, stderr, exit/signal outcome, duration, and bounded-output or log truncation.
 
 An attempt rejected by policy, declined at confirmation, or failed before a child process starts still receives a short lifecycle log. That is necessary to diagnose why an action did not run.
 
@@ -34,7 +34,7 @@ The first version does **not** persist output from:
 
 Those are routine command-execution surfaces, potentially high-volume and secret-bearing. They remain governed by the existing execution and audit contracts.
 
-Routine background registry scans do not create standalone files. Discovery information is attached to the lifecycle operation that caused it.
+Routine registry discovery is deliberately excluded: it is read-only background work, not lifecycle process output, and never creates a transcript.
 
 ## Design
 
@@ -64,16 +64,17 @@ Each operation has one text log, e.g. `2026-09-28T14-31-10.123Z-up-a1b2c3.log`. 
 ```text
 # pi-devcontainer-manager lifecycle log
 operation: up
-startedAt: 2026-09-28T14:31:10.123Z
+started: 2026-09-28T14:31:10.123Z
 workspace: /host/workspace
-argv: devcontainer up --workspace-folder /host/workspace
+command: ["devcontainer","up","--workspace-folder","/host/workspace"]
 
 --- stderr ---
 ...
 --- stdout ---
 ...
 
-finishedAt: ...
+--- outcome ---
+state: completed
 exitCode: 0
 durationMs: 12034
 ```
@@ -82,9 +83,9 @@ Logs contain raw output because the approved purpose is post-mortem diagnosis. T
 
 ### Bounded retention
 
-A single log is capped at 10 MiB. On reaching the cap, the writer appends one explicit truncation marker and continues draining the child process without blocking it. A log write failure is recorded in the command result/audit diagnostics where possible but never changes the lifecycle operation's result.
+A single log is capped at 10 MiB. On reaching the cap, the writer appends one explicit truncation marker and continues draining the child process without blocking it. A log write failure never changes the lifecycle operation's result; when retained, its concise warning appears in `/devcontainer status`.
 
-Files older than 14 days are pruned at `session_start`; no background scheduler is added. This mirrors audit pruning's explicit, session-bound maintenance model while using a shorter retention period for raw data.
+Files older than 14 days are pruned immediately before each new transcript starts; no background scheduler is added. This keeps raw-data retention bounded even in a long-running session.
 
 ### Process boundary
 
@@ -94,20 +95,18 @@ Add an observer/tap channel to `ProcessRunner` that is independent of existing c
 
 `NodeDevcontainerAdapter` receives a lifecycle-run sink for `up` and `build`; rebuild reuses the same `up` path. It adds the public `--log-level debug` flag to those calls so build and initialization progress reaches the transcript. It does not rely on the CLI's undocumented `--terminal-log-file` interface.
 
-`NodeDockerLifecycleAdapter` tees `stop`/`remove`, and `createSetupCli` tees install/probe output. Command handlers own lifecycle-run creation and finalization for command-parse, policy, confirmation, adapter, and refresh/reconcile outcomes.
+`NodeDockerLifecycleAdapter` tees `stop`/`remove`, and `createSetupCli` tees install/probe output. `ExecutionService` owns lifecycle-run creation and finalization around policy, confirmation, adapter, and refresh/reconcile outcomes.
 
 ### Operator surface
 
-`/devcontainer status` adds a diagnostic-log location line only when a lifecycle file exists. It exposes the path, timestamp, operation, and terminal outcome, never raw contents. The user can inspect the `0600` file through their normal local tools.
-
-The successful command result likewise may name the file path but never embeds the raw transcript. This keeps sensitive process output out of agent-visible command text.
+`/devcontainer status` adds a diagnostic-log location line only when a lifecycle file exists. It exposes the path and, in the current session, operation/timestamp/outcome; after reload it labels retained metadata as `previous` rather than reading raw file contents. The user can inspect the `0600` file through their normal local tools.
 
 ## Failure behavior
 
 - A child spawn failure, timeout, cancellation, nonzero exit, or JSON parse failure is finalized in the log with all output received before the failure.
 - A policy denial, cancelled confirmation, or unavailable UI finalizes a no-child log with its typed reason.
-- If the directory cannot be created or a write fails, lifecycle work still proceeds; the result carries a concise operator-facing warning that diagnostic logging was unavailable.
-- Log retention failure never blocks session startup or a lifecycle operation.
+- If the directory cannot be created or a write fails, lifecycle work still proceeds; the retained concise warning is exposed through `/devcontainer status`.
+- Log retention failure never blocks a lifecycle operation.
 
 ## Verification
 

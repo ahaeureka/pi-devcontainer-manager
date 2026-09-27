@@ -28,6 +28,10 @@ export interface ProcessRunnerOptions {
     readonly onData?: (chunk: Buffer) => void;
     readonly onStderr?: (chunk: Buffer) => void;
     readonly onSpawn?: (child: SpawnedChild) => void;
+    /** A non-owning stream observer; unlike onData it does not suppress ProcessResult.stdout capture. */
+    readonly observeStdout?: (chunk: Buffer) => void;
+    /** A non-owning stream observer; unlike onStderr it does not suppress ProcessResult.stderr capture. */
+    readonly observeStderr?: (chunk: Buffer) => void;
 }
 export interface ProcessRunner {
     exec(file: string, args: readonly string[], options: ProcessRunnerOptions): Promise<ProcessResult>;
@@ -46,6 +50,10 @@ export interface BoundedRunOptions {
     readonly onStderr?: (chunk: Buffer) => void;
     /** How a failure to start this executable is reported to the operator. */
     readonly spawnError: SpawnErrorSpec;
+    /** Receives every raw stdout byte before the runner's in-memory cap. */
+    readonly observeStdout?: (chunk: Buffer) => void;
+    /** Receives every raw stderr byte before the runner's in-memory cap. */
+    readonly observeStderr?: (chunk: Buffer) => void;
 }
 /**
  * Fallback byte cap for one captured stream when the caller supplies none.

@@ -134,6 +134,38 @@ describe("/devcontainer list + status", () => {
     // The claim the adversarial review caught as untested: the summary must reach `/devcontainer status`.
     expect(result.text).toContain("host runs: 2 host command attempts this session");
   });
+
+  it("status exposes only the latest lifecycle log path, never its raw content", async () => {
+    const { handlers } = makeServices({
+      lifecycleLogs: { latestRun: () => ({ operation: "rebuild", path: "/private/lifecycle/rebuild.log" }) },
+    });
+    const result = await handlers["status"]!("", makeCtx());
+
+    expect(result.text).toContain("lifecycle log: `/private/lifecycle/rebuild.log` (rebuild · running)");
+    expect(result.text).not.toContain("raw-secret");
+  });
+
+  it("status reports a lifecycle-log writer warning without raw process output", async () => {
+    const { handlers } = makeServices({
+      lifecycleLogs: {
+        latestRun: () => undefined,
+        latestWarning: () => "Lifecycle diagnostic log unavailable: permission denied",
+      },
+    });
+    const result = await handlers["status"]!("", makeCtx());
+
+    expect(result.text).toContain("lifecycle log warning: Lifecycle diagnostic log unavailable: permission denied");
+    expect(result.text).not.toContain("raw-secret");
+  });
+
+  it("marks a retained transcript from a prior session as previous rather than running", async () => {
+    const { handlers } = makeServices({
+      lifecycleLogs: { latestRun: () => ({ operation: "up", path: "/private/lifecycle/up.log", persisted: true }) },
+    });
+    const result = await handlers["status"]!("", makeCtx());
+
+    expect(result.text).toContain("lifecycle log: `/private/lifecycle/up.log` (up · previous)");
+  });
 });
 
 describe("/devcontainer use", () => {

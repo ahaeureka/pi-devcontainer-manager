@@ -11,8 +11,12 @@
  *   the result, never thrown.
  */
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { NodeDevcontainerAdapter } from "../../src/runtime/devcontainer-adapter.js";
 import { RuntimeError } from "../../src/errors.js";
+import { LifecycleLogWriter } from "../../src/lifecycle-log.js";
 import type { ProcessResult, ProcessRunner, ProcessRunnerOptions } from "../../src/runtime/process-runner.js";
 
 interface CallRecord {
@@ -32,6 +36,8 @@ function fakeRunner(results: ProcessResult[], onCall?: (call: CallRecord) => voi
       if (next === undefined) {
         return Promise.reject(new Error("unexpected runner call"));
       }
+      if (next.stdout !== undefined) options.observeStdout?.(Buffer.from(next.stdout));
+      if (next.stderr !== undefined) options.observeStderr?.(Buffer.from(next.stderr));
       return Promise.resolve(next);
     },
   };
@@ -74,6 +80,27 @@ describe("NodeDevcontainerAdapter.up", () => {
     expect(result.remoteWorkspaceFolder).toBe("/workspaces/p");
   });
 
+
+  it("tees lifecycle up output to an independent debug transcript without changing its parsed result", async () => {
+    const { runner, calls } = fakeRunner([
+      ok(0, '{"outcome":"success","containerId":"abc123"}\n', "build progress: raw diagnostic\n"),
+    ]);
+    const adapter = makeAdapter(runner);
+    const directory = mkdtempSync(join(tmpdir(), "adapter-lifecycle-log-"));
+    const log = new LifecycleLogWriter({ directory, randomSuffix: () => "test" }).start({
+      operation: "up",
+      workspacePath: "/ws/project-a",
+    });
+
+    await adapter.up("/ws/project-a", { lifecycleLog: log });
+
+    expect(calls[0]!.args).toContain("--log-level");
+    expect(calls[0]!.args).toContain("debug");
+    const transcript = readFileSync(log.path!, "utf8");
+    expect(transcript).toContain("build progress: raw diagnostic");
+    expect(transcript).toContain('"containerId":"abc123"');
+    expect(transcript).toContain("state: completed");
+  });
   it("passes the recreate flags that make `up` delete instead of reuse", async () => {
     const { runner, calls } = fakeRunner([ok(0, '{"outcome":"success","containerId":"abc123"}\n')]);
     const adapter = makeAdapter(runner);

@@ -61,8 +61,18 @@ export class NodeDevcontainerAdapter {
             args.push("--remove-existing-container");
         if (options.noCache === true)
             args.push("--build-no-cache");
-        const { result, stdout, stderr } = await this.runCli(args, options.signal);
-        return this.parseUp(result, stdout, stderr);
+        let result;
+        try {
+            const run = await this.runCli(args, options.signal, options.lifecycleLog);
+            result = run.result;
+            const parsed = this.parseUp(run.result, run.stdout, run.stderr);
+            this.finishLifecycleLog(options.lifecycleLog, result);
+            return parsed;
+        }
+        catch (error) {
+            this.finishLifecycleLog(options.lifecycleLog, result, error);
+            throw error;
+        }
     }
     async build(workspace, options = {}) {
         const args = ["build", "--workspace-folder", workspace];
@@ -74,8 +84,18 @@ export class NodeDevcontainerAdapter {
             args.push("--image-name", options.imageName);
         if (options.configPath !== undefined)
             args.push("--config", options.configPath);
-        const { result, stdout, stderr } = await this.runCli(args, options.signal);
-        return this.parseBuild(result, stdout, stderr);
+        let result;
+        try {
+            const run = await this.runCli(args, options.signal, options.lifecycleLog);
+            result = run.result;
+            const parsed = this.parseBuild(run.result, run.stdout, run.stderr);
+            this.finishLifecycleLog(options.lifecycleLog, result);
+            return parsed;
+        }
+        catch (error) {
+            this.finishLifecycleLog(options.lifecycleLog, result, error);
+            throw error;
+        }
     }
     async exec(workspace, containerId, cmd, args, options = {}) {
         if (cmd.length === 0) {
@@ -120,13 +140,19 @@ export class NodeDevcontainerAdapter {
         };
     }
     /** Shared argv runner for up/build/exec with error mapping. */
-    async runCli(args, signal) {
-        const result = await runBounded(this.runner, this.options.devcontainerPath, args, {
+    async runCli(args, signal, lifecycleLog) {
+        // `--log-level debug` is public CLI syntax. Apply it only to lifecycle operations; exec remains
+        // unchanged and its potentially sensitive command output is deliberately not logged here.
+        const invocation = lifecycleLog === undefined ? args : [...args, "--log-level", "debug"];
+        lifecycleLog?.setCommand([this.options.devcontainerPath, ...invocation]);
+        const result = await runBounded(this.runner, this.options.devcontainerPath, invocation, {
             cwd: this.options.cwd,
             env: this.options.env,
             maxOutputBytes: this.options.limits?.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES,
             timeoutMs: this.options.limits?.timeoutMs ?? CLI_TIMEOUT_MS,
             ...(signal !== undefined ? { signal } : {}),
+            ...(lifecycleLog !== undefined ? { observeStdout: (chunk) => lifecycleLog.stdout(chunk) } : {}),
+            ...(lifecycleLog !== undefined ? { observeStderr: (chunk) => lifecycleLog.stderr(chunk) } : {}),
             spawnError: devcontainerSpawnErrorSpec(this.options.devcontainerPath),
         });
         return {
@@ -134,6 +160,17 @@ export class NodeDevcontainerAdapter {
             stdout: Buffer.from(result.stdout ?? "", "utf8"),
             stderr: Buffer.from(result.stderr ?? "", "utf8"),
         };
+    }
+    finishLifecycleLog(log, result, error) {
+        if (log === undefined)
+            return;
+        const message = error instanceof Error ? error.message : error === undefined ? undefined : String(error);
+        log.finish({
+            state: error === undefined ? "completed" : error instanceof RuntimeError && error.kind === "cancelled" ? "cancelled" : "failed",
+            exitCode: result?.exitCode ?? null,
+            ...(result !== undefined ? { durationMs: result.durationMs, outputTruncated: result.truncated } : {}),
+            ...(message !== undefined ? { error: message } : {}),
+        });
     }
     parseUp(result, stdout, stderr) {
         if (result.exitCode !== 0) {

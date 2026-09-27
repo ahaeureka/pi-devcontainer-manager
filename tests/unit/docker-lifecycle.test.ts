@@ -7,8 +7,12 @@
  * Containers CLI's kind, so a docker fault read as a devcontainer-CLI fault.
  */
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { errorKindOf } from "../../src/errors.js";
 import type { ProcessResult, ProcessRunner } from "../../src/runtime/process-runner.js";
+import { LifecycleLogWriter } from "../../src/lifecycle-log.js";
 import {
   NodeDockerLifecycleAdapter,
   type LifecycleConfirmation,
@@ -83,6 +87,24 @@ describe("NodeDockerLifecycleAdapter.remove", () => {
     const result = await adapter(runner(() => ({}))).remove(container, confirmationFor("remove"));
 
     expect(result).toMatchObject({ status: "done", action: "remove", containerId: container.id });
+  });
+
+  it("tees confirmed docker lifecycle output into its private transcript", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "docker-lifecycle-log-"));
+    const lifecycleLogs = new LifecycleLogWriter({ directory, randomSuffix: () => "remove" });
+    const log = lifecycleLogs.start({ operation: "remove", workspacePath: "/ws" });
+    const r: ProcessRunner = {
+      async exec(_file, _args, options) {
+        options.observeStderr?.(Buffer.from("docker rm raw output\n"));
+        return { exitCode: 0, signal: null, durationMs: 1, truncated: false, stdout: "", stderr: "docker rm raw output\n" };
+      },
+    };
+
+    await adapter(r).remove(container, confirmationFor("remove"), { lifecycleLog: log });
+
+    const transcript = readFileSync(log.path!, "utf8");
+    expect(transcript).toContain("docker rm raw output");
+    expect(transcript).toContain("state: completed");
   });
 });
 

@@ -47,6 +47,7 @@ import {
   primaryCandidate,
 } from "../src/registry-entry.js";
 import { JsonlAuditWriter, defaultAuditDirectory } from "../src/audit.js";
+import { LifecycleLogWriter } from "../src/lifecycle-log.js";
 import { composeHostEnvironment } from "../src/host-environment.js";
 import { NodeProcessRunner } from "../src/runtime/process-runner.js";
 import { NodeCapabilityService } from "../src/runtime/capabilities.js";
@@ -155,6 +156,7 @@ function composeRuntime(
   },
 ): Runtime {
   const runner = new NodeProcessRunner();
+  const lifecycleLogs = new LifecycleLogWriter();
   const capabilities = new NodeCapabilityService(runner, {
     dockerPath: config.dockerPath,
     devcontainerPath: config.devcontainerPath,
@@ -326,6 +328,7 @@ function composeRuntime(
     devcontainer,
     dockerLifecycle,
     audit,
+    lifecycleLogs,
     autoSelect,
     resolveContainerWorkspace,
     mappingFor: readMapping,
@@ -365,6 +368,7 @@ function composeRuntime(
   const commandServices: CommandServices = {
     config,
     hostRuns: hostVisibility.ledger,
+    lifecycleLogs,
     onWithheldHostAttempt: hostVisibility.onWithheldHostAttempt,
     targetStore,
     execution,
@@ -372,7 +376,7 @@ function composeRuntime(
     // A refresh follows a mutation the extension itself performed, so it must not be served from the read cache.
     refreshRegistry: registryFresh,
     hostRunner,
-    setupCli: createSetupCli({ runner, audit, config, sessionWorkspace, env }),
+    setupCli: createSetupCli({ runner, audit, config, sessionWorkspace, env, lifecycleLogs }),
   };
 
   const tools: Runtime["tools"] = {

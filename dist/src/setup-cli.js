@@ -14,6 +14,7 @@
  * audit record, and a structured result whatever fails.**
  */
 import { commandIdentity, redactText } from "./policy.js";
+import { RuntimeError } from "./errors.js";
 /**
  * Fixed argv: this capability installs exactly one named package and never runs a
  * caller-supplied command, so it cannot be turned into a general host escape hatch.
@@ -69,6 +70,19 @@ export function createSetupCli(deps) {
         const startedAt = process.hrtime.bigint();
         const elapsedMs = () => Number(process.hrtime.bigint() - startedAt) / 1e6;
         const argv = [...SETUP_ARGV];
+        const lifecycleLog = deps.lifecycleLogs?.start({ operation: "setup", workspacePath: deps.sessionWorkspace });
+        lifecycleLog?.setCommand(argv);
+        const finishLifecycleLog = (state, error, result) => {
+            if (lifecycleLog === undefined)
+                return;
+            lifecycleLog.finish({
+                state,
+                exitCode: result?.exitCode ?? null,
+                durationMs: elapsedMs(),
+                outputTruncated: result?.truncated ?? false,
+                ...(error === undefined ? {} : { error }),
+            });
+        };
         let runResult;
         try {
             runResult = await deps.runner.exec(argv[0], argv.slice(1), {
@@ -77,6 +91,8 @@ export function createSetupCli(deps) {
                 maxOutputBytes: deps.config.maxOutputBytes,
                 timeoutMs: INSTALL_TIMEOUT_MS,
                 ...(options?.signal !== undefined ? { signal: options.signal } : {}),
+                ...(lifecycleLog !== undefined ? { observeStdout: (chunk) => lifecycleLog.stdout(chunk) } : {}),
+                ...(lifecycleLog !== undefined ? { observeStderr: (chunk) => lifecycleLog.stderr(chunk) } : {}),
             });
         }
         catch (error) {
@@ -84,6 +100,7 @@ export function createSetupCli(deps) {
             // with the same structured shape a nonzero exit produces, instead of letting the error
             // escape past the audit and reach the handler unnormalized.
             const reason = error instanceof Error ? error.message : String(error);
+            finishLifecycleLog(error instanceof RuntimeError && error.kind === "cancelled" ? "cancelled" : "failed", reason);
             return failure(reason, writeRecord(argv, elapsedMs(), null, false, reason));
         }
         const stderr = (runResult.stderr ?? "").trim();
@@ -93,17 +110,21 @@ export function createSetupCli(deps) {
             const reason = runResult.exitCode === null && runResult.signal !== null
                 ? `npm install was killed by ${runResult.signal}${stderr.length > 0 ? `: ${stderr}` : ""}`
                 : stderr || `npm install exited ${runResult.exitCode}`;
+            finishLifecycleLog(runResult.exitCode === null && runResult.signal !== null ? "cancelled" : "failed", reason, runResult);
             return failure(reason, writeRecord(argv, elapsedMs(), runResult.exitCode, runResult.truncated, reason));
         }
         // Verify the freshly installed CLI is resolvable on PATH.
         let reason;
         let version;
         try {
+            lifecycleLog?.note(`verification command: ${JSON.stringify([deps.config.devcontainerPath, "--version"])}`);
             const probe = await deps.runner.exec(deps.config.devcontainerPath, ["--version"], {
                 cwd: deps.sessionWorkspace,
                 env: { ...deps.env },
                 maxOutputBytes: PROBE_MAX_OUTPUT_BYTES,
                 timeoutMs: PROBE_TIMEOUT_MS,
+                ...(lifecycleLog !== undefined ? { observeStdout: (chunk) => lifecycleLog.stdout(chunk) } : {}),
+                ...(lifecycleLog !== undefined ? { observeStderr: (chunk) => lifecycleLog.stderr(chunk) } : {}),
             });
             if (probe.exitCode === 0) {
                 version = (probe.stdout ?? "").trim().split(/\s+/).pop() || undefined;
@@ -119,8 +140,11 @@ export function createSetupCli(deps) {
         // verification used to leave a success-shaped record (`exitCode: 0`, no error summary) behind a
         // setup the operator was told had failed.
         const auditNote = writeRecord(argv, elapsedMs(), runResult.exitCode, runResult.truncated, reason);
-        if (reason !== undefined)
+        if (reason !== undefined) {
+            finishLifecycleLog("failed", reason, runResult);
             return { ...failure(reason, auditNote) };
+        }
+        finishLifecycleLog("completed", undefined, runResult);
         return {
             installed: true,
             version,

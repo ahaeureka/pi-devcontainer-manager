@@ -181,20 +181,30 @@ export class ExecutionService {
     }
     async up(request) {
         const startedAt = Date.now();
-        const snapshot = this.authorize({
-            operation: "up",
-            initiator: request.initiator,
-            workspace: request.workspace,
-        });
+        const lifecycleLog = this.startLifecycleLog("up", request.workspace);
+        let snapshot;
+        try {
+            snapshot = this.authorize({
+                operation: "up",
+                initiator: request.initiator,
+                workspace: request.workspace,
+            });
+        }
+        catch (error) {
+            this.finishLifecycleLog(lifecycleLog, startedAt, error);
+            throw error;
+        }
         let result;
         try {
             result = await this.options.devcontainer.up(request.workspace, {
                 ...(request.dockerPath !== undefined ? { dockerPath: request.dockerPath } : {}),
                 ...(request.configPath !== undefined ? { configPath: request.configPath } : {}),
                 ...(request.signal !== undefined ? { signal: request.signal } : {}),
+                ...(lifecycleLog !== undefined ? { lifecycleLog } : {}),
             });
         }
         catch (error) {
+            this.finishLifecycleLog(lifecycleLog, startedAt, error);
             this.audit(snapshot, undefined, request, {
                 durationMs: Date.now() - startedAt,
                 exitCode: null,
@@ -203,6 +213,7 @@ export class ExecutionService {
             });
             throw error;
         }
+        this.finishLifecycleLog(lifecycleLog, startedAt);
         this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false }, result.containerId);
         return {
             operation: "up",
@@ -222,12 +233,20 @@ export class ExecutionService {
      * wrong. The flag this runs is unconditional too.
      */
     async rebuild(request) {
-        const snapshot = this.authorize({
-            operation: "rebuild",
-            initiator: request.initiator,
-            workspace: request.workspace,
-        });
         const startedAt = Date.now();
+        const lifecycleLog = this.startLifecycleLog("rebuild", request.workspace);
+        let snapshot;
+        try {
+            snapshot = this.authorize({
+                operation: "rebuild",
+                initiator: request.initiator,
+                workspace: request.workspace,
+            });
+        }
+        catch (error) {
+            this.finishLifecycleLog(lifecycleLog, startedAt, error);
+            throw error;
+        }
         const workspaceKey = canonicalWorkspaceKey(request.workspace);
         if (!matchesRebuildConfirmation(workspaceKey, request.confirmation)) {
             // Audited like a lifecycle refusal: the attempt reached the service and was refused, which is
@@ -238,6 +257,7 @@ export class ExecutionService {
                 outputTruncated: false,
                 errorSummary: "confirmation required",
             });
+            this.finishLifecycleLog(lifecycleLog, startedAt, new RuntimeError({ kind: "policy-denied", message: "confirmation required" }));
             return {
                 status: "confirmation-required",
                 workspaceKey,
@@ -253,9 +273,11 @@ export class ExecutionService {
                 ...(request.configPath !== undefined ? { configPath: request.configPath } : {}),
                 ...(request.noCache === true ? { noCache: true } : {}),
                 ...(request.signal !== undefined ? { signal: request.signal } : {}),
+                ...(lifecycleLog !== undefined ? { lifecycleLog } : {}),
             });
         }
         catch (error) {
+            this.finishLifecycleLog(lifecycleLog, startedAt, error);
             this.audit(snapshot, undefined, request, {
                 durationMs: Date.now() - startedAt,
                 exitCode: null,
@@ -264,6 +286,7 @@ export class ExecutionService {
             });
             throw error;
         }
+        this.finishLifecycleLog(lifecycleLog, startedAt);
         this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false }, result.containerId);
         return {
             status: "done",
@@ -279,11 +302,19 @@ export class ExecutionService {
     }
     async build(request) {
         const startedAt = Date.now();
-        const snapshot = this.authorize({
-            operation: "build",
-            initiator: request.initiator,
-            workspace: request.workspace,
-        });
+        const lifecycleLog = this.startLifecycleLog("build", request.workspace);
+        let snapshot;
+        try {
+            snapshot = this.authorize({
+                operation: "build",
+                initiator: request.initiator,
+                workspace: request.workspace,
+            });
+        }
+        catch (error) {
+            this.finishLifecycleLog(lifecycleLog, startedAt, error);
+            throw error;
+        }
         let result;
         try {
             result = await this.options.devcontainer.build(request.workspace, {
@@ -292,9 +323,11 @@ export class ExecutionService {
                 ...(request.noCache === true ? { noCache: true } : {}),
                 ...(request.imageName !== undefined ? { imageName: request.imageName } : {}),
                 ...(request.signal !== undefined ? { signal: request.signal } : {}),
+                ...(lifecycleLog !== undefined ? { lifecycleLog } : {}),
             });
         }
         catch (error) {
+            this.finishLifecycleLog(lifecycleLog, startedAt, error);
             this.audit(snapshot, undefined, request, {
                 durationMs: Date.now() - startedAt,
                 exitCode: null,
@@ -303,6 +336,7 @@ export class ExecutionService {
             });
             throw error;
         }
+        this.finishLifecycleLog(lifecycleLog, startedAt);
         this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false });
         return {
             operation: "build",
@@ -312,17 +346,26 @@ export class ExecutionService {
         };
     }
     async lifecycle(request) {
-        const snapshot = this.authorize({
-            operation: request.operation,
-            initiator: request.initiator,
-            workspace: request.workspace,
-        });
         const startedAt = Date.now();
+        const lifecycleLog = this.startLifecycleLog(request.operation, request.workspace);
+        let snapshot;
+        try {
+            snapshot = this.authorize({
+                operation: request.operation,
+                initiator: request.initiator,
+                workspace: request.workspace,
+            });
+        }
+        catch (error) {
+            this.finishLifecycleLog(lifecycleLog, startedAt, error);
+            throw error;
+        }
         let verifiedId;
         try {
             verifiedId = this.bindContainer(request.container.id);
         }
         catch (error) {
+            this.finishLifecycleLog(lifecycleLog, startedAt, error);
             this.audit(snapshot, undefined, request, {
                 durationMs: Date.now() - startedAt,
                 exitCode: null,
@@ -333,9 +376,10 @@ export class ExecutionService {
         }
         let result;
         try {
-            result = await this.options.dockerLifecycle[request.operation](request.container, request.confirmation);
+            result = await this.options.dockerLifecycle[request.operation](request.container, request.confirmation, ...(lifecycleLog !== undefined ? [{ lifecycleLog }] : []));
         }
         catch (error) {
+            this.finishLifecycleLog(lifecycleLog, startedAt, error);
             this.audit(snapshot, undefined, request, {
                 durationMs: Date.now() - startedAt,
                 exitCode: null,
@@ -345,9 +389,12 @@ export class ExecutionService {
             throw error;
         }
         if (result.status === "done") {
+            this.finishLifecycleLog(lifecycleLog, startedAt);
             this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false }, verifiedId);
         }
         else {
+            const error = new RuntimeError({ kind: "policy-denied", message: "confirmation required" });
+            this.finishLifecycleLog(lifecycleLog, startedAt, error);
             this.audit(snapshot, undefined, request, {
                 durationMs: Date.now() - startedAt,
                 exitCode: null,
@@ -448,6 +495,27 @@ export class ExecutionService {
      * thrown, so denials are visible in the audit trail instead of silently
      * absent. Denied environment VALUES are never recorded.
      */
+    startLifecycleLog(operation, workspacePath) {
+        return this.options.lifecycleLogs?.start({ operation, workspacePath });
+    }
+    finishLifecycleLog(log, startedAt, error) {
+        if (log === undefined)
+            return;
+        const runtime = error instanceof RuntimeError ? error : undefined;
+        log.finish({
+            state: error === undefined
+                ? "completed"
+                : runtime?.kind === "cancelled"
+                    ? "cancelled"
+                    : runtime?.kind === "policy-denied"
+                        ? "denied"
+                        : "failed",
+            exitCode: null,
+            durationMs: Date.now() - startedAt,
+            outputTruncated: false,
+            ...(error === undefined ? {} : { error: this.asAuditError(error).message }),
+        });
+    }
     authorize(input) {
         const now = () => new Date(this.clock());
         const snapshot = evaluatePolicy(this.options.config, input, now);

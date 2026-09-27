@@ -8,8 +8,12 @@
  * these tests keep both stages honest in one place.
  */
 import { describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { RuntimeError } from "../../src/errors.js";
 import { createSetupCli } from "../../src/setup-cli.js";
+import { LifecycleLogWriter } from "../../src/lifecycle-log.js";
 import type { ProcessResult, ProcessRunner, ProcessRunnerOptions } from "../../src/runtime/process-runner.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
 import { testConfig } from "../fixtures/config.js";
@@ -87,6 +91,34 @@ describe("createSetupCli", () => {
     });
     expect(records[0]?.commandFingerprint).toBeDefined();
     expect(records[0]?.errorSummary).toBeUndefined();
+  });
+
+  it("writes raw install and verification streams to the private setup transcript", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "setup-lifecycle-log-"));
+    const lifecycleLogs = new LifecycleLogWriter({ directory, randomSuffix: () => "setup" });
+    const runner: ProcessRunner = {
+      async exec(file, _args, options) {
+        const output = file === "npm" ? "install output\n" : "devcontainer 0.89.0\n";
+        options.observeStdout?.(Buffer.from(output));
+        return result({ stdout: output });
+      },
+    };
+    const setup = createSetupCli({
+      runner,
+      audit: { write: () => undefined, prune: () => undefined },
+      config: makeConfig(),
+      sessionWorkspace: "/ws",
+      env: { PATH: "/usr/bin" },
+      lifecycleLogs,
+    });
+
+    expect(await setup()).toMatchObject({ installed: true, version: "0.89.0" });
+    const log = lifecycleLogs.latestRun();
+    expect(log?.operation).toBe("setup");
+    const transcript = readFileSync(log!.path, "utf8");
+    expect(transcript).toContain("install output");
+    expect(transcript).toContain("devcontainer 0.89.0");
+    expect(transcript).toContain("state: completed");
   });
 
   it("returns a structured failure when npm exits nonzero", async () => {

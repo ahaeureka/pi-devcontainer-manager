@@ -73,6 +73,8 @@ export interface CommandServices {
   readonly generateToken?: () => string;
   /** Session-scoped host-run summary (`/devcontainer status`; the audit trail stays authoritative). */
   readonly hostRuns?: { summary(): string };
+  /** Latest local lifecycle diagnostic transcript; raw content is never rendered into the UI. */
+  readonly lifecycleLogs?: { latestRun(): { path: string; operation: string; startedAt?: string; completedAt?: string; outcome?: { state: string }; warning?: string; persisted?: true } | undefined; latestWarning?(): string | undefined };
   /** Report a host attempt that configuration refused before the runner (so it is still visible). */
   readonly onWithheldHostAttempt?: (program: string) => void;
   /**
@@ -139,6 +141,7 @@ export function renderStatus(
   entries: readonly import("./types.js").RegistryEntry[],
   config: EffectiveConfig,
   hostRuns?: { summary(): string },
+  lifecycleLogs?: { latestRun(): { path: string; operation: string; startedAt?: string; completedAt?: string; outcome?: { state: string }; warning?: string; persisted?: true } | undefined; latestWarning?(): string | undefined },
 ): string {
   const lines: string[] = [];
   lines.push(`**DevContainer target:** ${snapshot.status}`);
@@ -155,6 +158,14 @@ export function renderStatus(
   lines.push("");
   lines.push(`route: \`${config.routeMode}\` · maxTimeout: ${config.maxTimeoutSeconds}s · maxOutput: ${(config.maxOutputBytes / 1024).toFixed(0)}KiB`);
   if (hostRuns !== undefined) lines.push(`host runs: ${hostRuns.summary()}`);
+  const lifecycleLog = lifecycleLogs?.latestRun();
+  if (lifecycleLog !== undefined) {
+    const state = lifecycleLog.outcome?.state ?? (lifecycleLog.persisted === true ? "previous" : "running");
+    const at = lifecycleLog.completedAt ?? lifecycleLog.startedAt;
+    lines.push(`lifecycle log: \`${lifecycleLog.path}\` (${lifecycleLog.operation} · ${state}${at === undefined ? "" : ` · ${at}`})`);
+  }
+  const lifecycleWarning = lifecycleLogs?.latestWarning?.();
+  if (lifecycleWarning !== undefined) lines.push(`lifecycle log warning: ${lifecycleWarning}`);
   return lines.join("\n");
 }
 
@@ -454,13 +465,13 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     }
     const { entries } = await services.registry();
     const snapshot = services.targetStore.snapshot();
-    return { text: renderStatus(snapshot, entries, services.config, services.hostRuns) };
+    return { text: renderStatus(snapshot, entries, services.config, services.hostRuns, services.lifecycleLogs) };
   };
 
   handlers["status"] = async (_args, _ctx) => {
     const { entries } = await services.registry();
     const snapshot = services.targetStore.snapshot();
-    return { text: renderStatus(snapshot, entries, services.config, services.hostRuns) };
+    return { text: renderStatus(snapshot, entries, services.config, services.hostRuns, services.lifecycleLogs) };
   };
 
   /**

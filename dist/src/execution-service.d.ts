@@ -5,6 +5,7 @@ import type { DevcontainerAdapter } from "./runtime/devcontainer-adapter.js";
 import type { DockerLifecycleAdapter, LifecycleConfirmation, LifecycleResult } from "./runtime/docker-lifecycle.js";
 import type { DockerContainer } from "./runtime/docker-adapter.js";
 import { type HostToContainerMapping } from "./routing-guard.js";
+import type { LifecycleLogWriter } from "./lifecycle-log.js";
 export interface ExecRequest {
     readonly operation: "container-exec" | "routed-bash" | "user-bash";
     readonly initiator: Initiator;
@@ -121,6 +122,8 @@ export interface ExecutionServiceOptions {
     readonly mappingFor?: (workspaceKey: string) => Promise<HostToContainerMapping | undefined>;
     readonly dockerLifecycle: DockerLifecycleAdapter;
     readonly audit: AuditWriter;
+    /** Private raw transcript writer for lifecycle-only diagnostics. */
+    readonly lifecycleLogs?: LifecycleLogWriter;
     /** ISO-8601 string clock for audit timestamps. */
     readonly clock?: () => string;
     /**
@@ -209,6 +212,8 @@ export declare class ExecutionService {
      * thrown, so denials are visible in the audit trail instead of silently
      * absent. Denied environment VALUES are never recorded.
      */
+    private startLifecycleLog;
+    private finishLifecycleLog;
     private authorize;
     private audit;
     /** Is this workspace itself a DevContainer project? (injectable for tests) */
