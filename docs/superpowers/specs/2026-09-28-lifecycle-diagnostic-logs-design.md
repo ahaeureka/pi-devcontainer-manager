@@ -43,7 +43,8 @@ Routine background registry scans do not create standalone files. Discovery info
 Add `src/lifecycle-log.ts`, with a narrow writer interface similar to `AuditWriter`:
 
 - create a run before a lifecycle handler executes;
-- append structured headers and tagged `stdout` / `stderr` bytes while the child runs;
+- attach the exact child argv when its adapter has assembled it;
+- append tagged `stdout` / `stderr` bytes while the child runs;
 - finalize exactly once with result or error metadata;
 - prune old files independently of audit JSONL files.
 
