@@ -90,10 +90,8 @@ describe("LifecycleLogWriter", () => {
     expect(writer.latestWarning()).toMatch(/diagnostic log/i);
   });
 
-  it("uses the platform state-home convention", () => {
-    expect(defaultLifecycleLogDirectory({ XDG_STATE_HOME: "/state" }, "/home/test", "linux"))
-      .toBe("/state/pi-devcontainer-manager/lifecycle-logs");
-    expect(defaultLifecycleLogDirectory({}, "/Users/test", "darwin"))
-      .toBe("/Users/test/Library/Application Support/pi-devcontainer-manager/lifecycle-logs");
+  it("defaults to the Pi session project's private .pi namespace", () => {
+    expect(defaultLifecycleLogDirectory("/work/project"))
+      .toBe("/work/project/.pi/devcontainer-manager/lifecycle-logs");
   });
 });

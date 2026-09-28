@@ -52,11 +52,10 @@ Add `src/lifecycle-log.ts`, with a narrow writer interface similar to `AuditWrit
 
 ### Storage and protection
 
-Default directories:
+Default directory:
 
-- Linux: `$XDG_STATE_HOME/pi-devcontainer-manager/lifecycle-logs/`, or `~/.local/state/pi-devcontainer-manager/lifecycle-logs/`
-- macOS: `~/Library/Application Support/pi-devcontainer-manager/lifecycle-logs/`
-
+- Every Pi session uses its cwd (the local project root): `<session-cwd>/.pi/devcontainer-manager/lifecycle-logs/`.
+- The extension's own project-local configuration remains `<session-cwd>/.pi/pi-devcontainer-manager.json`; logs use a separate namespace.
 The directory is created with mode `0700`; each file is created and re-chmodded to `0600`. File names contain only timestamp, lifecycle operation, and a generated opaque suffix; they never include a workspace path, image name, container id, or command text.
 
 Each operation has one text log, e.g. `2026-09-28T14-31-10.123Z-up-a1b2c3.log`. Its format is intentionally human-readable:

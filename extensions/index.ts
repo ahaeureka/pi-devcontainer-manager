@@ -156,7 +156,7 @@ function composeRuntime(
   },
 ): Runtime {
   const runner = new NodeProcessRunner();
-  const lifecycleLogs = new LifecycleLogWriter();
+  const lifecycleLogs = new LifecycleLogWriter({ workspacePath: sessionWorkspace });
   const capabilities = new NodeCapabilityService(runner, {
     dockerPath: config.dockerPath,
     devcontainerPath: config.devcontainerPath,

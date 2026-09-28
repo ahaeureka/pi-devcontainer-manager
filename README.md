@@ -115,7 +115,7 @@ every turn.
   `up`/`build`/`exec` then carries `--config <that path>`.
 - **Audits** every operation to a host-local JSONL file: fingerprint capture by
   default, 90-day retention window, `audit.enabled` and `audit.directory` honored.
-- **Keeps lifecycle diagnostics separately from audit.** `up`, `build`, `rebuild`, `setup`, `stop`, and `remove` tee raw stdout/stderr into an operator-only troubleshooting transcript. Each file is mode `0600` under the lifecycle-log directory (Linux: `$XDG_STATE_HOME/pi-devcontainer-manager/lifecycle-logs/`, default `~/.local/state/pi-devcontainer-manager/lifecycle-logs/`; macOS: `~/Library/Application Support/pi-devcontainer-manager/lifecycle-logs/`). Logs are capped at 10 MiB and retained for 14 days; they may contain secrets, are never added to audit JSONL or model context, and `/devcontainer status` exposes only the latest path.
+- **Keeps lifecycle diagnostics separately from audit.** `up`, `build`, `rebuild`, `setup`, `stop`, and `remove` tee raw stdout/stderr into an operator-only troubleshooting transcript at `<project>/.pi/devcontainer-manager/lifecycle-logs/`. The directory is `0700`, each file is `0600`, and this secret-bearing path is gitignored. Logs are capped at 10 MiB and retained for 14 days; they are never added to audit JSONL or model context, and `/devcontainer status` exposes only the latest path.
 - **Never falls back silently** to the host: a `container-required` route returns
   a typed `no-candidate` / `ambiguous-candidate` / `target-stopped` /
   `policy-denied` error instead.

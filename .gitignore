@@ -20,6 +20,8 @@ node_modules/
 .pi/settings.json
 # Machine-local dev escape hatch (hostExecution.allow while developing this extension)
 .pi/pi-devcontainer-manager.json
+# Raw lifecycle diagnostics are project-local secret-bearing artifacts, never repository content.
+.pi/devcontainer-manager/lifecycle-logs/
 .kata/runtime/
 .kata/worktrees/
 

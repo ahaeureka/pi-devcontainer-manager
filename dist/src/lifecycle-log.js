@@ -1,20 +1,13 @@
-import { homedir } from "node:os";
 import { appendFileSync, chmodSync, mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync, } from "node:fs";
 import { join } from "node:path";
 export const DEFAULT_LIFECYCLE_LOG_RETENTION_DAYS = 14;
 export const DEFAULT_LIFECYCLE_LOG_MAX_BYTES = 10 * 1024 * 1024;
 /**
- * Returns the private, operator-owned directory for raw lifecycle diagnostics.
- * This directory is deliberately separate from the structured audit JSONL.
+ * Returns the project-local, operator-owned directory for raw lifecycle diagnostics.
+ * The session cwd is explicit in production; `process.cwd()` keeps direct library use local too.
  */
-export function defaultLifecycleLogDirectory(environment = process.env, homeDirectory = homedir(), platform = process.platform) {
-    if (platform === "darwin") {
-        return join(homeDirectory, "Library", "Application Support", "pi-devcontainer-manager", "lifecycle-logs");
-    }
-    if (platform === "win32") {
-        return join(environment.LOCALAPPDATA ?? join(homeDirectory, "AppData", "Local"), "pi-devcontainer-manager", "lifecycle-logs");
-    }
-    return join(environment.XDG_STATE_HOME ?? join(homeDirectory, ".local", "state"), "pi-devcontainer-manager", "lifecycle-logs");
+export function defaultLifecycleLogDirectory(workspacePath = process.cwd()) {
+    return join(workspacePath, ".pi", "devcontainer-manager", "lifecycle-logs");
 }
 /**
  * Writes raw diagnostic transcripts for lifecycle operations. Failures in this
@@ -29,7 +22,7 @@ export class LifecycleLogWriter {
     now;
     randomSuffix;
     constructor(options = {}) {
-        this.directory = options.directory ?? defaultLifecycleLogDirectory(options.environment, options.homeDirectory, options.platform);
+        this.directory = options.directory ?? defaultLifecycleLogDirectory(options.workspacePath);
         this.retentionDays = options.retentionDays ?? DEFAULT_LIFECYCLE_LOG_RETENTION_DAYS;
         this.maxBytes = options.maxBytes ?? DEFAULT_LIFECYCLE_LOG_MAX_BYTES;
         this.now = options.now ?? (() => new Date());

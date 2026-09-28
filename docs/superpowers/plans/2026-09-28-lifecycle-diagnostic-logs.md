@@ -168,7 +168,7 @@ Expected: all pass; `dist/` matches the build and package has no `dist/tests/**`
 
 - [ ] **Step 5: Validate with the real qunapai project**
 
-After `npm run install:local`, use `/data/work/ahaeureka/qunapai` as the session/project cwd. Run `/devcontainer rebuild` interactively, accept the required remove confirmation, then inspect the newest `lifecycle-logs/*.log` through a host-side operator tool. Verify the file is mode `0600`, includes the rebuild/devcontainer process transcript and terminal outcome, and its content does not appear in slash-command text or audit JSONL. If real-project behavior exposes a plugin defect, add a regression test here before adjusting source.
+After `npm run install:local`, use `/data/work/ahaeureka/qunapai` as the session/project cwd. Run `/devcontainer rebuild` interactively, accept the required remove confirmation, then inspect `.pi/devcontainer-manager/lifecycle-logs/*.log` through a host-side operator tool. Verify the file is mode `0600`, includes the rebuild/devcontainer process transcript and terminal outcome, and its content does not appear in slash-command text or audit JSONL. If real-project behavior exposes a plugin defect, add a regression test here before adjusting source.
 
 - [ ] **Step 6: Commit and final verification**
 

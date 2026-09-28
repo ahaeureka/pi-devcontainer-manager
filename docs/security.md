@@ -275,7 +275,7 @@ operation.
 Lifecycle operations keep a separate VS Code Dev Containers-style troubleshooting transcript: `up`, `build`, `rebuild`, `/devcontainer setup`, `stop`, and `remove` tee their raw process stdout/stderr there. This is deliberately **not** an extension of audit JSONL: audit remains a redacted metadata trail, while transcripts may contain registry credentials, proxy values, or build secrets.
 
 - Directory mode is `0700`, every transcript is re-chmodded to `0600`.
-- Linux: `$XDG_STATE_HOME/pi-devcontainer-manager/lifecycle-logs` (default `~/.local/state/pi-devcontainer-manager/lifecycle-logs`); macOS: `~/Library/Application Support/pi-devcontainer-manager/lifecycle-logs`.
+- Every session stores transcripts under its local project root: `<session-cwd>/.pi/devcontainer-manager/lifecycle-logs/`. This is distinct from the optional project configuration file `<session-cwd>/.pi/pi-devcontainer-manager.json`.
 - Each file is capped at 10 MiB and explicitly marks truncation; logs older than 14 days are pruned when a new transcript starts.
 - A write or retention failure never blocks the lifecycle operation. Raw content is never appended to model context, command text, or an audit record. `/devcontainer status` exposes only the newest local path and, for the current session, the outcome.
 - Treat these as local secret-bearing diagnostic artifacts: inspect them with normal host tools and delete them if your own retention requirements are stricter.

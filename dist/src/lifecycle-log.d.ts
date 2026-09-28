@@ -33,20 +33,19 @@ export interface LifecycleLogRun {
     finish(outcome: LifecycleLogOutcome): void;
 }
 export interface LifecycleLogWriterOptions {
+    /** Pi session cwd; determines the project-local default when no directory is supplied. */
+    readonly workspacePath?: string;
     readonly directory?: string;
     readonly retentionDays?: number;
     readonly maxBytes?: number;
     readonly now?: () => Date;
     readonly randomSuffix?: () => string;
-    readonly platform?: NodeJS.Platform;
-    readonly homeDirectory?: string;
-    readonly environment?: NodeJS.ProcessEnv;
 }
 /**
- * Returns the private, operator-owned directory for raw lifecycle diagnostics.
- * This directory is deliberately separate from the structured audit JSONL.
+ * Returns the project-local, operator-owned directory for raw lifecycle diagnostics.
+ * The session cwd is explicit in production; `process.cwd()` keeps direct library use local too.
  */
-export declare function defaultLifecycleLogDirectory(environment?: NodeJS.ProcessEnv, homeDirectory?: string, platform?: NodeJS.Platform): string;
+export declare function defaultLifecycleLogDirectory(workspacePath?: string): string;
 /**
  * Writes raw diagnostic transcripts for lifecycle operations. Failures in this
  * best-effort writer never alter the operation it observes.

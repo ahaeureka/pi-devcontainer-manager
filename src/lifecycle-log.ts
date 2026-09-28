@@ -1,4 +1,3 @@
-import { homedir } from "node:os";
 import {
   appendFileSync,
   chmodSync,
@@ -55,36 +54,21 @@ export interface LifecycleLogRun {
 }
 
 export interface LifecycleLogWriterOptions {
+  /** Pi session cwd; determines the project-local default when no directory is supplied. */
+  readonly workspacePath?: string;
   readonly directory?: string;
   readonly retentionDays?: number;
   readonly maxBytes?: number;
   readonly now?: () => Date;
   readonly randomSuffix?: () => string;
-  readonly platform?: NodeJS.Platform;
-  readonly homeDirectory?: string;
-  readonly environment?: NodeJS.ProcessEnv;
 }
 
 /**
- * Returns the private, operator-owned directory for raw lifecycle diagnostics.
- * This directory is deliberately separate from the structured audit JSONL.
+ * Returns the project-local, operator-owned directory for raw lifecycle diagnostics.
+ * The session cwd is explicit in production; `process.cwd()` keeps direct library use local too.
  */
-export function defaultLifecycleLogDirectory(
-  environment: NodeJS.ProcessEnv = process.env,
-  homeDirectory = homedir(),
-  platform: NodeJS.Platform = process.platform,
-): string {
-  if (platform === "darwin") {
-    return join(homeDirectory, "Library", "Application Support", "pi-devcontainer-manager", "lifecycle-logs");
-  }
-  if (platform === "win32") {
-    return join(environment.LOCALAPPDATA ?? join(homeDirectory, "AppData", "Local"), "pi-devcontainer-manager", "lifecycle-logs");
-  }
-  return join(
-    environment.XDG_STATE_HOME ?? join(homeDirectory, ".local", "state"),
-    "pi-devcontainer-manager",
-    "lifecycle-logs",
-  );
+export function defaultLifecycleLogDirectory(workspacePath = process.cwd()): string {
+  return join(workspacePath, ".pi", "devcontainer-manager", "lifecycle-logs");
 }
 
 /**
@@ -101,11 +85,7 @@ export class LifecycleLogWriter {
   private readonly randomSuffix: () => string;
 
   constructor(options: LifecycleLogWriterOptions = {}) {
-    this.directory = options.directory ?? defaultLifecycleLogDirectory(
-      options.environment,
-      options.homeDirectory,
-      options.platform,
-    );
+    this.directory = options.directory ?? defaultLifecycleLogDirectory(options.workspacePath);
     this.retentionDays = options.retentionDays ?? DEFAULT_LIFECYCLE_LOG_RETENTION_DAYS;
     this.maxBytes = options.maxBytes ?? DEFAULT_LIFECYCLE_LOG_MAX_BYTES;
     this.now = options.now ?? (() => new Date());

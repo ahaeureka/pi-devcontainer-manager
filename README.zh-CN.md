@@ -70,7 +70,7 @@ DevContainer 里装的是某个项目的工具链，而 Pi（以及它的配置�
   `npm install -g @devcontainers/cli`（见 [Security](docs/security.md#devcontainer-setup)）。
 - **审计**：每个操作都会写入宿主机本地的 JSONL 文件，默认只记录 argv 的 SHA-256 指纹，
   保留窗口 90 天，`audit.enabled` 与 `audit.directory` 都会被真正生效。
-- **生命周期排障日志与审计分离**：`up`、`build`、`rebuild`、`setup`、`stop`、`remove` 的原始 stdout/stderr 会 tee 到仅供操作者排障的本机转录文件。文件权限为 `0600`；目录为 Linux 的 `$XDG_STATE_HOME/pi-devcontainer-manager/lifecycle-logs/`（默认 `~/.local/state/pi-devcontainer-manager/lifecycle-logs/`）或 macOS 的 `~/Library/Application Support/pi-devcontainer-manager/lifecycle-logs/`。单文件上限 10 MiB、保留 14 天；内容可能含敏感信息，绝不写入审计 JSONL 或模型上下文，`/devcontainer status` 只显示最近路径。
+- **生命周期排障日志与审计分离**：`up`、`build`、`rebuild`、`setup`、`stop`、`remove` 的原始 stdout/stderr 会 tee 到仅供操作者排障的 `<项目>/.pi/devcontainer-manager/lifecycle-logs/` 转录文件。目录权限为 `0700`、文件为 `0600`，此可能含敏感信息的路径已 gitignore。单文件上限 10 MiB、保留 14 天；绝不写入审计 JSONL 或模型上下文，`/devcontainer status` 只显示最近路径。
 - **绝不静默回退**：`container-required` 路由会返回类型化错误
   （`no-candidate` / `ambiguous-candidate` / `target-stopped` / `policy-denied`）。
 
