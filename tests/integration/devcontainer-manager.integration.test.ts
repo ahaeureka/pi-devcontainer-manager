@@ -44,12 +44,15 @@ import { TargetStore } from "../../src/target-store.js";
 import { ExecutionService } from "../../src/execution-service.js";
 import { buildWorkspaceRegistry, nodeTraversal } from "../../src/runtime/host-discovery.js";
 import { primaryConfigOf } from "../../src/registry-entry.js";
+import { resolveTargetRepair } from "../../src/target-repair.js";
 import type { AuditWriter } from "../../src/audit.js";
 import type { AuditRecord, EffectiveConfig } from "../../src/types.js";
 import { testConfig } from "../../tests/fixtures/config.js";
 
 const FIXTURE_A = resolve(process.cwd(), "tests", "fixtures", "project-a");
 const FIXTURE_B = resolve(process.cwd(), "tests", "fixtures", "project-b");
+/** Policy scope for the fixtures; the stored roots decide which workspaces may be operated on. */
+const FIXTURES_ROOT = resolve(process.cwd(), "tests", "fixtures");
 
 /** Capability gate: real Docker daemon + pinned CLI must both be present. */
 const dockerOk = (() => {
@@ -101,7 +104,14 @@ interface Composed {
   records: AuditRecord[];
 }
 
-function composeRuntime(config: EffectiveConfig): Composed {
+function composeRuntime(
+  config: EffectiveConfig,
+  /**
+   * Injected seams for the stale-target test: a pre-parked store and the live-path repair hook, which is what
+   * `extensions/index.ts` wires into `autoSelect`.
+   */
+  options: { store?: TargetStore; autoSelect?: (workspace: string) => Promise<void> } = {},
+): Composed {
   const runner = new NodeProcessRunner();
   const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "" };
   const docker = new NodeDockerAdapter(runner, {
@@ -116,7 +126,7 @@ function composeRuntime(config: EffectiveConfig): Composed {
     cwd: process.cwd(),
     limits: { maxOutputBytes: config.maxOutputBytes, timeoutMs: config.maxTimeoutSeconds * 1000 },
   });
-  const store = new TargetStore({});
+  const store = options.store ?? new TargetStore({});
   const records: AuditRecord[] = [];
   const audit: AuditWriter = {
     write: (record) => records.push(record),
@@ -128,7 +138,14 @@ function composeRuntime(config: EffectiveConfig): Composed {
     cwd: process.cwd(),
     maxOutputBytes: config.maxOutputBytes,
   });
-  const service = new ExecutionService({ config, targetStore: store, devcontainer, dockerLifecycle: lifecycle, audit });
+  const service = new ExecutionService({
+    config,
+    targetStore: store,
+    devcontainer,
+    dockerLifecycle: lifecycle,
+    audit,
+    ...(options.autoSelect !== undefined ? { autoSelect: options.autoSelect } : {}),
+  });
   return { service, store, docker, audit, records };
 }
 
@@ -307,6 +324,63 @@ suite("devcontainer-manager integration (real Docker + CLI)", () => {
     });
     expect(result.status).toBe("confirmation-required");
     expect((result as { action: string }).action).toBe("stop");
+  });
+
+  it("self-heals a target parked before its container existed (stale-target self-heal, AC-1/AC-2/AC-4)", async () => {
+    // The reported sequence, with real Docker: the session resolved while nothing was running (so the store
+    // holds `selected-stopped`), and the container appeared afterwards. Only the WORLD changes below — the
+    // parked store is never written by the test.
+    const up = await composed.service.up({ operation: "up", initiator: "slash-command", workspace: FIXTURE_B });
+    expect(up.candidateId).toBeTypeOf("string");
+    cleanedIds.push(up.candidateId!);
+
+    const realRegistry = async () => {
+      const dockerResult = await composed.docker.listDevContainers();
+      return buildWorkspaceRegistry({
+        options: {
+          sessionCwd: process.cwd(),
+          allowedWorkspaceRoots: [resolve(process.cwd(), "tests", "fixtures")],
+          discovery: makeConfig().discovery,
+          traversal: nodeTraversal(),
+        },
+        dockerCandidates: dockerResult.containers,
+      });
+    };
+
+    // Control: with no repair hook, the parked selection keeps refusing even though Docker reports a running
+    // container for this workspace. This is the defect, reproduced.
+    const parked = new TargetStore({});
+    await parked.select({ status: "selected-stopped", workspaceKey: FIXTURE_B, detail: "parked before the container existed" });
+    const withoutRepair = composeRuntime(testConfig({ allowedWorkspaceRoots: [FIXTURES_ROOT], destructive: { allowRemove: true, allowStop: true } }), { store: parked });
+    await expect(
+      withoutRepair.service.exec({ operation: "container-exec", initiator: "tool", workspace: FIXTURE_B, cmd: "pwd", args: [] }),
+    ).rejects.toMatchObject({ kind: "target-stopped" });
+
+    // The fix, wired exactly as the extension wires it: the hook re-derives the parked selection from a live
+    // registry read, and the SAME parked store then serves the call without /reload.
+    const parkedStore = new TargetStore({});
+    await parkedStore.select({ status: "selected-stopped", workspaceKey: FIXTURE_B, detail: "parked before the container existed" });
+    const repaired = composeRuntime(testConfig({ allowedWorkspaceRoots: [FIXTURES_ROOT], destructive: { allowRemove: true, allowStop: true } }), {
+      store: parkedStore,
+      autoSelect: async (workspace) => {
+        const { entries } = await realRegistry();
+        const next = resolveTargetRepair({ snapshot: parkedStore.snapshot(), requestWorkspace: workspace, entries });
+        if (next !== undefined) await parkedStore.select(next);
+      },
+    });
+
+    const outcome = await repaired.service.exec({
+      operation: "container-exec",
+      initiator: "tool",
+      workspace: FIXTURE_B,
+      cmd: "pwd",
+      args: [],
+    });
+
+    expect(outcome.exitCode).toBe(0);
+    expect(outcome.stdout.trim()).toMatch(/project-b/);
+    // AC-4: the adopted identity is the one the registry reports, not a fabricated one.
+    expect(parkedStore.snapshot()).toMatchObject({ status: "selected-valid", candidateId: up.candidateId });
   });
 
   it("builds a fixture workspace through the real pinned CLI and reports the image name", async () => {

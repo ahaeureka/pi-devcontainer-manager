@@ -54,7 +54,10 @@ export class ExecutionService {
         // and the target state refused it, and the typed error is rethrown unchanged.
         let ctx;
         try {
-            if (this.options.targetStore.snapshot().status === "none") {
+            const currentStatus = this.options.targetStore.snapshot().status;
+            // The three statuses the hook may fix: an empty store, and the two parked by reality (see the option's
+            // doc). Everything else keeps its own typed refusal untouched.
+            if (currentStatus === "none" || currentStatus === "selected-stopped" || currentStatus === "selected-missing") {
                 await this.options.autoSelect?.(request.workspace);
             }
             ctx = this.options.targetStore.bind();

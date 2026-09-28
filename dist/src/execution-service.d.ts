@@ -127,7 +127,16 @@ export interface ExecutionServiceOptions {
     /** ISO-8601 string clock for audit timestamps. */
     readonly clock?: () => string;
     /**
-     * Optional hook to auto-select a default target when none is selected yet.
+     * Optional hook to establish a usable target when the store cannot serve the request.
+     *
+     * Invoked for the EMPTY store (`none`) and for the two statuses parked by volatile REALITY
+     * (`selected-stopped`, `selected-missing`): a container that appears after the session resolved — started by
+     * VS Code, a host shell or a sibling Pi session — must become usable without `/reload`, which is the defect
+     * `openspec/changes/stale-target-self-heal/` reports. The hook owns the rule (see `src/target-repair.ts`),
+     * including "never resurrect an operator-stopped target".
+     *
+     * `selected-ambiguous`, `selected-policy-denied` and `refreshing` are NEVER passed here: those refusals are
+     * decisions, not stale facts.
      * Called with the policy-scoped request workspace BEFORE `bind()` only when
      * the target store is in `none`. Wired by the extension to select the
      * session-cwd workspace when its realpath exactly matches a discovered

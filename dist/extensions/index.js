@@ -52,6 +52,7 @@ import { createRoutedBashOperations } from "../src/bash-router.js";
 import { createDevcontainerExecTool, createDevcontainerStatusTool, createDevcontainerHostExecTool, devcontainerExecParams, devcontainerStatusParams, devcontainerHostExecParams, DEV_CONTAINER_HOST_EXEC_TOOL, } from "../src/tools.js";
 import { createCommandHandlers, displayCommandResult, selectionFor } from "../src/commands.js";
 import { reconcileSelection } from "../src/commands.js";
+import { resolveTargetRepair } from "../src/target-repair.js";
 import { canonicalWorkspaceKey } from "../src/workspace-path.js";
 import { SELECTION_ENTRY_KIND, recoverSelectionIntent, } from "../src/selection-state.js";
 import { evaluatePolicy, commandIdentity } from "../src/policy.js";
@@ -157,12 +158,16 @@ hostVisibility) {
     };
     const registryForRead = async () => registryCache.get("registry", registry);
     /**
-     * Auto-select the session-cwd workspace as the default target when none is
-     * selected yet (empty-selection only — an explicit `/devcontainer use`
-     * always wins). Matches only when the policy-scoped request workspace's
-     * realpath exactly equals the session cwd; a config-only/stopped project is
-     * selected in `selected-stopped` so `exec` fails closed with
-     * `target-stopped` and prompts `/devcontainer up` (never auto-starts).
+     * Establish a usable target for the session-cwd workspace: adopt one when nothing is selected yet, and
+     * RE-DERIVE one parked by reality when the store already holds a stopped/missing selection.
+     *
+     * Empty-selection adoption matches only when the policy-scoped request workspace's realpath exactly equals
+     * the session cwd; a config-only/stopped project is selected in `selected-stopped` so `exec` fails closed
+     * with `target-stopped` and prompts `/devcontainer up` (it never auto-starts).
+     *
+     * The re-derive branch is the fix for `openspec/changes/stale-target-self-heal/`: a container started
+     * out-of-band after the session resolved used to stay invisible until `/reload`. Only a RUNNING candidate is
+     * adopted (`src/target-repair.ts` owns the rule), so `/devcontainer stop` stays authoritative.
      */
     const autoSelect = async (workspace) => {
         // Only an engaged session may take a target on its own. After `/devcontainer off` the tools stay
@@ -170,6 +175,16 @@ hostVisibility) {
         // operator just turned off (review finding L1-02).
         if (!allowsAutoSelection(activation.decision))
             return;
+        const parked = targetStore.snapshot();
+        if (parked.status === "selected-stopped" || parked.status === "selected-missing") {
+            // A cached read (500 ms) so a refused call that the caller immediately retries does not run discovery
+            // twice; the window is far shorter than the timescale at which a container appears.
+            const { entries } = await registryForRead();
+            const repair = resolveTargetRepair({ snapshot: parked, requestWorkspace: workspace, entries });
+            if (repair !== undefined)
+                await targetStore.select(repair);
+            return;
+        }
         const cwdKey = canonicalWorkspaceKey(sessionWorkspace);
         if (canonicalWorkspaceKey(workspace) !== cwdKey)
             return;

@@ -129,6 +129,7 @@ to [Semantic Versioning](https://semver.org/).
   kinds above and the redaction fix.
 
 ### Fixed
+- **A container started outside Pi is adopted by the live session.** A session that resolves its target while nothing is running parks the selection as `selected-stopped`; a container started after that — by VS Code, a host shell, or another Pi session — used to stay invisible until `/reload`, so every container surface kept refusing `target-stopped` even though Docker reported a running container carrying the workspace's own label. The live path now re-derives that parked selection from the registry (once per refused call, on the cached read), so the next call adopts the running container. Only a **running** candidate is ever adopted, so `/devcontainer stop` stays authoritative and `/devcontainer off` stays respected; an ambiguous workspace still fails closed instead of letting Docker's listing order decide. Documented in `docs/troubleshooting.md`.
 
 - **The Dev Containers CLI can reach a registry through the operator's proxy again.** The host child
   environment was a fixed `PATH`/`HOME`/`XDG_STATE_HOME` literal, so `HTTP_PROXY`/`HTTPS_PROXY` (and

@@ -6,6 +6,9 @@
 `status: candidate directions only — NOT an approved design, no AC matrix, no branch`
 `reviewed: 2026-09-28` · `base: main@0becb88` · `review result: every §3 code claim re-checked against the code;`
 `§3 gained the gates a fix must ALSO pass, §8 was corrected, §9 states the decision and proposed ACs`
+`decision: ADOPT externally started containers (operator, 2026-09-28) — direction B implemented`
+`implemented: src/target-repair.ts (the rule) · src/execution-service.ts (the trigger) · extensions/index.ts (the hook)`
+`verified: tests/unit/target-repair.test.ts · tests/unit/execution-service.test.ts · tests/integration/… (real Docker)`
 
 This artifact is a defect report, not a design contract. It is deliberately written in English so it
 can be read alongside the code; the operator-facing summary lives in the reporting session.
@@ -162,9 +165,15 @@ which commits the source; re-verified with a clean tree. **Lesson for this repor
 "committed `dist` matches a fresh build" proves nothing when the tree is dirty — a build of a dirty tree
 reproduces the dirty `dist`.
 
-## 9. Decision needed, and proposed acceptance criteria
+## 9. Decision, acceptance criteria, and implementation record
 
-### 9.1 The decision (blocks implementation)
+### 9.0 Decision taken (2026-09-28)
+
+The operator answered **yes**: a container this extension did not start IS adopted by a live session, provided it
+is **running** and labelled for the workspace. Direction **B** is therefore the implemented one, with **D**'s
+documentation half rolled in. Recorded here so the choice is not re-litigated from behaviour.
+
+### 9.1 The decision as it was put
 
 The report leaves one genuinely operator-level question, and it is not a technical choice: **should a container
 this extension did not start be adopted automatically by a live session?**
@@ -202,3 +211,42 @@ precisely what the report is complaining about.
 
 A and D are compatible with B or C and are cheap; **B is the only one that fixes the reported session without the
 operator having to know a workaround.**
+
+## 10. Implementation record (what landed, and what did not)
+
+**The rule** — `src/target-repair.ts` exports `resolveTargetRepair({ snapshot, requestWorkspace, entries })` and is
+the single owner of "may this parked selection be re-derived?". It repairs only `selected-stopped` /
+`selected-missing`, only when the parked workspace contains the requested one, only when the entry is not
+`ambiguous`, and only when **exactly one** candidate is `running`; it then builds the selection through
+`selectionFor`, so the operator's configuration is carried across and a removed/renamed one is dropped rather
+than travelling into the CLI's argv.
+
+**The trigger** — `src/execution-service.ts` now invokes the `autoSelect` hook for `none`, `selected-stopped` and
+`selected-missing`. `selected-ambiguous`, `selected-policy-denied` and `refreshing` are never passed: those are
+decisions, not stale facts.
+
+**The hook** — `extensions/index.ts` re-derives via the **cached** registry read (`registryForRead`, 500 ms) and
+commits with `targetStore.select`. It stays behind `allowsAutoSelection(activation.decision)`, so `/devcontainer
+off` keeps holding.
+
+### 10.1 Acceptance coverage
+
+| id | status | evidence |
+|---|---|---|
+| AC-1 | met | `tests/unit/execution-service.test.ts` (the same call succeeds once the hook adopts) and `tests/integration/devcontainer-manager.integration.test.ts` with **real Docker**: a store parked before the container existed serves the call afterwards — and the same call without the hook still refuses, which is the defect reproduced. |
+| AC-2 | met | `target-repair.test.ts`: an `exited` candidate yields no repair. This is why no intent flag was needed — `/devcontainer stop` and `remove` leave an exited container, and only a running one is ever adopted. |
+| AC-3 | met | The repair sits after the activation gate; the L1-02 (`off`) suite still passes unchanged. |
+| AC-4 | met | The integration test asserts the adopted `candidateId` equals the container id the registry reported; `selectionFor` is the single owner of the identity shape. (The audit record for the *repaired* call is the ordinary bound-target record; no separate assertion was added for it — noted rather than claimed.) |
+| AC-5 | **NOT met, deliberately** | The remedy strings were left alone. With the self-heal in place the misleading case ("run `/devcontainer up` while a container is running") no longer arises on the live path, and splitting the string would mean threading a cause through `refusalFor` for a case that no longer occurs. `docs/troubleshooting.md` states the cause-specific recovery instead. Stated here rather than dropped silently. |
+| AC-6 | met | `docs/troubleshooting.md` gained "I started the container outside Pi and `bash` still says `target-stopped`", including what the heal deliberately does not do. |
+| AC-7 | met | No existing test needed revisiting: `bind()` still refuses a parked store, and the repair happens *before* it, only for a running candidate — so the "parked is terminal" tests still describe the intent case. Full suite green, and the `dist` freshness gate is checked on a clean tree (§8). |
+
+### 10.2 Known limits (deliberate, and worth a follow-up if they bite)
+
+- A repair attempt costs one registry read per **refused** call (cached for 500 ms). Accepted: the alternative is
+  a stale verdict, which is the defect.
+- A repair is not persisted to the session record, so it is re-derived after `/reload` rather than restored.
+  Consistent with the existing empty-store adoption, which also does not persist.
+- The heal does not retry `ambiguous` after the ambiguity resolves on its own (one container left). The next
+  refused call repairs it, because the status is then `selected-stopped`/`selected-missing` — but a session that
+  was parked in `selected-ambiguous` while one container kept running is not covered by AC-1's wording.

@@ -655,3 +655,89 @@ describe("bound container identity with the REAL store (L3-07)", () => {
     ).rejects.toMatchObject({ kind: "no-candidate" });
   });
 });
+
+describe("a parked target is re-derived before the refusal escapes (stale-target self-heal)", () => {
+  // `/devcontainer up` output goes to the operator UI, and lifecycle slash commands render there too; this is
+  // the live path that used to fail closed forever after a container appeared out-of-band. The rule itself is
+  // unit-tested in `target-repair.test.ts`; these pin the TRIGGER: which statuses may attempt a repair, and that
+  // a successful repair lets the very same call proceed.
+  const parkedStore = (status: string, onRepair?: () => void) => {
+    let current = status;
+    const bound: ExecutionContext = {
+      workspaceKey: "/ws/project-a",
+      candidateId: "appeared",
+      candidateName: "project-a",
+      boundAt: "2026-09-28T00:00:00.000Z",
+    };
+    const store = {
+      bind: () => {
+        if (current === "selected-valid") return bound;
+        throw new RuntimeError({ kind: "target-stopped", message: `Selected target for /ws/project-a is stopped.` });
+      },
+      snapshot: () =>
+        current === "selected-valid"
+          ? { status: current, workspaceKey: "/ws/project-a", candidateId: "appeared", detail: undefined }
+          : { status: current, workspaceKey: "/ws/project-a", candidateId: undefined, detail: "parked" },
+      select: async () => {
+        current = "selected-valid";
+        onRepair?.();
+      },
+    } as unknown as TargetStore;
+    return store;
+  };
+
+  const withHook = (store: TargetStore, autoSelect: (workspace: string) => Promise<void>) =>
+    new ExecutionService({
+      config: makeConfig(),
+      targetStore: store,
+      devcontainer: fakeDevcontainer([{ exitCode: 0, signal: null, stdout: "ok", stderr: "", truncated: false, durationMs: 1 }]).adapter,
+      dockerLifecycle: fakeDockerLifecycle().adapter,
+      audit: { write: vi.fn(), prune: vi.fn() },
+      autoSelect,
+    });
+
+  for (const status of ["selected-stopped", "selected-missing"] as const) {
+    it(`attempts a repair for ${status} and succeeds when the hook adopts the running container`, async () => {
+      let repaired = false;
+      const store = parkedStore(status, () => {
+        repaired = true;
+      });
+      const archive = fakeDevcontainer([{ exitCode: 0, signal: null, stdout: "ok", stderr: "", truncated: false, durationMs: 1 }]);
+      const service = new ExecutionService({
+        config: makeConfig(),
+        targetStore: store,
+        devcontainer: archive.adapter,
+        dockerLifecycle: fakeDockerLifecycle().adapter,
+        audit: { write: vi.fn(), prune: vi.fn() },
+        autoSelect: async () => {
+          await (store as unknown as { select: (t: unknown) => Promise<void> }).select({ status: "selected-valid" });
+        },
+      });
+
+      const outcome = await service.exec({ operation: "container-exec", initiator: "tool", workspace: "/ws/project-a", cmd: "echo", args: ["hi"] });
+
+      expect(repaired).toBe(true);
+      expect(outcome.exitCode).toBe(0);
+    });
+  }
+
+  it("does not attempt a repair for a fail-closed status that is not reality-derived", async () => {
+    for (const status of ["selected-ambiguous", "selected-policy-denied", "refreshing"] as const) {
+      const hook = vi.fn(async () => undefined);
+      const service = withHook(parkedStore(status), hook);
+
+      await expect(
+        service.exec({ operation: "container-exec", initiator: "tool", workspace: "/ws/project-a", cmd: "echo", args: [] }),
+      ).rejects.toMatchObject({ kind: "target-stopped" });
+      expect(hook).not.toHaveBeenCalled();
+    }
+  });
+
+  it("still refuses when the repair finds nothing to adopt", async () => {
+    const service = withHook(parkedStore("selected-stopped"), async () => undefined);
+
+    await expect(
+      service.exec({ operation: "container-exec", initiator: "tool", workspace: "/ws/project-a", cmd: "echo", args: [] }),
+    ).rejects.toMatchObject({ kind: "target-stopped" });
+  });
+});

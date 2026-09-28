@@ -22,7 +22,7 @@ output and tool output both use the shape:
 |---|---|---|
 | `no-candidate` | No registry entry matched the requested workspace, or the workspace itself is not a valid target. | `/devcontainer list`, then `/devcontainer use <path>`. |
 | `ambiguous-candidate` | Two or more **running** containers map to the same workspace. Docker result order is never used to guess. | `/devcontainer use <container-id>` with one of the ids in the message. |
-| `target-stopped` | A target is selected but its container is not running. | `/devcontainer up` (re-resolves the selection for you). |
+| `target-stopped` | A target is selected but its container is not running. | `/devcontainer up` (re-resolves the selection for you). A container that appears **later** is adopted automatically — see below. |
 | `target-refreshing` | A selection is mid-refresh (a registry re-check has not finished yet). | Retry the operation; the state resolves on its own. |
 | `policy-denied` | A policy gate refused the operation. The message names the reason (`workspace-not-allowed`, `destructive-operation-disabled`, `host-execution-disabled`, `environment-variable-denied`, or a container-only path on a host command). | Fix the specific grant named in the message, or use the surface the policy expects. |
 | `daemon-unavailable` | The Docker executable is missing or the daemon is unreachable. | Start Docker / Docker Desktop; confirm `docker ps` works in a host shell. |
@@ -86,13 +86,36 @@ purpose, because it would act on a different repository than the one you are in.
 `/devcontainer use` for the project you are standing in, or issue the command from a
 directory that is not another project.
 
+### I started the container outside Pi and `bash` still says `target-stopped`
+
+Fixed behaviour (see `openspec/changes/stale-target-self-heal/design.md`). A session resolves its target once, at
+the moment it first needs one. If nothing is running then, the selection is parked as `selected-stopped`, and the
+container may be started afterwards by VS Code, a host shell, or another Pi session.
+
+The live path now **re-derives** that parked selection from the registry, so the next container-routed call
+adopts the running container carrying this workspace's `devcontainer.local_folder` label — no `/reload`, no
+`/devcontainer up`, no `/devcontainer use`.
+
+Two things this deliberately does **not** do:
+
+- **It never resurrects a target you stopped.** `/devcontainer stop` leaves an `exited` container, and only a
+  **running** candidate is ever adopted, so the refusal stays until you start it again. `/devcontainer off` is
+  respected the same way (the session is `opted-out`, so nothing is auto-selected).
+- **It never lets Docker's listing order decide.** Two running containers for one workspace stays
+  `ambiguous-candidate`; that choice needs you (`/devcontainer use <container-id>`).
+
+If you are on an older revision, the cheap recovery is `/devcontainer off` followed by any container-routed
+call (`off` is the only state that re-enables auto-selection). `/devcontainer list` does **not** repair this
+status, and `/devcontainer up` works but rebuilds nothing and is not needed.
+
 ### `bash` refuses to run anything
 
 That is the fail-closed contract. `bash` is routed into the selected
 DevContainer, so it needs a **running** selected target:
 
 - nothing selected → the route fails closed (`no-candidate`);
-- selected but stopped → `target-stopped` → run `/devcontainer up`.
+- selected but stopped → `target-stopped` → run `/devcontainer up`, unless the container merely appeared after
+  the session started (the next section).
 
 Before a target is selected, the workspace Pi started in is auto-selected as a
 default **only** if it has its own DevContainer configuration; an explicit
