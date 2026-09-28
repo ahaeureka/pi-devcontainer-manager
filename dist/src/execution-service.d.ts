@@ -213,6 +213,14 @@ export declare class ExecutionService {
      * absent. Denied environment VALUES are never recorded.
      */
     private startLifecycleLog;
+    /**
+     * Stamp a lifecycle failure with its safe, model-facing packet.
+     *
+     * The transcript is already finalized by the caller; this only classifies. It never reads the transcript, so it
+     * cannot leak captured output, and it returns the same error object so nothing about the existing failure
+     * contract changes.
+     */
+    private withFailureDiagnostic;
     private finishLifecycleLog;
     private authorize;
     private audit;

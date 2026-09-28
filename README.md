@@ -116,6 +116,7 @@ every turn.
 - **Audits** every operation to a host-local JSONL file: fingerprint capture by
   default, 90-day retention window, `audit.enabled` and `audit.directory` honored.
 - **Keeps lifecycle diagnostics separately from audit.** `up`, `build`, `rebuild`, `setup`, `stop`, and `remove` tee raw stdout/stderr into an operator-only troubleshooting transcript at `<project>/.pi/devcontainer-manager/lifecycle-logs/`. The directory is `0700`, each file is `0600`, and this secret-bearing path is gitignored. Logs are capped at 10 MiB and retained for 14 days; they are never added to audit JSONL or model context, and `/devcontainer status` exposes only the latest path.
+- **Diagnoses a failed lifecycle operation without exposing the log.** Failures carry a safe packet — a fixed class such as `post-start-failed` or `setup-install-failed`, bounded metadata, and whether a transcript exists — and say `incomplete` when the class does not explain the cause, so the agent asks the operator before reading the secret-bearing transcript.
 - **Never falls back silently** to the host: a `container-required` route returns
   a typed `no-candidate` / `ambiguous-candidate` / `target-stopped` /
   `policy-denied` error instead.

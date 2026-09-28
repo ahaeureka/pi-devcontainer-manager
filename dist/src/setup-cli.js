@@ -15,6 +15,7 @@
  */
 import { commandIdentity, redactText } from "./policy.js";
 import { RuntimeError } from "./errors.js";
+import { classifyLifecycleFailure, renderLifecycleDiagnostic, } from "./lifecycle-diagnostics.js";
 /**
  * Fixed argv: this capability installs exactly one named package and never runs a
  * caller-supplied command, so it cannot be turned into a general host escape hatch.
@@ -61,8 +62,9 @@ export function createSetupCli(deps) {
      * is shown to the operator AND handed to the model as the command result, so unredacted npm
      * stderr could put a registry token into model context.
      */
-    const failure = (reason, auditNote) => ({
+    const failure = (reason, auditNote, diagnostic) => ({
         installed: false,
+        diagnosis: renderLifecycleDiagnostic(diagnostic),
         version: undefined,
         error: redactText(auditNote === undefined ? reason : `${reason} (audit record not written: ${auditNote})`),
     });
@@ -83,6 +85,23 @@ export function createSetupCli(deps) {
                 ...(error === undefined ? {} : { error }),
             });
         };
+        /**
+         * Classify a failed setup for the operator/model, never copying npm's output into the packet.
+         *
+         * The classifier is told the setup argv, not the raw stderr: `setup` runs a fixed command, so a nonzero
+         * exit means the install itself failed — which is a class of its own rather than "lifecycle command".
+         */
+        const diagnosticFor = (error, result) => classifyLifecycleFailure({
+            operation: "setup",
+            error: error ?? undefined,
+            exitCode: result?.exitCode ?? null,
+            durationMs: elapsedMs(),
+            truncated: result?.truncated ?? false,
+            rawLog: {
+                ...(lifecycleLog?.path !== undefined ? { path: lifecycleLog.path } : {}),
+                ...(lifecycleLog?.warning !== undefined ? { warning: lifecycleLog.warning } : {}),
+            },
+        });
         let runResult;
         try {
             runResult = await deps.runner.exec(argv[0], argv.slice(1), {
@@ -101,7 +120,7 @@ export function createSetupCli(deps) {
             // escape past the audit and reach the handler unnormalized.
             const reason = error instanceof Error ? error.message : String(error);
             finishLifecycleLog(error instanceof RuntimeError && error.kind === "cancelled" ? "cancelled" : "failed", reason);
-            return failure(reason, writeRecord(argv, elapsedMs(), null, false, reason));
+            return failure(reason, writeRecord(argv, elapsedMs(), null, false, reason), diagnosticFor(error, null));
         }
         const stderr = (runResult.stderr ?? "").trim();
         if (runResult.exitCode !== 0) {
@@ -111,7 +130,7 @@ export function createSetupCli(deps) {
                 ? `npm install was killed by ${runResult.signal}${stderr.length > 0 ? `: ${stderr}` : ""}`
                 : stderr || `npm install exited ${runResult.exitCode}`;
             finishLifecycleLog(runResult.exitCode === null && runResult.signal !== null ? "cancelled" : "failed", reason, runResult);
-            return failure(reason, writeRecord(argv, elapsedMs(), runResult.exitCode, runResult.truncated, reason));
+            return failure(reason, writeRecord(argv, elapsedMs(), runResult.exitCode, runResult.truncated, reason), diagnosticFor(undefined, runResult));
         }
         // Verify the freshly installed CLI is resolvable on PATH.
         let reason;
@@ -142,7 +161,7 @@ export function createSetupCli(deps) {
         const auditNote = writeRecord(argv, elapsedMs(), runResult.exitCode, runResult.truncated, reason);
         if (reason !== undefined) {
             finishLifecycleLog("failed", reason, runResult);
-            return { ...failure(reason, auditNote) };
+            return { ...failure(reason, auditNote, diagnosticFor(reason, runResult)) };
         }
         finishLifecycleLog("completed", undefined, runResult);
         return {

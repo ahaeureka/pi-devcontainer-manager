@@ -279,6 +279,7 @@ Lifecycle operations keep a separate VS Code Dev Containers-style troubleshootin
 - Each file is capped at 10 MiB and explicitly marks truncation; logs older than 14 days are pruned when a new transcript starts.
 - A write or retention failure never blocks the lifecycle operation. Raw content is never appended to model context, command text, or an audit record. `/devcontainer status` exposes only the newest local path and, for the current session, the outcome.
 - Treat these as local secret-bearing diagnostic artifacts: inspect them with normal host tools and delete them if your own retention requirements are stricter.
+- A **failed** lifecycle operation additionally reports a safe diagnostic packet to the agent: a fixed failure class, bounded metadata (exit code, duration, truncation), and whether a transcript exists. It contains no captured process output and no host path, and it marks itself `incomplete` whenever the class does not explain the root cause — the agent is then told to ask the operator before inspecting the transcript. Nothing auto-reads, auto-summarizes, or attaches the raw transcript.
 
 ## Process boundary
 

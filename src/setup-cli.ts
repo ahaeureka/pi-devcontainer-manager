@@ -20,6 +20,11 @@ import type { ProcessRunner, ProcessResult } from "./runtime/process-runner.js";
 import type { AuditRecord, EffectiveConfig } from "./types.js";
 
 import type { LifecycleLogWriter } from "./lifecycle-log.js";
+import {
+  classifyLifecycleFailure,
+  renderLifecycleDiagnostic,
+  type LifecycleFailureDiagnostic,
+} from "./lifecycle-diagnostics.js";
 export interface SetupCliDeps {
   readonly runner: ProcessRunner;
   readonly audit: AuditWriter;
@@ -38,6 +43,13 @@ export interface SetupCliResult {
   readonly installed: boolean;
   readonly version: string | undefined;
   readonly error?: string;
+  /**
+   * The safe failure packet (fixed class + bounded metadata) for the model.
+   *
+   * `error` still carries redacted npm text for the operator; the packet is what an agent can act on without
+   * reading the raw transcript.
+   */
+  readonly diagnosis?: string;
 }
 
 export type SetupCli = (options?: { signal?: AbortSignal }) => Promise<SetupCliResult>;
@@ -95,8 +107,13 @@ export function createSetupCli(deps: SetupCliDeps): SetupCli {
    * is shown to the operator AND handed to the model as the command result, so unredacted npm
    * stderr could put a registry token into model context.
    */
-  const failure = (reason: string, auditNote: string | undefined): SetupCliResult => ({
+  const failure = (
+    reason: string,
+    auditNote: string | undefined,
+    diagnostic: LifecycleFailureDiagnostic,
+  ): SetupCliResult => ({
     installed: false,
+    diagnosis: renderLifecycleDiagnostic(diagnostic),
     version: undefined,
     error: redactText(auditNote === undefined ? reason : `${reason} (audit record not written: ${auditNote})`),
   });
@@ -118,6 +135,25 @@ export function createSetupCli(deps: SetupCliDeps): SetupCli {
         ...(error === undefined ? {} : { error }),
       });
     };
+    /**
+     * Classify a failed setup for the operator/model, never copying npm's output into the packet.
+     *
+     * The classifier is told the setup argv, not the raw stderr: `setup` runs a fixed command, so a nonzero
+     * exit means the install itself failed — which is a class of its own rather than "lifecycle command".
+     */
+    const diagnosticFor = (error: unknown, result: ProcessResult | null) =>
+      classifyLifecycleFailure({
+        operation: "setup",
+        error: error ?? undefined,
+        exitCode: result?.exitCode ?? null,
+        durationMs: elapsedMs(),
+        truncated: result?.truncated ?? false,
+        rawLog: {
+          ...(lifecycleLog?.path !== undefined ? { path: lifecycleLog.path } : {}),
+          ...(lifecycleLog?.warning !== undefined ? { warning: lifecycleLog.warning } : {}),
+        },
+      });
+
     let runResult: ProcessResult;
     try {
       runResult = await deps.runner.exec(argv[0]!, argv.slice(1), {
@@ -135,7 +171,7 @@ export function createSetupCli(deps: SetupCliDeps): SetupCli {
       // escape past the audit and reach the handler unnormalized.
       const reason = error instanceof Error ? error.message : String(error);
       finishLifecycleLog(error instanceof RuntimeError && error.kind === "cancelled" ? "cancelled" : "failed", reason);
-      return failure(reason, writeRecord(argv, elapsedMs(), null, false, reason));
+      return failure(reason, writeRecord(argv, elapsedMs(), null, false, reason), diagnosticFor(error, null));
     }
 
     const stderr = (runResult.stderr ?? "").trim();
@@ -147,7 +183,7 @@ export function createSetupCli(deps: SetupCliDeps): SetupCli {
           ? `npm install was killed by ${runResult.signal}${stderr.length > 0 ? `: ${stderr}` : ""}`
           : stderr || `npm install exited ${runResult.exitCode}`;
       finishLifecycleLog(runResult.exitCode === null && runResult.signal !== null ? "cancelled" : "failed", reason, runResult);
-      return failure(reason, writeRecord(argv, elapsedMs(), runResult.exitCode, runResult.truncated, reason));
+      return failure(reason, writeRecord(argv, elapsedMs(), runResult.exitCode, runResult.truncated, reason), diagnosticFor(undefined, runResult));
     }
 
     // Verify the freshly installed CLI is resolvable on PATH.
@@ -178,7 +214,7 @@ export function createSetupCli(deps: SetupCliDeps): SetupCli {
     const auditNote = writeRecord(argv, elapsedMs(), runResult.exitCode, runResult.truncated, reason);
     if (reason !== undefined) {
       finishLifecycleLog("failed", reason, runResult);
-      return { ...failure(reason, auditNote) };
+      return { ...failure(reason, auditNote, diagnosticFor(reason, runResult)) };
     }
     finishLifecycleLog("completed", undefined, runResult);
     return {

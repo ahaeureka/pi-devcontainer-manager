@@ -24,9 +24,10 @@ import { commandIdentity as commandIdentityFor, evaluatePolicy, buildChildEnviro
 import { workspaceHasConfig } from "./runtime/host-discovery.js";
 import { hostToContainer } from "./path-mapper.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
-import { RuntimeError } from "./errors.js";
+import { RuntimeError, withLifecycleDiagnostic } from "./errors.js";
 import { isWithinWorkspace } from "./workspace-path.js";
 import { detectHostPathOnContainerSurface } from "./routing-guard.js";
+import { classifyLifecycleFailure } from "./lifecycle-diagnostics.js";
 export class ExecutionService {
     options;
     clock;
@@ -192,7 +193,7 @@ export class ExecutionService {
         }
         catch (error) {
             this.finishLifecycleLog(lifecycleLog, startedAt, error);
-            throw error;
+            throw this.withFailureDiagnostic(error, lifecycleLog, "up", startedAt);
         }
         let result;
         try {
@@ -211,7 +212,7 @@ export class ExecutionService {
                 outputTruncated: false,
                 errorSummary: this.asAuditError(error).message,
             });
-            throw error;
+            throw this.withFailureDiagnostic(error, lifecycleLog, "up", startedAt);
         }
         this.finishLifecycleLog(lifecycleLog, startedAt);
         this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false }, result.containerId);
@@ -245,7 +246,7 @@ export class ExecutionService {
         }
         catch (error) {
             this.finishLifecycleLog(lifecycleLog, startedAt, error);
-            throw error;
+            throw this.withFailureDiagnostic(error, lifecycleLog, "rebuild", startedAt);
         }
         const workspaceKey = canonicalWorkspaceKey(request.workspace);
         if (!matchesRebuildConfirmation(workspaceKey, request.confirmation)) {
@@ -284,7 +285,7 @@ export class ExecutionService {
                 outputTruncated: false,
                 errorSummary: this.asAuditError(error).message,
             });
-            throw error;
+            throw this.withFailureDiagnostic(error, lifecycleLog, "rebuild", startedAt);
         }
         this.finishLifecycleLog(lifecycleLog, startedAt);
         this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false }, result.containerId);
@@ -313,7 +314,7 @@ export class ExecutionService {
         }
         catch (error) {
             this.finishLifecycleLog(lifecycleLog, startedAt, error);
-            throw error;
+            throw this.withFailureDiagnostic(error, lifecycleLog, "build", startedAt);
         }
         let result;
         try {
@@ -334,7 +335,7 @@ export class ExecutionService {
                 outputTruncated: false,
                 errorSummary: this.asAuditError(error).message,
             });
-            throw error;
+            throw this.withFailureDiagnostic(error, lifecycleLog, "build", startedAt);
         }
         this.finishLifecycleLog(lifecycleLog, startedAt);
         this.audit(snapshot, undefined, request, { durationMs: Date.now() - startedAt, exitCode: 0, outputTruncated: false });
@@ -358,7 +359,7 @@ export class ExecutionService {
         }
         catch (error) {
             this.finishLifecycleLog(lifecycleLog, startedAt, error);
-            throw error;
+            throw this.withFailureDiagnostic(error, lifecycleLog, request.operation, startedAt);
         }
         let verifiedId;
         try {
@@ -372,7 +373,7 @@ export class ExecutionService {
                 outputTruncated: false,
                 errorSummary: this.asAuditError(error).message,
             });
-            throw error;
+            throw this.withFailureDiagnostic(error, lifecycleLog, request.operation, startedAt);
         }
         let result;
         try {
@@ -386,7 +387,7 @@ export class ExecutionService {
                 outputTruncated: false,
                 errorSummary: this.asAuditError(error).message,
             }, verifiedId);
-            throw error;
+            throw this.withFailureDiagnostic(error, lifecycleLog, request.operation, startedAt);
         }
         if (result.status === "done") {
             this.finishLifecycleLog(lifecycleLog, startedAt);
@@ -497,6 +498,25 @@ export class ExecutionService {
      */
     startLifecycleLog(operation, workspacePath) {
         return this.options.lifecycleLogs?.start({ operation, workspacePath });
+    }
+    /**
+     * Stamp a lifecycle failure with its safe, model-facing packet.
+     *
+     * The transcript is already finalized by the caller; this only classifies. It never reads the transcript, so it
+     * cannot leak captured output, and it returns the same error object so nothing about the existing failure
+     * contract changes.
+     */
+    withFailureDiagnostic(error, log, operation, startedAt) {
+        const diagnostic = classifyLifecycleFailure({
+            operation,
+            error,
+            durationMs: Date.now() - startedAt,
+            rawLog: {
+                ...(log?.path !== undefined ? { path: log.path } : {}),
+                ...(log?.warning !== undefined ? { warning: log.warning } : {}),
+            },
+        });
+        return withLifecycleDiagnostic(error, diagnostic);
     }
     finishLifecycleLog(log, startedAt, error) {
         if (log === undefined)

@@ -19,6 +19,13 @@ export interface SetupCliResult {
     readonly installed: boolean;
     readonly version: string | undefined;
     readonly error?: string;
+    /**
+     * The safe failure packet (fixed class + bounded metadata) for the model.
+     *
+     * `error` still carries redacted npm text for the operator; the packet is what an agent can act on without
+     * reading the raw transcript.
+     */
+    readonly diagnosis?: string;
 }
 export type SetupCli = (options?: {
     signal?: AbortSignal;

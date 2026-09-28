@@ -4,6 +4,7 @@ import { isWorkspaceAllowed, isEnvironmentAllowed } from "./policy.js";
 import { combineCommandOutput } from "./tool-output.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
 import { configCandidatesOf, configPathOf, containerStateOf, primaryCandidate, primaryConfigOf } from "./registry-entry.js";
+import { renderLifecycleDiagnostic } from "./lifecycle-diagnostics.js";
 import { SELECTION_ENTRY_KIND, SELECTION_PAYLOAD_VERSION } from "./selection-state.js";
 import { needsExplicitConfig } from "./runtime/devcontainer-adapter.js";
 /**
@@ -812,7 +813,11 @@ function findNextArgvWord(text) {
 export function describeError(error) {
     if (error instanceof RuntimeError) {
         const remedy = error.remedy !== undefined ? `\n${error.remedy}` : "";
-        return `[${error.kind}] ${error.message}${remedy}`;
+        // A lifecycle failure carries a safe diagnostic packet (fixed class + bounded metadata, never captured
+        // process text). Rendering it here is what lets the agent triage a failed up/build/rebuild/setup/stop/remove
+        // without reading the operator-only raw transcript.
+        const diagnostic = error.diagnostic !== undefined ? `\n${renderLifecycleDiagnostic(error.diagnostic)}` : "";
+        return `[${error.kind}] ${error.message}${remedy}${diagnostic}`;
     }
     return `[unexpected] ${error instanceof Error ? error.message : String(error)}`;
 }

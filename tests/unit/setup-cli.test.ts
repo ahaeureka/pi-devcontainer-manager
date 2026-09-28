@@ -159,7 +159,9 @@ describe("createSetupCli", () => {
 
     const outcome = await setup();
 
-    expect(outcome).toEqual({ installed: false, version: undefined, error: "spawn npm ENOENT" });
+    // `error` is the operator-facing text; `diagnosis` is the fixed packet the model may act on.
+    expect(outcome).toMatchObject({ installed: false, version: undefined, error: "spawn npm ENOENT" });
+    expect(outcome.diagnosis).toContain("lifecycle diagnostic:");
     expect(records).toHaveLength(1);
     expect(records[0]?.errorSummary).toBe("spawn npm ENOENT");
   });
