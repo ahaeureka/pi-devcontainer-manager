@@ -231,9 +231,14 @@ bash "pytest -q"
 - **每次操作前重新校验。** 选择意图以稳定的工作区键 + 候选判别信息持久化；
   每个操作在执行前都会重新解析目标并冻结一份不可变的策略快照，
   因此并发的选择切换无法改变已在执行中的命令。
-- **最小子进程环境。** 子进程使用构造出来的环境，而不是继承 Pi 的环境；
-  `PI_*` 前缀和疑似密钥的环境变量名（`api_key`、`token`、`secret`、`password`、
-  `credential`、`auth`、`bearer`）即使写进 `environmentAllowlist` 也会被排除。
+- **宿主子进程继承 Pi 环境，容器子进程不继承。** 宿主侧子进程（`docker`、Dev
+  Containers CLI、lifecycle 命令、宿主逃生通道、setup 的 `npm`）继承 Pi 环境，以
+  保证宿主工具行为与终端一致——使用 `${localEnv:USER}` 的 `devcontainer.json`、
+  `build.options: ["--ssh", "default"]` 分别需要 `USER` 和 `SSH_AUTH_SOCK`。该暴露面
+  记录在 `docs/security.md`；宿主执行改由 `hostExecution.allow`、审计与进程内可见性
+  约束。容器侧的变量注入仍必须写入 `environmentAllowlist`，且 `PI_*` 前缀与疑似密钥的
+  变量名（`api_key`、`token`、`secret`、`password`、`credential`、`auth`、`bearer`）
+  即使列出也会被拒绝。
 - **固定 argv、`shell: false`、按进程组终止。** 两个输出流都受 `maxOutputBytes` 限制；
   超时/取消会杀掉整个进程组。
 - **全程审计。** 每个操作都会向平台审计目录写入一条 JSONL 记录
@@ -254,7 +259,7 @@ session_start ─▶ 加载配置（全局 + 可信项目，单调合并）
                  （当前目标、宿主机↔容器映射、各入口规则）
 
 每个操作      ─▶ 冻结策略快照 ─▶ 绑定不可变上下文（重新解析目标）
-              ─▶ 构造子进程环境 ─▶ 启动（固定 argv、shell:false、输出有界）
+              ─▶ 组装子进程环境（宿主继承 / 容器按白名单）─▶ 启动（固定 argv、shell:false、输出有界）
               ─▶ 写入一条审计记录 ─▶ 返回结构化结果
 ```
 

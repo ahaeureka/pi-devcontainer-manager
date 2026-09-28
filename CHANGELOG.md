@@ -23,6 +23,7 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- **Behaviour change — host children inherit the Pi environment.** `composeHostEnvironment` no longer composes a minimal environment (`PATH`, `HOME`, `XDG_STATE_HOME`, proxy variables); every HOST-side child — `docker`, the Dev Containers CLI, lifecycle commands, the host escape hatch, `npm` in `/devcontainer setup` — now inherits Pi's environment. Host tooling therefore behaves exactly as it does in a terminal: a `devcontainer.json` using `${localEnv:USER}` gets a real `USERNAME` build arg, an `initializeCommand` running `id -u "$USER"` writes a usable `.env`, and `build.options: ["--ssh", "default"]` finds `SSH_AUTH_SOCK` instead of failing with `ERROR: invalid empty ssh agent socket`. **This is an accepted exposure:** an arbitrary host command can now read whatever Pi's process can read, including provider credentials and `*_TOKEN` values. It is bounded by `hostExecution.allow`, the audit trail (fingerprint by default), and in-session host-run visibility — not by an environment filter. The CONTAINER side is unchanged: `environmentAllowlist` and the credential-name refusal still apply there, so the host side is now deliberately the more permissive one. See `docs/security.md`.
 - **`/devcontainer up` says when it REUSED a container.** The CLI reuses a container it finds (it never
   compares one against the configuration), so an `up` on a workspace that already had a container was
   indistinguishable from one that applied something. When the returned container id was already in the
@@ -136,8 +137,8 @@ to [Semantic Versioning](https://semver.org/).
   with `Failed to download package for ghcr.io/…` even though the manifest and token requests had
   already succeeded (the blob fetch is what needs the route), and no configuration could fix it: a
   Feature's proxy build args only apply to the Docker build that comes later. Every host child is now
-  composed by one function (`composeHostEnvironment`) that keeps the executable/cache basics and
-  passes the proxy variables through; nothing else is added.
+  composed by one function (`composeHostEnvironment`), which now INHERITS the Pi environment —
+  see "Host children inherit the Pi environment" under Changed.
 - **Discovery lists only DevContainer-labelled containers, and says so when the listing is cut.** It
   asked Docker for every container on the host, so each unrelated one produced a `… has no
   devcontainer.local_folder label` warning on the first `/devcontainer` command of a session — the

@@ -66,9 +66,9 @@ execution service, which:
 1. freezes a policy snapshot for the operation and workspace;
 2. binds an immutable context from the serialized target store (re-resolving the
    selected target);
-3. builds a minimal child environment from the effective allowlist (never an
-   arbitrary inherited Pi environment);
-4. runs the command with **fixed argv, `shell: false`**, through the pinned
+3. builds the CONTAINER-side child environment from the effective allowlist
+   (never an arbitrary inherited Pi environment) — the HOST side inherits Pi's
+   environment instead, see "Host child environment" below;
    Dev Containers CLI or Docker, streaming bounded output;
 5. writes one audit record and returns a structured result with **no
    environment values**.
@@ -269,6 +269,23 @@ operation.
   is older than the window; the shipped extension does not schedule periodic
   pruning itself, so operators who want bounded disk usage should rotate or
   delete the dated `.jsonl` files (one file per day) externally.
+
+## Host child environment
+
+Every HOST-side child this extension spawns — the `docker` CLI, the Dev Containers CLI, lifecycle commands, the host-runner escape hatch, and `npm` in `/devcontainer setup` — **inherits Pi's environment unchanged** (`composeHostEnvironment`). This is a deliberate, documented posture, not an oversight.
+
+**Accepted exposure.** A host command can be constructed by the model (`devcontainer_host_exec`, `/devcontainer host-exec`), so an arbitrary host command can read everything Pi's own process can read: provider credentials, `*_TOKEN` variables, cloud credentials, and the ssh-agent socket. There is no environment filter on the host side.
+
+**Why the previous minimal-environment posture was removed.** It could not be maintained honestly: the withheld set is unbounded (any `initializeCommand` may need `USER`, `LANG`, a toolchain variable, or `SSH_AUTH_SOCK`), and no name rule separates identity from capability. In practice it broke projects: a `devcontainer.json` using `${localEnv:USER}` produced an empty `--build-arg USERNAME=`, an `initializeCommand` running `id -u "$USER"` wrote a blank `.env`, and `build.options: ["--ssh", "default"]` failed outright with `ERROR: invalid empty ssh agent socket`.
+
+**What actually bounds host execution** (use these, not an env filter):
+
+- `hostExecution.allow` — `false` anywhere withholds the host surfaces entirely.
+- The audit trail — one record per host run (`operation: "host-exec"`, `initiator: "host-escape"`), command identity as a SHA-256 fingerprint by default, mode `0600` files.
+- In-session visibility — a host-run count plus program names, and a one-time notice on the session's first host attempt.
+- The container-path guard — a host argv naming a container-only path is refused before spawn.
+
+**The asymmetry is intentional.** The CONTAINER side keeps `environmentAllowlist` + `buildChildEnvironment` (credential-shaped names refused even when listed; everything else must be registered). The host side is therefore more permissive than the container side, chosen so host tooling behaves exactly as it does in a terminal.
 
 ## Lifecycle diagnostic transcripts
 

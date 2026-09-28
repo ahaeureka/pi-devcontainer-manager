@@ -1,40 +1,46 @@
 /**
- * The proxy variables the Dev Containers CLI's HTTP client resolves, in both spellings.
- *
- * `proxy-from-env` (bundled into the CLI through the `proxy-agent` dependency) checks the lower-case
- * name first and the upper-case name second, so both are forwarded here: an operator who exports
- * only `HTTPS_PROXY` and one who exports only `https_proxy` must behave the same way.
- */
-export declare const HOST_PROXY_VARIABLES: readonly string[];
-/**
  * The environment for every HOST-side child this extension spawns.
  *
  * The docker CLI, the Dev Containers CLI, the lifecycle commands, the host runner and `npm` (in
- * `/devcontainer setup`) all get the environment this function composes — one definition, so "what
- * does a host child see?" has exactly one answer and cannot drift between call sites. It is composed
- * rather than inherited on purpose: Pi's own session environment is not handed over wholesale.
+ * `/devcontainer setup`) all get the environment this function returns — one definition, so "what
+ * does a host child see?" has exactly one answer and cannot drift between call sites.
  *
- * Two groups pass through:
+ * ## Why this INHERITS (a deliberate, documented reversal)
  *
- *  - `PATH` / `HOME` (plus `XDG_STATE_HOME` when set) — how the child resolves its executable and
- *    where it keeps its own caches.
- *  - the standard proxy variables, when the operator's session defines them.
+ * This function used to COMPOSE a minimal environment: `PATH`, `HOME`, `XDG_STATE_HOME` and the proxy
+ * variables, with everything else withheld. That boundary cost real usability and could not be
+ * maintained honestly:
  *
- * The proxy group is not a convenience. The Dev Containers CLI fetches Features over OCI with its own
- * HTTP client, which resolves its proxy from `process.env` (`proxy-agent` → `proxy-from-env`: the
- * `<scheme>_proxy`, `npm_config_<scheme>_proxy` and `all_proxy` names). Withholding those variables
- * makes that client connect directly, and on a host whose egress is only reliable through a proxy the
- * Feature download fails — `Failed to download package for ghcr.io/…` — and the BUILD fails with it.
- * A Feature's own proxy build args cannot help: this fetch happens before any Docker work starts.
+ *  - The withheld set is unbounded in practice. Any `initializeCommand`, `postCreateCommand` or
+ *    wrapper script may depend on `USER` / `LOGNAME` (a `devcontainer.json` whose
+ *    `build.args.USERNAME` is `${localEnv:USER}` produces an empty `--build-arg USERNAME=`, and an
+ *    `initializeCommand` that runs `id -u "$USER"` writes a blank `.env`), on `LANG`, on a toolchain
+ *    variable, or on `SSH_AUTH_SOCK` (a `build.options` entry of `--ssh default` fails outright with
+ *    `ERROR: invalid empty ssh agent socket`).
+ *  - A name list cannot separate "identity" from "credential": `USER` is not a secret while
+ *    `SSH_AUTH_SOCK` is a capability, and examples like `GITHUB_TOKEN` vs `TOKEN_FILE` cut across any
+ *    pattern rule.
+ *  - The allowlist was itself a coupling to whatever project last failed, which is the opposite of a
+ *    stable contract.
  *
- * Values are passed through untouched and are never rendered anywhere. No diagnostic, system-prompt
- * block or audit record carries an environment value, because a proxy URL may embed credentials.
+ * So the host child now inherits Pi's environment unchanged. **The consequence is accepted and must
+ * not be rediscovered as a bug:** a host command may be constructed by the model (`devcontainer_host_exec`,
+ * `/devcontainer host-exec`), so an arbitrary host command can read whatever Pi's own process could
+ * read, including provider credentials and `*_TOKEN` variables. That exposure is bounded by the
+ * auditing layer, not by this function: every host execution writes an audit record
+ * (`operation: "host-exec"`, `initiator: "host-escape"`) whose command identity is a SHA-256
+ * fingerprint by default, and host execution can be withheld outright with
+ * `hostExecution.allow: false` anywhere in the configuration layers.
  *
- * Everything else is deliberately withheld. `environmentAllowlist` / `buildChildEnvironment` govern
- * the CONTAINER side, which is a boundary further out than this one; widening what a host child
- * inherits is the thing this module exists to prevent.
+ * ## The asymmetry with the container side is intentional
  *
- * @param source the environment to compose from (normally `process.env`)
+ * `environmentAllowlist` / `buildChildEnvironment` still govern the CONTAINER side, where names
+ * resembling credentials are refused even when listed and everything else must be registered
+ * explicitly. The container is a boundary further out, and its policy is unchanged. The host side is
+ * therefore *more* permissive than the container side — chosen so that host tooling behaves exactly
+ * as it does in a terminal, and documented in `docs/security.md`.
+ *
+ * @param source the environment to inherit (normally `process.env`)
  * @param homeFallback used when the source defines no `HOME`; injected so the fallback is testable
  */
 export declare function composeHostEnvironment(source: Readonly<Record<string, string | undefined>>, homeFallback?: string): Record<string, string>;

@@ -320,10 +320,15 @@ Every key, default, and merge rule is documented in
   stable workspace key plus candidate discriminator; each operation re-resolves
   the target and freezes an immutable policy snapshot before any spawn, so a
   concurrent selection switch cannot redirect a bound operation.
-- **Minimal child environment.** Children are spawned with a constructed
-  environment, not an inherited Pi one. `PI_*` names and secret-pattern names
-  (`api_key`, `token`, `secret`, `password`, `credential`, `auth`, `bearer`) are
-  always excluded, even if listed in `environmentAllowlist`.
+- **Host children inherit Pi's environment; containers do not.** HOST-side
+  children (`docker`, the Dev Containers CLI, lifecycle commands, the host escape
+  hatch, `npm` in setup) inherit the Pi environment so host tooling behaves as it
+  does in a terminal — a `devcontainer.json` using `${localEnv:USER}` or
+  `build.options: ["--ssh", "default"]` needs `USER` and `SSH_AUTH_SOCK`. That
+  exposure is documented in `docs/security.md`; host execution is bounded by
+  `hostExecution.allow`, the audit trail, and in-session visibility instead.
+  CONTAINER-side injection still requires `environmentAllowlist`, and `PI_*` names
+  `credential`, `auth`, `bearer`) are refused there even when listed.
 - **Fixed argv, `shell: false`, process-group kill.** Both output streams are
   bounded by `maxOutputBytes`; timeout/cancellation kills the whole process group.
 - **Audited.** Every operation writes one host-local JSONL record (mode `0700`
