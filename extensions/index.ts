@@ -47,7 +47,7 @@ import {
   primaryCandidate,
 } from "../src/registry-entry.js";
 import { JsonlAuditWriter, defaultAuditDirectory } from "../src/audit.js";
-import { LifecycleLogWriter } from "../src/lifecycle-log.js";
+import { LifecycleLogWriter, type LifecycleLogFailure } from "../src/lifecycle-log.js";
 import { composeHostEnvironment } from "../src/host-environment.js";
 import { NodeProcessRunner } from "../src/runtime/process-runner.js";
 import { NodeCapabilityService } from "../src/runtime/capabilities.js";
@@ -117,7 +117,15 @@ interface Runtime {
    * mapping + surface guidance) appended to the system prompt, or undefined
    * when there is no selected target/mapping to describe.
    */
-  readonly executionContext: () => Promise<string | undefined>;
+  readonly executionContext: (failure?: LifecycleLogFailure) => Promise<string | undefined>;
+  /**
+   * Drain the newest unreported lifecycle failure.
+   *
+   * The drain is separate from `executionContext` because it must run on EVERY turn, whatever the activation
+   * decision: `executionContext` is skipped in a dormant session, and a failure left queued there would
+   * resurface as a stale report several turns later.
+   */
+  readonly takeLifecycleFailure: () => LifecycleLogFailure | undefined;
   /**
    * Re-resolve a persisted selection hint against the current registry and
    * commit the result (used on session restore).
@@ -410,9 +418,15 @@ function composeRuntime(
    * workspace's devcontainer.json mapping. Recomputed per turn so a selection
    * change or `/devcontainer up` is reflected immediately.
    */
-  const executionContext = async (): Promise<string | undefined> => {
+  const executionContext = async (failure?: LifecycleLogFailure): Promise<string | undefined> => {
+    // The failure is passed IN rather than taken here: the caller drains it on every turn (see
+    // `takeLifecycleFailure`), and it must survive the no-target case below — lifecycle slash commands render
+    // into the operator UI, and a failed first `up` leaves nothing selected, which is exactly when the agent
+    // needs to be told.
     const snapshot = targetStore.snapshot();
-    if (snapshot.workspaceKey === undefined && snapshot.candidateId === undefined) return undefined;
+    if (snapshot.workspaceKey === undefined && snapshot.candidateId === undefined) {
+      return failure === undefined ? undefined : renderExecutionContext({ failure });
+    }
     let mapping: PathMapping | undefined;
     let containerOnly: readonly string[] | undefined;
     if (snapshot.workspaceKey !== undefined) {
@@ -427,6 +441,7 @@ function composeRuntime(
       }
     }
     return renderExecutionContext({
+      ...(failure !== undefined ? { failure } : {}),
       ...(snapshot.candidateId !== undefined ? { candidateId: snapshot.candidateId } : {}),
       status: snapshot.status,
       ...(mapping !== undefined ? { mapping } : {}),
@@ -448,6 +463,7 @@ function composeRuntime(
     discoveryDiagnostics,
     activation,
     executionContext,
+    takeLifecycleFailure: () => lifecycleLogs.takeFailure(),
     // One shared implementation for session restore and /devcontainer up.
     // No persistence here: a restored selection is already stored.
     reconcileSelection: async (hint) => {
@@ -681,8 +697,15 @@ export default function (pi: ExtensionAPI): void {
   // guessing an environment from command text.
   pi.on("before_agent_start", async (event) => {
     const rt = runtime;
-    if (rt === undefined || !surfacesFor(rt.activation.decision).executionContext) return undefined;
-    const block = await rt.executionContext();
+    // Drain the failure on EVERY turn, before the activation gate below: `executionContext` is skipped while
+    // dormant, and a failure that stayed queued would be re-injected much later as a stale report.
+    const failure = rt?.takeLifecycleFailure();
+    const block =
+      rt !== undefined && surfacesFor(rt.activation.decision).executionContext
+        ? await rt.executionContext(failure)
+        : failure === undefined
+          ? undefined
+          : renderExecutionContext({ failure });
     if (block === undefined) return undefined;
     return { systemPrompt: `${event.systemPrompt}\n\n${block}` };
   });
