@@ -88,27 +88,33 @@ describe("classifyLifecycleFailure", () => {
     });
   });
 
-  it("exposes only the log file name, never its directory", () => {
+  it("carries the transcript PATH, so the agent can actually open it", () => {
+    // The transcript lives inside the session project (`.pi/devcontainer-manager/lifecycle-logs/`), which the
+    // agent already knows and can already read with its host file tools — a file NAME alone is not actionable.
     const withLog = classifyLifecycleFailure({
       operation: "up",
       error: postStartError(),
-      rawLog: { path: "/home/operator/.pi/devcontainer-manager/lifecycle-logs/2026-09-28T00-18-19.041Z-up-ab12cd34.log" },
+      rawLog: { path: "/ws/project-a/.pi/devcontainer-manager/lifecycle-logs/2026-09-28T00-18-19.041Z-up-ab12cd34.log" },
     });
 
     expect(withLog.rawLogAvailable).toBe(true);
-    expect(withLog.logId).toBe("2026-09-28T00-18-19.041Z-up-ab12cd34.log");
-    expect(renderLifecycleDiagnostic(withLog)).not.toContain("/home/operator");
+    expect(withLog.logPath).toBe("/ws/project-a/.pi/devcontainer-manager/lifecycle-logs/2026-09-28T00-18-19.041Z-up-ab12cd34.log");
+    expect(renderLifecycleDiagnostic(withLog)).toContain(withLog.logPath!);
+  });
 
+  it("reports the transcript as unavailable when the writer failed, without inventing a path", () => {
     const unavailable = classifyLifecycleFailure({
       operation: "up",
       error: postStartError(),
       rawLog: { warning: "Lifecycle diagnostic log unavailable: EACCES" },
     });
+
     expect(unavailable.rawLogAvailable).toBe(false);
-    expect(unavailable.logId).toBeUndefined();
+    expect(unavailable.logPath).toBeUndefined();
+    expect(renderLifecycleDiagnostic(unavailable)).toContain("raw transcript: unavailable for this run");
   });
 
-  it("states that an incomplete packet's raw log was not read automatically", () => {
+  it("tells the agent to analyze an incomplete failure's transcript", () => {
     const rendered = renderLifecycleDiagnostic(
       classifyLifecycleFailure({
         operation: "up",
@@ -118,11 +124,11 @@ describe("classifyLifecycleFailure", () => {
     );
 
     expect(rendered).toContain("ab12cd34.log");
-    expect(rendered).toMatch(/not read automatically/i);
-    expect(rendered).toMatch(/ask the operator/i);
+    expect(rendered).toMatch(/read it/i);
+    expect(rendered).toMatch(/root cause/i);
   });
 
-  it("does not request raw-log inspection for a complete classification", () => {
+  it("does not send the agent to the transcript for a complete classification", () => {
     const rendered = renderLifecycleDiagnostic(
       classifyLifecycleFailure({
         operation: "rebuild",
@@ -131,7 +137,7 @@ describe("classifyLifecycleFailure", () => {
     );
 
     expect(rendered).toContain("complete");
-    expect(rendered).not.toMatch(/ask the operator/i);
+    expect(rendered).not.toMatch(/report the root cause/i);
   });
 });
 

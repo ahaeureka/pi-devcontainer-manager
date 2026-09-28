@@ -16,6 +16,7 @@ export function defaultLifecycleLogDirectory(workspacePath = process.cwd()) {
 export class LifecycleLogWriter {
     latest;
     lastWarning;
+    lastFailure;
     directory;
     retentionDays;
     maxBytes;
@@ -54,13 +55,37 @@ export class LifecycleLogWriter {
                     outcome,
                     ...(warning === undefined ? {} : { warning }),
                 };
+                this.recordFailure(input.operation, path, outcome);
             });
         }
         catch (error) {
             const warning = `Lifecycle diagnostic log unavailable: ${messageFor(error)}`;
             this.lastWarning = warning;
-            return new UnavailableLifecycleLogRun(warning);
+            // No path, but the failure still has to be reportable: "the log is missing" must not turn into
+            // "nothing happened".
+            return new UnavailableLifecycleLogRun(warning, (outcome) => this.recordFailure(input.operation, undefined, outcome));
         }
+    }
+    /**
+     * Take the newest unreported lifecycle failure, clearing it.
+     *
+     * Take-and-clear is the contract: the facade injects the result into the next turn's system prompt, and a
+     * failure that stayed queued would be re-injected every turn for the rest of the session.
+     */
+    takeFailure() {
+        const failure = this.lastFailure;
+        delete this.lastFailure;
+        return failure;
+    }
+    recordFailure(operation, path, outcome) {
+        if (outcome.state === "completed")
+            return;
+        this.lastFailure = {
+            operation,
+            state: outcome.state,
+            ...(path !== undefined ? { path } : {}),
+            ...(outcome.error !== undefined ? { error: outcome.error } : {}),
+        };
     }
     latestRun() {
         if (this.latest !== undefined)
@@ -184,14 +209,18 @@ class FileLifecycleLogRun {
 }
 class UnavailableLifecycleLogRun {
     warning;
-    constructor(warning) {
+    onFinish;
+    constructor(warning, onFinish = () => undefined) {
         this.warning = warning;
+        this.onFinish = onFinish;
     }
     setCommand(_argv) { }
     stdout(_chunk) { }
     stderr(_chunk) { }
     note(_message) { }
-    finish(_outcome) { }
+    finish(outcome) {
+        this.onFinish(outcome);
+    }
 }
 function safeTimestamp(value) {
     return value.replaceAll(":", "-");

@@ -1,10 +1,11 @@
 /**
  * Render the injection block, or `undefined` when there is nothing useful to
- * say (no selected target and no mapping). Never fabricates facts.
+ * say (no selected target, no mapping, and no failure to report). Never
+ * fabricates facts.
  */
 export function renderExecutionContext(facts) {
     const hasTarget = facts.candidateId !== undefined || (facts.status !== undefined && facts.status !== "none");
-    if (!hasTarget && facts.mapping === undefined)
+    if (!hasTarget && facts.mapping === undefined && facts.failure === undefined)
         return undefined;
     const lines = ["## DevContainer execution context", ""];
     if (facts.candidateId !== undefined || facts.status !== undefined) {
@@ -31,6 +32,21 @@ export function renderExecutionContext(facts) {
     lines.push("- Result depends on the container toolchain, or on a container-only path → container surfaces.");
     lines.push("- Manages the host itself (docker daemon, host services/daemons) or a host path outside the mount → `devcontainer_host_exec`.");
     lines.push("- Host-side file inspection/editing → the host file tools (read/write/edit); they see the same files via the bind mount.");
+    if (facts.failure !== undefined) {
+        const failure = facts.failure;
+        lines.push("");
+        lines.push(`## DevContainer lifecycle failure (reported once)`);
+        lines.push(`Last \`${failure.operation}\` FAILED (${failure.state}).`);
+        if (failure.error !== undefined)
+            lines.push(`Recorded error: ${failure.error}`);
+        if (failure.path !== undefined) {
+            lines.push(`Raw transcript (stdout/stderr): ${failure.path}`);
+            lines.push("Analyze it before retrying: read the tail and grep for error markers rather than reading the whole file.");
+        }
+        else {
+            lines.push("Raw transcript: unavailable for this run (the log could not be written).");
+        }
+    }
     return lines.join("\n");
 }
 //# sourceMappingURL=execution-context.js.map

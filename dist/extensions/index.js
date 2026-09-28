@@ -310,10 +310,15 @@ hostVisibility) {
      * workspace's devcontainer.json mapping. Recomputed per turn so a selection
      * change or `/devcontainer up` is reflected immediately.
      */
-    const executionContext = async () => {
+    const executionContext = async (failure) => {
+        // The failure is passed IN rather than taken here: the caller drains it on every turn (see
+        // `takeLifecycleFailure`), and it must survive the no-target case below — lifecycle slash commands render
+        // into the operator UI, and a failed first `up` leaves nothing selected, which is exactly when the agent
+        // needs to be told.
         const snapshot = targetStore.snapshot();
-        if (snapshot.workspaceKey === undefined && snapshot.candidateId === undefined)
-            return undefined;
+        if (snapshot.workspaceKey === undefined && snapshot.candidateId === undefined) {
+            return failure === undefined ? undefined : renderExecutionContext({ failure });
+        }
         let mapping;
         let containerOnly;
         if (snapshot.workspaceKey !== undefined) {
@@ -328,6 +333,7 @@ hostVisibility) {
             }
         }
         return renderExecutionContext({
+            ...(failure !== undefined ? { failure } : {}),
             ...(snapshot.candidateId !== undefined ? { candidateId: snapshot.candidateId } : {}),
             status: snapshot.status,
             ...(mapping !== undefined ? { mapping } : {}),
@@ -348,6 +354,7 @@ hostVisibility) {
         discoveryDiagnostics,
         activation,
         executionContext,
+        takeLifecycleFailure: () => lifecycleLogs.takeFailure(),
         // One shared implementation for session restore and /devcontainer up.
         // No persistence here: a restored selection is already stored.
         reconcileSelection: async (hint) => {
@@ -553,9 +560,14 @@ export default function (pi) {
     // guessing an environment from command text.
     pi.on("before_agent_start", async (event) => {
         const rt = runtime;
-        if (rt === undefined || !surfacesFor(rt.activation.decision).executionContext)
-            return undefined;
-        const block = await rt.executionContext();
+        // Drain the failure on EVERY turn, before the activation gate below: `executionContext` is skipped while
+        // dormant, and a failure that stayed queued would be re-injected much later as a stale report.
+        const failure = rt?.takeLifecycleFailure();
+        const block = rt !== undefined && surfacesFor(rt.activation.decision).executionContext
+            ? await rt.executionContext(failure)
+            : failure === undefined
+                ? undefined
+                : renderExecutionContext({ failure });
         if (block === undefined)
             return undefined;
         return { systemPrompt: `${event.systemPrompt}\n\n${block}` };

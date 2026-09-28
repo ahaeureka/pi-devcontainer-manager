@@ -43,6 +43,21 @@ export interface LifecycleLogStart {
   readonly workspacePath: string;
 }
 
+/**
+ * The most recent lifecycle failure, as the agent needs it.
+ *
+ * `/devcontainer up|build|rebuild|stop|remove|setup` results are rendered into the OPERATOR UI, not the model
+ * context, so a slash-command failure would otherwise be invisible to the agent. The writer keeps the newest
+ * failed run here and the facade folds it into the next turn's execution-context block.
+ */
+export interface LifecycleLogFailure {
+  readonly operation: LifecycleLogOperation;
+  readonly state: LifecycleLogOutcome["state"];
+  /** Transcript path, when one could be written. */
+  readonly path?: string;
+  readonly error?: string;
+}
+
 export interface LifecycleLogRun {
   readonly path?: string;
   readonly warning?: string;
@@ -78,6 +93,7 @@ export function defaultLifecycleLogDirectory(workspacePath = process.cwd()): str
 export class LifecycleLogWriter {
   private latest?: LifecycleLogMetadata;
   private lastWarning?: string;
+  private lastFailure?: LifecycleLogFailure;
   private readonly directory: string;
   private readonly retentionDays: number;
   private readonly maxBytes: number;
@@ -121,12 +137,41 @@ export class LifecycleLogWriter {
           outcome,
           ...(warning === undefined ? {} : { warning }),
         };
+        this.recordFailure(input.operation, path, outcome);
       });
     } catch (error) {
       const warning = `Lifecycle diagnostic log unavailable: ${messageFor(error)}`;
       this.lastWarning = warning;
-      return new UnavailableLifecycleLogRun(warning);
+      // No path, but the failure still has to be reportable: "the log is missing" must not turn into
+      // "nothing happened".
+      return new UnavailableLifecycleLogRun(warning, (outcome) => this.recordFailure(input.operation, undefined, outcome));
     }
+  }
+
+  /**
+   * Take the newest unreported lifecycle failure, clearing it.
+   *
+   * Take-and-clear is the contract: the facade injects the result into the next turn's system prompt, and a
+   * failure that stayed queued would be re-injected every turn for the rest of the session.
+   */
+  takeFailure(): LifecycleLogFailure | undefined {
+    const failure = this.lastFailure;
+    delete this.lastFailure;
+    return failure;
+  }
+
+  private recordFailure(
+    operation: LifecycleLogOperation,
+    path: string | undefined,
+    outcome: LifecycleLogOutcome,
+  ): void {
+    if (outcome.state === "completed") return;
+    this.lastFailure = {
+      operation,
+      state: outcome.state,
+      ...(path !== undefined ? { path } : {}),
+      ...(outcome.error !== undefined ? { error: outcome.error } : {}),
+    };
   }
 
   latestRun(): LifecycleLogMetadata | undefined {
@@ -252,13 +297,18 @@ class FileLifecycleLogRun implements LifecycleLogRun {
 }
 
 class UnavailableLifecycleLogRun implements LifecycleLogRun {
-  constructor(readonly warning: string) {}
+  constructor(
+    readonly warning: string,
+    private readonly onFinish: (outcome: LifecycleLogOutcome) => void = () => undefined,
+  ) {}
 
   setCommand(_argv: readonly string[]): void {}
   stdout(_chunk: string | Uint8Array): void {}
   stderr(_chunk: string | Uint8Array): void {}
   note(_message: string): void {}
-  finish(_outcome: LifecycleLogOutcome): void {}
+  finish(outcome: LifecycleLogOutcome): void {
+    this.onFinish(outcome);
+  }
 }
 
 function safeTimestamp(value: string): string {

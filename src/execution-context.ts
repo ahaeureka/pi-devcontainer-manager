@@ -18,6 +18,7 @@
  * prompt.
  */
 import type { PathMapping } from "./path-mapper.js";
+import type { LifecycleLogFailure } from "./lifecycle-log.js";
 
 export interface ExecutionContextFacts {
   /** Selected target's candidate id (container id), when known. */
@@ -33,15 +34,25 @@ export interface ExecutionContextFacts {
    * host commands cannot see. Rendered path-style; empty/absent when none.
    */
   readonly containerOnlyMounts?: readonly string[];
+  /**
+   * The newest unreported lifecycle failure, when there is one.
+   *
+   * Lifecycle slash commands (`/devcontainer up|build|rebuild|stop|remove|setup`) render into the operator UI,
+   * so the agent never sees their failure on its own. This fact is what lets the agent learn about it on the
+   * next turn, and it is the reason the block must render even when there is NO target — a failed first `up`
+   * leaves neither container nor mapping, which is precisely the case worth reporting.
+   */
+  readonly failure?: LifecycleLogFailure;
 }
 
 /**
  * Render the injection block, or `undefined` when there is nothing useful to
- * say (no selected target and no mapping). Never fabricates facts.
+ * say (no selected target, no mapping, and no failure to report). Never
+ * fabricates facts.
  */
 export function renderExecutionContext(facts: ExecutionContextFacts): string | undefined {
   const hasTarget = facts.candidateId !== undefined || (facts.status !== undefined && facts.status !== "none");
-  if (!hasTarget && facts.mapping === undefined) return undefined;
+  if (!hasTarget && facts.mapping === undefined && facts.failure === undefined) return undefined;
   const lines: string[] = ["## DevContainer execution context", ""];
 
   if (facts.candidateId !== undefined || facts.status !== undefined) {
@@ -75,6 +86,22 @@ export function renderExecutionContext(facts: ExecutionContextFacts): string | u
   lines.push(
     "- Host-side file inspection/editing → the host file tools (read/write/edit); they see the same files via the bind mount.",
   );
+
+  if (facts.failure !== undefined) {
+    const failure = facts.failure;
+    lines.push("");
+    lines.push(`## DevContainer lifecycle failure (reported once)`);
+    lines.push(`Last \`${failure.operation}\` FAILED (${failure.state}).`);
+    if (failure.error !== undefined) lines.push(`Recorded error: ${failure.error}`);
+    if (failure.path !== undefined) {
+      lines.push(`Raw transcript (stdout/stderr): ${failure.path}`);
+      lines.push(
+        "Analyze it before retrying: read the tail and grep for error markers rather than reading the whole file.",
+      );
+    } else {
+      lines.push("Raw transcript: unavailable for this run (the log could not be written).");
+    }
+  }
 
   return lines.join("\n");
 }

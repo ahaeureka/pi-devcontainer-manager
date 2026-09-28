@@ -35,8 +35,15 @@ export interface LifecycleFailureDiagnostic {
   readonly detail: string;
   readonly remedy?: string;
   readonly rawLogAvailable: boolean;
-  /** The transcript's file name only — never its directory, which would disclose a host path. */
-  readonly logId?: string;
+  /**
+   * Absolute path to this run's transcript.
+   *
+   * It is emitted because the transcript lives inside the session project
+   * (`<project>/.pi/devcontainer-manager/lifecycle-logs/`) — a location the agent already knows and can already
+   * READ with its own host file tools. A bare file name is not actionable, which is what made a failure
+   * undiagnosable in practice; the path adds discoverability, not access.
+   */
+  readonly logPath?: string;
   readonly exitCode?: number | null;
   readonly durationMs?: number;
   readonly truncated?: boolean;
@@ -61,7 +68,7 @@ const HOOK_FAILURE = /\bpost(Start|Create)Command\b[^\n]{0,80}?\bfailed\b/i;
 export function classifyLifecycleFailure(input: LifecycleFailureInput): LifecycleFailureDiagnostic {
   const klass = classify(input);
   const rawLogAvailable = input.rawLog?.path !== undefined && input.rawLog.warning === undefined;
-  const logId = rawLogAvailable ? fileNameOf(input.rawLog!.path!) : undefined;
+  const logPath = rawLogAvailable ? input.rawLog!.path : undefined;
 
   return {
     operation: input.operation,
@@ -69,7 +76,7 @@ export function classifyLifecycleFailure(input: LifecycleFailureInput): Lifecycl
     complete: COMPLETE_CLASSES.has(klass),
     ...wordingFor(klass),
     rawLogAvailable,
-    ...(logId !== undefined ? { logId } : {}),
+    ...(logPath !== undefined ? { logPath } : {}),
     ...(input.exitCode !== undefined ? { exitCode: input.exitCode } : {}),
     ...(input.durationMs !== undefined ? { durationMs: input.durationMs } : {}),
     ...(input.truncated !== undefined ? { truncated: input.truncated } : {}),
@@ -91,10 +98,15 @@ export function renderLifecycleDiagnostic(diagnostic: LifecycleFailureDiagnostic
   if (!diagnostic.rawLogAvailable) {
     lines.push("raw transcript: unavailable for this run");
   } else if (diagnostic.complete) {
-    lines.push(`raw transcript (operator-local, not included): ${diagnostic.logId!}`);
+    // The class already explains the failure; reading the transcript would add cost, not information.
+    lines.push(`raw transcript (not needed for this class): ${diagnostic.logPath!}`);
   } else {
+    // The class does NOT explain the root cause, so the transcript is where the answer is. Say so explicitly
+    // and name the path: the agent then reads it with its own file tools, which makes the read visible in the
+    // session instead of hidden inside this extension.
+    lines.push(`raw transcript: ${diagnostic.logPath!}`);
     lines.push(
-      `raw transcript (operator-local): ${diagnostic.logId!} — NOT read automatically; ask the operator before inspecting it.`,
+      "This transcript holds the failing stage's own output — read it (grep/read are cheaper than a full read) and report the root cause.",
     );
   }
   return lines.join("\n");
@@ -198,7 +210,3 @@ function wordingFor(klass: LifecycleFailureClass): { detail: string; remedy?: st
   }
 }
 
-function fileNameOf(path: string): string {
-  const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-  return index === -1 ? path : path.slice(index + 1);
-}

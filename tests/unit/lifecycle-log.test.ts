@@ -90,6 +90,54 @@ describe("LifecycleLogWriter", () => {
     expect(writer.latestWarning()).toMatch(/diagnostic log/i);
   });
 
+  it("reports a failed run once, so a slash-command failure reaches the agent", () => {
+    // `/devcontainer up` output goes to the operator UI, NOT the model. This is the channel that makes the
+    // model learn about the failure on its next turn — and it must report exactly once, or a single failure
+    // would be re-injected into every subsequent turn's system prompt.
+    const writer = makeWriter();
+    const run = writer.start({ operation: "up", workspacePath: "/ws" });
+    run.finish({ state: "failed", exitCode: 1, durationMs: 7, outputTruncated: false, error: "build failed" });
+
+    expect(writer.takeFailure()).toMatchObject({ operation: "up", state: "failed", path: run.path, error: "build failed" });
+    expect(writer.takeFailure()).toBeUndefined();
+  });
+
+  it("does not report a successful run as a failure", () => {
+    const writer = makeWriter();
+    writer.start({ operation: "up", workspacePath: "/ws" }).finish({ state: "completed", exitCode: 0 });
+
+    expect(writer.takeFailure()).toBeUndefined();
+  });
+
+  it("reports a refused or cancelled run too (those are failures the agent must see)", () => {
+    for (const state of ["denied", "cancelled"] as const) {
+      const writer = makeWriter();
+      writer.start({ operation: "remove", workspacePath: "/ws" }).finish({ state });
+      expect(writer.takeFailure()).toMatchObject({ operation: "remove", state });
+    }
+  });
+
+  it("reports a failure even when no transcript could be written", () => {
+    // Losing the file must not lose the report: the agent still needs to know the last lifecycle operation
+    // failed, and that there is nothing local to read.
+    const directory = join(mkdtempSync(join(tmpdir(), "lifecycle-log-")), "not-a-directory");
+    writeFileSync(directory, "file");
+    const writer = makeWriter(directory);
+    writer.start({ operation: "up", workspacePath: "/ws" }).finish({ state: "failed", exitCode: 1 });
+
+    expect(writer.takeFailure()).toMatchObject({ operation: "up", state: "failed" });
+    expect(writer.takeFailure()).toBeUndefined();
+  });
+
+  it("keeps only the newest failure, so a stale one cannot resurface", () => {
+    const writer = makeWriter();
+    writer.start({ operation: "up", workspacePath: "/ws" }).finish({ state: "failed", exitCode: 1 });
+    writer.start({ operation: "build", workspacePath: "/ws" }).finish({ state: "failed", exitCode: 2 });
+
+    expect(writer.takeFailure()).toMatchObject({ operation: "build" });
+    expect(writer.takeFailure()).toBeUndefined();
+  });
+
   it("defaults to the Pi session project's private .pi namespace", () => {
     expect(defaultLifecycleLogDirectory("/work/project"))
       .toBe("/work/project/.pi/devcontainer-manager/lifecycle-logs");

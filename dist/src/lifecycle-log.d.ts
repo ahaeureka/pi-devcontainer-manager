@@ -23,6 +23,20 @@ export interface LifecycleLogStart {
     readonly operation: LifecycleLogOperation;
     readonly workspacePath: string;
 }
+/**
+ * The most recent lifecycle failure, as the agent needs it.
+ *
+ * `/devcontainer up|build|rebuild|stop|remove|setup` results are rendered into the OPERATOR UI, not the model
+ * context, so a slash-command failure would otherwise be invisible to the agent. The writer keeps the newest
+ * failed run here and the facade folds it into the next turn's execution-context block.
+ */
+export interface LifecycleLogFailure {
+    readonly operation: LifecycleLogOperation;
+    readonly state: LifecycleLogOutcome["state"];
+    /** Transcript path, when one could be written. */
+    readonly path?: string;
+    readonly error?: string;
+}
 export interface LifecycleLogRun {
     readonly path?: string;
     readonly warning?: string;
@@ -53,6 +67,7 @@ export declare function defaultLifecycleLogDirectory(workspacePath?: string): st
 export declare class LifecycleLogWriter {
     private latest?;
     private lastWarning?;
+    private lastFailure?;
     private readonly directory;
     private readonly retentionDays;
     private readonly maxBytes;
@@ -60,6 +75,14 @@ export declare class LifecycleLogWriter {
     private readonly randomSuffix;
     constructor(options?: LifecycleLogWriterOptions);
     start(input: LifecycleLogStart): LifecycleLogRun;
+    /**
+     * Take the newest unreported lifecycle failure, clearing it.
+     *
+     * Take-and-clear is the contract: the facade injects the result into the next turn's system prompt, and a
+     * failure that stayed queued would be re-injected every turn for the rest of the session.
+     */
+    takeFailure(): LifecycleLogFailure | undefined;
+    private recordFailure;
     latestRun(): LifecycleLogMetadata | undefined;
     latestWarning(): string | undefined;
     private prune;

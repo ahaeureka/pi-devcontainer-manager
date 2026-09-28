@@ -77,8 +77,9 @@ describe("lifecycle failure diagnostics reach the model", () => {
     expect(error).toBeInstanceOf(RuntimeError);
     const diagnostic = (error as RuntimeError).diagnostic;
     expect(diagnostic).toMatchObject({ operation: "up", class: "post-start-failed", complete: false, rawLogAvailable: true });
-    expect(diagnostic?.logId).toMatch(/^.*-up-diag\.log$/);
-    expect(diagnostic?.logId).not.toContain("/");
+    // The PATH is emitted: the transcript is project-local, so this is discoverability, not new access.
+    expect(diagnostic?.logPath).toMatch(/-up-diag\.log$/);
+    expect(diagnostic?.logPath).toContain("/");
 
     // The packet itself never carries captured process text or an instruction-like string.
     const packet = renderLifecycleDiagnostic(diagnostic!);
@@ -86,7 +87,7 @@ describe("lifecycle failure diagnostics reach the model", () => {
     expect(packet).not.toContain(INJECTION);
     // ...and the operator-facing command text actually shows it, so the agent sees the class without the log.
     expect(describeError(error)).toContain("lifecycle diagnostic: post-start-failed (incomplete)");
-    expect(describeError(error)).toContain("NOT read automatically");
+    expect(describeError(error)).toContain("report the root cause");
   });
 
   it("reports the transcript as unavailable when the log directory cannot be created", async () => {
@@ -105,7 +106,7 @@ describe("lifecycle failure diagnostics reach the model", () => {
     const diagnostic = (error as RuntimeError).diagnostic;
 
     expect(diagnostic).toMatchObject({ class: "post-start-failed", rawLogAvailable: false });
-    expect(diagnostic?.logId).toBeUndefined();
+    expect(diagnostic?.logPath).toBeUndefined();
     expect(renderLifecycleDiagnostic(diagnostic!)).toContain("raw transcript: unavailable for this run");
   });
 

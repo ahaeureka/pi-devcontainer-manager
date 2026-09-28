@@ -20,14 +20,14 @@ const HOOK_FAILURE = /\bpost(Start|Create)Command\b[^\n]{0,80}?\bfailed\b/i;
 export function classifyLifecycleFailure(input) {
     const klass = classify(input);
     const rawLogAvailable = input.rawLog?.path !== undefined && input.rawLog.warning === undefined;
-    const logId = rawLogAvailable ? fileNameOf(input.rawLog.path) : undefined;
+    const logPath = rawLogAvailable ? input.rawLog.path : undefined;
     return {
         operation: input.operation,
         class: klass,
         complete: COMPLETE_CLASSES.has(klass),
         ...wordingFor(klass),
         rawLogAvailable,
-        ...(logId !== undefined ? { logId } : {}),
+        ...(logPath !== undefined ? { logPath } : {}),
         ...(input.exitCode !== undefined ? { exitCode: input.exitCode } : {}),
         ...(input.durationMs !== undefined ? { durationMs: input.durationMs } : {}),
         ...(input.truncated !== undefined ? { truncated: input.truncated } : {}),
@@ -52,10 +52,15 @@ export function renderLifecycleDiagnostic(diagnostic) {
         lines.push("raw transcript: unavailable for this run");
     }
     else if (diagnostic.complete) {
-        lines.push(`raw transcript (operator-local, not included): ${diagnostic.logId}`);
+        // The class already explains the failure; reading the transcript would add cost, not information.
+        lines.push(`raw transcript (not needed for this class): ${diagnostic.logPath}`);
     }
     else {
-        lines.push(`raw transcript (operator-local): ${diagnostic.logId} — NOT read automatically; ask the operator before inspecting it.`);
+        // The class does NOT explain the root cause, so the transcript is where the answer is. Say so explicitly
+        // and name the path: the agent then reads it with its own file tools, which makes the read visible in the
+        // session instead of hidden inside this extension.
+        lines.push(`raw transcript: ${diagnostic.logPath}`);
+        lines.push("This transcript holds the failing stage's own output — read it (grep/read are cheaper than a full read) and report the root cause.");
     }
     return lines.join("\n");
 }
@@ -152,9 +157,5 @@ function wordingFor(klass) {
                 remedy: "The raw transcript holds the underlying output.",
             };
     }
-}
-function fileNameOf(path) {
-    const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-    return index === -1 ? path : path.slice(index + 1);
 }
 //# sourceMappingURL=lifecycle-diagnostics.js.map

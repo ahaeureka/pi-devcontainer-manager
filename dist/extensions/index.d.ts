@@ -1,6 +1,7 @@
 import type { ExtensionAPI, BashOperations, UserBashEventResult } from "@earendil-works/pi-coding-agent";
 import { type DiagnosticSink } from "../src/discovery-diagnostics.js";
 import { type ActivationDecision } from "../src/activation.js";
+import { type LifecycleLogFailure } from "../src/lifecycle-log.js";
 import { TargetStore } from "../src/target-store.js";
 import { ExecutionService } from "../src/execution-service.js";
 import { type BashOperationsLike } from "../src/bash-router.js";
@@ -29,7 +30,15 @@ interface Runtime {
      * mapping + surface guidance) appended to the system prompt, or undefined
      * when there is no selected target/mapping to describe.
      */
-    readonly executionContext: () => Promise<string | undefined>;
+    readonly executionContext: (failure?: LifecycleLogFailure) => Promise<string | undefined>;
+    /**
+     * Drain the newest unreported lifecycle failure.
+     *
+     * The drain is separate from `executionContext` because it must run on EVERY turn, whatever the activation
+     * decision: `executionContext` is skipped in a dormant session, and a failure left queued there would
+     * resurface as a stale report several turns later.
+     */
+    readonly takeLifecycleFailure: () => LifecycleLogFailure | undefined;
     /**
      * Re-resolve a persisted selection hint against the current registry and
      * commit the result (used on session restore).

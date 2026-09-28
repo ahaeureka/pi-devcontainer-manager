@@ -9,8 +9,15 @@ export interface LifecycleFailureDiagnostic {
     readonly detail: string;
     readonly remedy?: string;
     readonly rawLogAvailable: boolean;
-    /** The transcript's file name only — never its directory, which would disclose a host path. */
-    readonly logId?: string;
+    /**
+     * Absolute path to this run's transcript.
+     *
+     * It is emitted because the transcript lives inside the session project
+     * (`<project>/.pi/devcontainer-manager/lifecycle-logs/`) — a location the agent already knows and can already
+     * READ with its own host file tools. A bare file name is not actionable, which is what made a failure
+     * undiagnosable in practice; the path adds discoverability, not access.
+     */
+    readonly logPath?: string;
     readonly exitCode?: number | null;
     readonly durationMs?: number;
     readonly truncated?: boolean;
