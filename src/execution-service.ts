@@ -204,9 +204,46 @@ export interface ExecutionServiceOptions {
 
 export class ExecutionService {
   private readonly clock: () => string;
+  /**
+   * Lifecycle operations currently running, keyed by workspace.
+   *
+   * Two sessions can point at the same workspace and both call `up`: each spawns its own
+   * `devcontainer up` + `docker buildx build` for the SAME image, which doubles the work and — observed on a real
+   * project — left both clients stalled on one build while a fresh fetch of the same mirror was fast. Refusing the
+   * duplicate is the honest answer: one operation, one owner, and a message that says what is already running.
+   */
+  private readonly lifecycleInFlight = new Map<string, { readonly operation: OperationKind; readonly startedAt: number }>();
 
   public constructor(private readonly options: ExecutionServiceOptions) {
     this.clock = options.clock ?? (() => new Date().toISOString());
+  }
+
+  /**
+   * Claim the single lifecycle slot for `workspace`, or refuse with a typed, actionable error.
+   *
+   * Only the operations that BUILD or RECREATE (up/build/rebuild) take the slot: exec/stop/remove are short and
+   * are governed by their own gates. The returned function releases the slot and is safe to call twice.
+   */
+  private claimLifecycleSlot(workspace: string, operation: OperationKind): () => void {
+    const key = canonicalWorkspaceKey(workspace);
+    const running = this.lifecycleInFlight.get(key);
+    if (running !== undefined) {
+      const elapsedSeconds = Math.max(0, Math.round((Date.now() - running.startedAt) / 1000));
+      throw new RuntimeError({
+        kind: "lifecycle-in-flight",
+        message:
+          `\`${running.operation}\` is already running for ${workspace} (started ${elapsedSeconds}s ago), ` +
+          `so this \`${operation}\` was not started.`,
+        remedy:
+          "Wait for the running operation to finish (its progress is in the operation log: /devcontainer status " +
+          "names the file), or let it fail, then retry. Two concurrent operations on one workspace build the same " +
+          "image twice and can stall each other.",
+      });
+    }
+    this.lifecycleInFlight.set(key, { operation, startedAt: Date.now() });
+    return () => {
+      if (this.lifecycleInFlight.get(key)?.operation === operation) this.lifecycleInFlight.delete(key);
+    };
   }
 
   public async exec(request: ExecRequest): Promise<ExecOutcome> {
@@ -383,6 +420,17 @@ export class ExecutionService {
   }
 
   public async up(request: UpBuildRequest): Promise<UpBuildOutcome> {
+    // One owner per workspace: a second concurrent build of the same image doubles the work and can
+    // leave both clients stalled (see `claimLifecycleSlot`). Refused with a friendly, typed message.
+    const release = this.claimLifecycleSlot(request.workspace, "up");
+    try {
+      return await this.runUp(request);
+    } finally {
+      release();
+    }
+  }
+
+  private async runUp(request: UpBuildRequest): Promise<UpBuildOutcome> {
     const startedAt = Date.now();
     const lifecycleLog = this.startLifecycleLog("up", request.workspace);
     let snapshot: OperationPolicySnapshot;
@@ -435,6 +483,17 @@ export class ExecutionService {
    * wrong. The flag this runs is unconditional too.
    */
   public async rebuild(request: RebuildRequest): Promise<RebuildServiceResult> {
+    // One owner per workspace: a second concurrent build of the same image doubles the work and can
+    // leave both clients stalled (see `claimLifecycleSlot`). Refused with a friendly, typed message.
+    const release = this.claimLifecycleSlot(request.workspace, "rebuild");
+    try {
+      return await this.runRebuild(request);
+    } finally {
+      release();
+    }
+  }
+
+  private async runRebuild(request: RebuildRequest): Promise<RebuildServiceResult> {
     const startedAt = Date.now();
     const lifecycleLog = this.startLifecycleLog("rebuild", request.workspace);
     let snapshot: OperationPolicySnapshot;
@@ -503,6 +562,17 @@ export class ExecutionService {
   }
 
   public async build(request: UpBuildRequest): Promise<UpBuildOutcome> {
+    // One owner per workspace: a second concurrent build of the same image doubles the work and can
+    // leave both clients stalled (see `claimLifecycleSlot`). Refused with a friendly, typed message.
+    const release = this.claimLifecycleSlot(request.workspace, "build");
+    try {
+      return await this.runBuild(request);
+    } finally {
+      release();
+    }
+  }
+
+  private async runBuild(request: UpBuildRequest): Promise<UpBuildOutcome> {
     const startedAt = Date.now();
     const lifecycleLog = this.startLifecycleLog("build", request.workspace);
     let snapshot: OperationPolicySnapshot;

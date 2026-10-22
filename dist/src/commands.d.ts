@@ -91,6 +91,13 @@ export interface CommandServices {
             persisted?: true;
         } | undefined;
         latestWarning?(): string | undefined;
+        /** Size + idle time of the newest transcript, for progress notices (never its content). */
+        progress?(): {
+            operation: string;
+            path: string;
+            bytes: number;
+            idleMs: number;
+        } | undefined;
     };
     /** Report a host attempt that configuration refused before the runner (so it is still visible). */
     readonly onWithheldHostAttempt?: (program: string) => void;

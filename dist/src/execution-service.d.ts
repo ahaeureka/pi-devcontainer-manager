@@ -166,9 +166,26 @@ export interface ExecutionServiceOptions {
 export declare class ExecutionService {
     private readonly options;
     private readonly clock;
+    /**
+     * Lifecycle operations currently running, keyed by workspace.
+     *
+     * Two sessions can point at the same workspace and both call `up`: each spawns its own
+     * `devcontainer up` + `docker buildx build` for the SAME image, which doubles the work and — observed on a real
+     * project — left both clients stalled on one build while a fresh fetch of the same mirror was fast. Refusing the
+     * duplicate is the honest answer: one operation, one owner, and a message that says what is already running.
+     */
+    private readonly lifecycleInFlight;
     constructor(options: ExecutionServiceOptions);
+    /**
+     * Claim the single lifecycle slot for `workspace`, or refuse with a typed, actionable error.
+     *
+     * Only the operations that BUILD or RECREATE (up/build/rebuild) take the slot: exec/stop/remove are short and
+     * are governed by their own gates. The returned function releases the slot and is safe to call twice.
+     */
+    private claimLifecycleSlot;
     exec(request: ExecRequest): Promise<ExecOutcome>;
     up(request: UpBuildRequest): Promise<UpBuildOutcome>;
+    private runUp;
     /**
      * Delete the workspace's existing container and recreate it from the configuration as it is now.
      *
@@ -178,7 +195,9 @@ export declare class ExecutionService {
      * wrong. The flag this runs is unconditional too.
      */
     rebuild(request: RebuildRequest): Promise<RebuildServiceResult>;
+    private runRebuild;
     build(request: UpBuildRequest): Promise<UpBuildOutcome>;
+    private runBuild;
     lifecycle(request: LifecycleRequest): Promise<LifecycleServiceResult>;
     /**
      * Bounded container logs, routed through the shared service so the read is

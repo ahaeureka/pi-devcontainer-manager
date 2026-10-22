@@ -87,6 +87,30 @@ export class LifecycleLogWriter {
             ...(outcome.error !== undefined ? { error: outcome.error } : {}),
         };
     }
+    /**
+     * Progress of the newest operation: its size and how long since it last grew.
+     *
+     * Deliberately returns only NUMBERS. The transcript is secret-bearing, so a UI notice built from this can say
+     * "still working" or "possibly stalled" without ever printing captured output (`src/lifecycle-progress.ts`).
+     */
+    progress() {
+        const latest = this.latestRun();
+        if (latest === undefined || latest.persisted === true)
+            return undefined;
+        try {
+            const stats = statSync(latest.path);
+            return {
+                operation: latest.operation,
+                path: latest.path,
+                bytes: stats.size,
+                idleMs: Math.max(0, Date.now() - stats.mtimeMs),
+            };
+        }
+        catch {
+            // The file was pruned/removed between the two reads: no progress to report.
+            return undefined;
+        }
+    }
     latestRun() {
         if (this.latest !== undefined)
             return this.latest;

@@ -5,6 +5,7 @@ import { combineCommandOutput } from "./tool-output.js";
 import { canonicalWorkspaceKey } from "./workspace-path.js";
 import { configCandidatesOf, configPathOf, containerStateOf, primaryCandidate, primaryConfigOf } from "./registry-entry.js";
 import { renderLifecycleDiagnostic } from "./lifecycle-diagnostics.js";
+import { describeLifecycleProgress } from "./lifecycle-progress.js";
 import { SELECTION_ENTRY_KIND, SELECTION_PAYLOAD_VERSION } from "./selection-state.js";
 import { needsExplicitConfig } from "./runtime/devcontainer-adapter.js";
 /**
@@ -299,6 +300,35 @@ export function resolveConfigCandidate(entry, requested) {
         text: `[no-candidate] Unknown configuration \`${requested}\` for \`${entry.workspacePath}\`.\nAvailable: ${available.length > 0 ? available.map((name) => `\`${name}\``).join(", ") : "(none)"}.`,
     };
 }
+/**
+ * Emit a progress notice while a long lifecycle operation runs.
+ *
+ * `/devcontainer up|build|rebuild` only render when the handler returns, so a long build looks like a no-op. The
+ * notice reports elapsed time, log size and how long the log has been idle — never captured output.
+ */
+function startProgressNotices(services, ctx, operation, workspace, intervalMs = 20_000) {
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+        const progress = services.lifecycleLogs?.progress?.();
+        const message = describeLifecycleProgress({
+            operation,
+            workspace,
+            elapsedMs: Date.now() - startedAt,
+            ...(progress !== undefined
+                ? { logPath: progress.path, logBytes: progress.bytes, idleMs: progress.idleMs }
+                : {}),
+        });
+        try {
+            ctx.ui.notify(message, "info");
+        }
+        catch {
+            // A failing UI must never break the operation it is reporting on.
+        }
+    }, intervalMs);
+    // Do not hold the host process open on its own.
+    timer.unref?.();
+    return () => clearInterval(timer);
+}
 /** Namespaced command handler surface. */
 export function createCommandHandlers(services) {
     const handlers = {};
@@ -516,6 +546,8 @@ export function createCommandHandlers(services) {
         // when it is not.
         const known = knownContainerIds(target.entries, workspace);
         let outcome;
+        // Long operations render only at the end, so report progress while they run.
+        const stopProgress = startProgressNotices(services, ctx, "up", workspace);
         try {
             outcome = await services.execution.up({
                 operation: "up",
@@ -526,6 +558,9 @@ export function createCommandHandlers(services) {
         }
         catch (error) {
             return { text: describeError(error) };
+        }
+        finally {
+            stopProgress();
         }
         const reused = outcome.candidateId !== undefined && known.has(outcome.candidateId);
         const note = reused
@@ -553,6 +588,8 @@ export function createCommandHandlers(services) {
         if (!confirmed)
             return { text: "rebuild cancelled." };
         let result;
+        // Long operations render only at the end, so report progress while they run.
+        const stopProgress = startProgressNotices(services, ctx, "rebuild", workspace);
         try {
             result = await services.execution.rebuild({
                 operation: "rebuild",
@@ -570,6 +607,9 @@ export function createCommandHandlers(services) {
         catch (error) {
             return { text: describeError(error) };
         }
+        finally {
+            stopProgress();
+        }
         if (result.status === "confirmation-required") {
             return { text: `[confirmation-required] ${result.instruction}` };
         }
@@ -582,6 +622,8 @@ export function createCommandHandlers(services) {
             return { text: target.text };
         const { workspace } = target;
         let outcome;
+        // Long operations render only at the end, so report progress while they run.
+        const stopProgress = startProgressNotices(services, ctx, "build", workspace);
         try {
             outcome = await services.execution.build({
                 operation: "build",
@@ -592,6 +634,9 @@ export function createCommandHandlers(services) {
         }
         catch (error) {
             return { text: describeError(error) };
+        }
+        finally {
+            stopProgress();
         }
         return { text: `Build: ${outcome.workspaceKey}${outcome.imageName !== undefined ? ` → ${outcome.imageName}` : ""}` };
     };

@@ -29,6 +29,7 @@ import { canonicalWorkspaceKey } from "./workspace-path.js";
 import type { ConfigCandidate, EffectiveConfig, RegistryCandidate, RegistryEntry } from "./types.js";
 import { configCandidatesOf, configPathOf, containerStateOf, primaryCandidate, primaryConfigOf } from "./registry-entry.js";
 import { renderLifecycleDiagnostic } from "./lifecycle-diagnostics.js";
+import { describeLifecycleProgress } from "./lifecycle-progress.js";
 import { SELECTION_ENTRY_KIND, SELECTION_PAYLOAD_VERSION } from "./selection-state.js";
 import { needsExplicitConfig } from "./runtime/devcontainer-adapter.js";
 
@@ -75,7 +76,12 @@ export interface CommandServices {
   /** Session-scoped host-run summary (`/devcontainer status`; the audit trail stays authoritative). */
   readonly hostRuns?: { summary(): string };
   /** Latest local lifecycle diagnostic transcript; raw content is never rendered into the UI. */
-  readonly lifecycleLogs?: { latestRun(): { path: string; operation: string; startedAt?: string; completedAt?: string; outcome?: { state: string }; warning?: string; persisted?: true } | undefined; latestWarning?(): string | undefined };
+  readonly lifecycleLogs?: {
+    latestRun(): { path: string; operation: string; startedAt?: string; completedAt?: string; outcome?: { state: string }; warning?: string; persisted?: true } | undefined;
+    latestWarning?(): string | undefined;
+    /** Size + idle time of the newest transcript, for progress notices (never its content). */
+    progress?(): { operation: string; path: string; bytes: number; idleMs: number } | undefined;
+  };
   /** Report a host attempt that configuration refused before the runner (so it is still visible). */
   readonly onWithheldHostAttempt?: (program: string) => void;
   /**
@@ -452,6 +458,41 @@ export function resolveConfigCandidate(entry: RegistryEntry, requested: string):
   };
 }
 
+/**
+ * Emit a progress notice while a long lifecycle operation runs.
+ *
+ * `/devcontainer up|build|rebuild` only render when the handler returns, so a long build looks like a no-op. The
+ * notice reports elapsed time, log size and how long the log has been idle — never captured output.
+ */
+function startProgressNotices(
+  services: Pick<CommandServices, "lifecycleLogs">,
+  ctx: Pick<CommandContextLike, "ui">,
+  operation: string,
+  workspace: string,
+  intervalMs = 20_000,
+): () => void {
+  const startedAt = Date.now();
+  const timer = setInterval(() => {
+    const progress = services.lifecycleLogs?.progress?.();
+    const message = describeLifecycleProgress({
+      operation,
+      workspace,
+      elapsedMs: Date.now() - startedAt,
+      ...(progress !== undefined
+        ? { logPath: progress.path, logBytes: progress.bytes, idleMs: progress.idleMs }
+        : {}),
+    });
+    try {
+      ctx.ui.notify(message, "info");
+    } catch {
+      // A failing UI must never break the operation it is reporting on.
+    }
+  }, intervalMs);
+  // Do not hold the host process open on its own.
+  timer.unref?.();
+  return () => clearInterval(timer);
+}
+
 /** Namespaced command handler surface. */
 export function createCommandHandlers(services: CommandServices): Record<string, (args: string, ctx: CommandContextLike) => Promise<CommandResult>> {
   const handlers: Record<string, (args: string, ctx: CommandContextLike) => Promise<CommandResult>> = {};
@@ -687,6 +728,8 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     // when it is not.
     const known = knownContainerIds(target.entries, workspace);
     let outcome: UpBuildOutcome;
+    // Long operations render only at the end, so report progress while they run.
+    const stopProgress = startProgressNotices(services, ctx, "up", workspace);
     try {
       outcome = await services.execution.up({
         operation: "up",
@@ -696,6 +739,8 @@ export function createCommandHandlers(services: CommandServices): Record<string,
       });
     } catch (error) {
       return { text: describeError(error) };
+    } finally {
+      stopProgress();
     }
     const reused = outcome.candidateId !== undefined && known.has(outcome.candidateId);
     const note = reused
@@ -727,6 +772,8 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     );
     if (!confirmed) return { text: "rebuild cancelled." };
     let result: RebuildServiceResult;
+    // Long operations render only at the end, so report progress while they run.
+    const stopProgress = startProgressNotices(services, ctx, "rebuild", workspace);
     try {
       result = await services.execution.rebuild({
         operation: "rebuild",
@@ -742,6 +789,8 @@ export function createCommandHandlers(services: CommandServices): Record<string,
       });
     } catch (error) {
       return { text: describeError(error) };
+    } finally {
+      stopProgress();
     }
     if (result.status === "confirmation-required") {
       return { text: `[confirmation-required] ${result.instruction}` };
@@ -755,6 +804,8 @@ export function createCommandHandlers(services: CommandServices): Record<string,
     if (target.ok === false) return { text: target.text };
     const { workspace } = target;
     let outcome: UpBuildOutcome;
+    // Long operations render only at the end, so report progress while they run.
+    const stopProgress = startProgressNotices(services, ctx, "build", workspace);
     try {
       outcome = await services.execution.build({
         operation: "build",
@@ -764,6 +815,8 @@ export function createCommandHandlers(services: CommandServices): Record<string,
       });
     } catch (error) {
       return { text: describeError(error) };
+    } finally {
+      stopProgress();
     }
     return { text: `Build: ${outcome.workspaceKey}${outcome.imageName !== undefined ? ` → ${outcome.imageName}` : ""}` };
   };

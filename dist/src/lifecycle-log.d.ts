@@ -83,6 +83,18 @@ export declare class LifecycleLogWriter {
      */
     takeFailure(): LifecycleLogFailure | undefined;
     private recordFailure;
+    /**
+     * Progress of the newest operation: its size and how long since it last grew.
+     *
+     * Deliberately returns only NUMBERS. The transcript is secret-bearing, so a UI notice built from this can say
+     * "still working" or "possibly stalled" without ever printing captured output (`src/lifecycle-progress.ts`).
+     */
+    progress(): {
+        operation: LifecycleLogOperation;
+        path: string;
+        bytes: number;
+        idleMs: number;
+    } | undefined;
     latestRun(): LifecycleLogMetadata | undefined;
     latestWarning(): string | undefined;
     private prune;

@@ -20,6 +20,7 @@ export type ErrorKind =
   | "ambiguous-candidate"
   | "target-stopped"
   | "target-refreshing"
+  | "lifecycle-in-flight"
   | "policy-denied"
   | "timeout"
   | "cancelled"

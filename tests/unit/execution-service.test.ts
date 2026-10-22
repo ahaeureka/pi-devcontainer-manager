@@ -741,3 +741,79 @@ describe("a parked target is re-derived before the refusal escapes (stale-target
     ).rejects.toMatchObject({ kind: "target-stopped" });
   });
 });
+
+describe("one lifecycle operation per workspace (single-flight)", () => {
+  // Two sessions can point at the same workspace. Each used to spawn its own `devcontainer up` + buildx build for
+  // the SAME image; on a real project both then stalled on one build while a fresh fetch of the mirror was fast.
+  // The duplicate is refused with a message that says what is already running and what to do.
+  const slowUp = () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    // Only the FIRST workspace blocks, so a test can prove a different workspace is not blocked by it.
+    const up = vi.fn(async (workspace: string) => {
+      if (workspace === "/ws/project-a") await gate;
+      return { candidateId: "c1", reused: false, workspace, configPath: undefined, version: "0.89.0", outcome: "success" };
+    });
+    return { up, release };
+  };
+
+  it("refuses a second up for the same workspace with a friendly, typed error", async () => {
+    const { up, release } = slowUp();
+    const archive = fakeDevcontainer([]);
+    const service = new ExecutionService({
+      config: makeConfig(),
+      targetStore: fakeTargetStore().store,
+      devcontainer: { ...(archive.adapter as object), up } as unknown as DevcontainerAdapter,
+      dockerLifecycle: fakeDockerLifecycle().adapter,
+      audit: { write: vi.fn(), prune: vi.fn() },
+    });
+
+    const first = service.up({ operation: "up", initiator: "slash-command", workspace: "/ws/project-a" });
+    const error = await service
+      .up({ operation: "up", initiator: "slash-command", workspace: "/ws/project-a" })
+      .catch((thrown: unknown) => thrown);
+
+    expect((error as RuntimeError).kind).toBe("lifecycle-in-flight");
+    expect((error as RuntimeError).message).toContain("`up` is already running for /ws/project-a");
+    expect((error as RuntimeError).message).toMatch(/started \d+s ago/);
+    expect((error as RuntimeError).remedy).toMatch(/operation log/i);
+    // The duplicate must never reach the adapter.
+    expect(up).toHaveBeenCalledTimes(1);
+
+    release();
+    await first;
+  });
+
+  it("releases the slot after success and after failure", async () => {
+    const archive = fakeDevcontainer([{ exitCode: 0, signal: null, stdout: "ok", stderr: "", truncated: false, durationMs: 1 }]);
+    const service = new ExecutionService({
+      config: makeConfig(),
+      targetStore: fakeTargetStore().store,
+      devcontainer: archive.adapter,
+      dockerLifecycle: fakeDockerLifecycle().adapter,
+      audit: { write: vi.fn(), prune: vi.fn() },
+    });
+
+    await service.up({ operation: "up", initiator: "slash-command", workspace: "/ws/project-a" });
+    await expect(service.up({ operation: "up", initiator: "slash-command", workspace: "/ws/project-a" })).resolves.toBeDefined();
+  });
+
+  it("does not block a different workspace", async () => {
+    const { up, release } = slowUp();
+    const archive = fakeDevcontainer([]);
+    const service = new ExecutionService({
+      config: makeConfig({ allowedWorkspaceRoots: ["/ws"] }),
+      targetStore: fakeTargetStore().store,
+      devcontainer: { ...(archive.adapter as object), up } as unknown as DevcontainerAdapter,
+      dockerLifecycle: fakeDockerLifecycle().adapter,
+      audit: { write: vi.fn(), prune: vi.fn() },
+    });
+
+    const first = service.up({ operation: "up", initiator: "slash-command", workspace: "/ws/project-a" });
+    await expect(service.up({ operation: "up", initiator: "slash-command", workspace: "/ws/project-b" })).resolves.toBeDefined();
+    release();
+    await first;
+  });
+});

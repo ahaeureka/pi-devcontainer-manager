@@ -24,6 +24,7 @@ output and tool output both use the shape:
 | `ambiguous-candidate` | Two or more **running** containers map to the same workspace. Docker result order is never used to guess. | `/devcontainer use <container-id>` with one of the ids in the message. |
 | `target-stopped` | A target is selected but its container is not running. | `/devcontainer up` (re-resolves the selection for you). A container that appears **later** is adopted automatically — see below. |
 | `target-refreshing` | A selection is mid-refresh (a registry re-check has not finished yet). | Retry the operation; the state resolves on its own. |
+| `lifecycle-in-flight` | An `up`/`build`/`rebuild` is already running for that workspace. | Wait for it (progress is in the operation log), then retry. |
 | `policy-denied` | A policy gate refused the operation. The message names the reason (`workspace-not-allowed`, `destructive-operation-disabled`, `host-execution-disabled`, `environment-variable-denied`, or a container-only path on a host command). | Fix the specific grant named in the message, or use the surface the policy expects. |
 | `daemon-unavailable` | The Docker executable is missing or the daemon is unreachable. | Start Docker / Docker Desktop; confirm `docker ps` works in a host shell. |
 | `authorization-denied` | The OS refused the Docker or Dev Containers CLI spawn (permissions). | Check the account's permission to run `docker` (for example `docker` group membership on Linux). |
@@ -85,6 +86,23 @@ from a plain repository — but a request from another project's workspace is re
 purpose, because it would act on a different repository than the one you are in. Run
 `/devcontainer use` for the project you are standing in, or issue the command from a
 directory that is not another project.
+
+### `/devcontainer up` looks like it does nothing
+
+It is running. Slash commands render their result only when the handler returns, so a long build shows a blank
+screen. Three things make that bearable now:
+
+- a **progress notice every ~20 s** with elapsed time, the operation-log size, and how long the log has been idle
+  (`no new output for 4m — it may be stalled`);
+- the **operation log** named by `/devcontainer status` (`lifecycle log: …`), which holds the CLI's own output;
+- a **single-flight refusal**: a second `up`/`build`/`rebuild` for the same workspace is rejected with
+  `lifecycle-in-flight` instead of starting a duplicate build. Two concurrent builds of one image double the work
+  and can leave both clients waiting on the same step — observed on a real project, where removing the duplicate
+  immediately unstuck the survivor.
+
+If the notice says the log has been idle for minutes and the step is a package fetch (apt/curl/pip), suspect a dead
+keep-alive connection: cancel, then give that tool a timeout (`Acquire::http::Timeout` for apt) so it retries
+instead of waiting forever.
 
 ### I started the container outside Pi and `bash` still says `target-stopped`
 

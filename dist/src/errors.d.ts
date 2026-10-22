@@ -8,7 +8,7 @@
  * rejections.
  */
 import type { LifecycleFailureDiagnostic } from "./lifecycle-diagnostics.js";
-export type ErrorKind = "executable-missing" | "spawn-permission-denied" | "daemon-unavailable" | "authorization-denied" | "devcontainer-cli-failure" | "docker-cli-failure" | "no-candidate" | "ambiguous-candidate" | "target-stopped" | "target-refreshing" | "policy-denied" | "timeout" | "cancelled" | "parse-failure" | "unexpected";
+export type ErrorKind = "executable-missing" | "spawn-permission-denied" | "daemon-unavailable" | "authorization-denied" | "devcontainer-cli-failure" | "docker-cli-failure" | "no-candidate" | "ambiguous-candidate" | "target-stopped" | "target-refreshing" | "lifecycle-in-flight" | "policy-denied" | "timeout" | "cancelled" | "parse-failure" | "unexpected";
 export interface RuntimeErrorOptions {
     readonly kind: ErrorKind;
     readonly message: string;
