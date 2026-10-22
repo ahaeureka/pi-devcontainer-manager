@@ -289,13 +289,28 @@ describe("execution-route prompt metadata", () => {
     expect(joined).toContain("/devcontainer up");
   });
 
-  it("devcontainer_host_exec is framed as host-only administration", () => {
+  it("devcontainer_host_exec is host-only, and the host is a FALLBACK rather than forbidden", () => {
     const tool = createDevcontainerHostExecTool(makeOptions({ hostExecutionAllowed: true }));
     expect(tool.promptSnippet).toContain("HOST");
     const joined = (tool.promptGuidelines ?? []).join("\n");
+
+    // Host-only stays: the surface runs on the host, never in the container.
     expect(joined).toContain("HOST, not in the container");
-    expect(joined).toContain("host administration");
     expect(joined).toContain("docker itself");
+    expect(joined).toContain("files outside the mounted workspace");
+
+    // The container is still preferred when it can run the work...
+    expect(joined).toMatch(/Prefer the container/i);
+    expect(joined).toContain("fallback");
+
+    // ...but project builds/tests are explicitly permitted when no container target can run them. This is the
+    // defect a reporting session hit: an absolute prohibition ("use it ONLY for host administration",
+    // "do NOT route project work here") blocked a host build/test even when the operator asked for it, because
+    // a tool guideline outranks conversational permission.
+    expect(joined).toMatch(/builds\/tests when no container target can run them/i);
+    expect(joined).not.toMatch(/ONLY for host administration/i);
+    expect(joined).not.toMatch(/Do NOT route project work here/i);
+
     expect(joined).toContain("bind mount");
   });
 });

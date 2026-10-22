@@ -81,7 +81,7 @@ export function renderExecutionContext(facts: ExecutionContextFacts): string | u
   lines.push("Decision rules:");
   lines.push("- Result depends on the container toolchain, or on a container-only path → container surfaces.");
   lines.push(
-    "- Manages the host itself (docker daemon, host services/daemons) or a host path outside the mount → `devcontainer_host_exec`.",
+    "- Manages the host itself (docker daemon, host services/daemons), a host path outside the mount, or a build/test no container target can run → `devcontainer_host_exec`.",
   );
   lines.push(
     "- Host-side file inspection/editing → the host file tools (read/write/edit); they see the same files via the bind mount.",

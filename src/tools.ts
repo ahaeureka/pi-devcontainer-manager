@@ -215,8 +215,8 @@ export function createDevcontainerHostExecTool(options: ToolOptions): ToolDefini
       "Host execution is granted by default and can be withheld by configuration. Prefer devcontainer_exec or the routed bash tool for container work. Output is truncated to the last 2000 lines or 50KB (whichever first); if truncated, the full output is saved to a temp file whose path is reported so it can be read in full.",
     promptSnippet: "Execute an argv command on the HOST (escape hatch)",
     promptGuidelines: [
-      `${DEV_CONTAINER_HOST_EXEC_TOOL} runs on the HOST, not in the container. Use it ONLY for host administration the container must not do: managing docker itself, host services/daemons, or files outside the mounted workspace.`,
-      `Do NOT route project work here: builds/tests/toolchains belong in the container (${DEV_CONTAINER_EXEC_TOOL} or the routed bash tool); editing workspace files belongs to the host file tools (read/write/edit), which see the same files as the container via the bind mount.`,
+      `${DEV_CONTAINER_HOST_EXEC_TOOL} runs on the HOST, not in the container. Use it for work that must happen on the host: managing docker itself, host services/daemons, files outside the mounted workspace — and project builds/tests when no container target can run them (a dormant session, or a toolchain the container lacks).`,
+      `Prefer the container for project work when a container target can run it (${DEV_CONTAINER_EXEC_TOOL} or the routed bash tool); the host is the fallback, not the default. Editing workspace files belongs to the host file tools (read/write/edit), which see the same files as the container via the bind mount.`,
       `A policy-denied error means a configuration withholds host execution; it is not a signal to retry the command in the container.`,
     ],
     parameters: devcontainerHostExecParams,
