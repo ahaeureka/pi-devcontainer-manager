@@ -22,6 +22,7 @@ import type { DshRuntime } from "../../extensions/dsh/runtime.js";
 function runtime(diagnostics: readonly string[] = []): DshRuntime {
   const registry = async () => ({ entries: [] as const, diagnostics: [] as const });
   return {
+    workspace: "/workspace",
     config: DEFAULTS,
     diagnostics,
     targetStore: new TargetStore({}),
@@ -155,7 +156,7 @@ describe("dsh plugin entry", () => {
     // test would prove nothing about the target path.
     writeFileSync(configPath, JSON.stringify({ allowedWorkspaceRoots: [dir] }));
     const ctx = new Context();
-    apply(ctx, { workspace: dir, globalConfigPath: configPath });
+    await apply(ctx, { workspace: dir, globalConfigPath: configPath });
     const shell = ctx.shell as DevcontainerShellExecutor;
     // `execute()` is where dsh's bash tool lands. With nothing selected it must throw the same typed
     // error Pi's routed bash gets — never spawn on the host as a fallback.
@@ -171,7 +172,7 @@ describe("dsh plugin entry", () => {
         return () => undefined;
       },
     });
-    apply(ctx, { workspace: tmpdir(), globalConfigPath: `${tmpdir()}/does-not-exist.json` });
+    await apply(ctx, { workspace: tmpdir(), globalConfigPath: `${tmpdir()}/does-not-exist.json` });
     expect(ctx.shell).toBeInstanceOf(DevcontainerShellExecutor);
     // Registration is deferred through `ctx.inject(['commands'])`, so it lands on a child fiber.
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -180,7 +181,7 @@ describe("dsh plugin entry", () => {
 
   it("loads without a command surface instead of staying pending", async () => {
     const ctx = new Context();
-    apply(ctx, { workspace: tmpdir(), globalConfigPath: `${tmpdir()}/does-not-exist.json` });
+    await apply(ctx, { workspace: tmpdir(), globalConfigPath: `${tmpdir()}/does-not-exist.json` });
     expect(ctx.shell).toBeInstanceOf(DevcontainerShellExecutor);
     // Give a deferred `ctx.inject(['commands'])` a chance to park: the provider must stay registered
     // either way, because it is the primary capability.
@@ -193,7 +194,7 @@ describe("dsh plugin entry", () => {
     // mounts later, so `/devcontainer …` silently did nothing in the web app.
     const ctx = new Context();
     const registered: { name?: string }[] = [];
-    apply(ctx, { workspace: tmpdir(), globalConfigPath: `${tmpdir()}/does-not-exist.json` });
+    await apply(ctx, { workspace: tmpdir(), globalConfigPath: `${tmpdir()}/does-not-exist.json` });
     expect(registered).toHaveLength(0);
     ctx.provide("commands", {
       register: (definition: { name?: string }) => {

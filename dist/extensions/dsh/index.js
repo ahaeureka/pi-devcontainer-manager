@@ -1,11 +1,10 @@
 import { resolve } from "node:path";
 import Schema from "@deepseek-ai/schemastery";
-import { createDevcontainerCommand } from "./command.js";
-import { DevcontainerShellExecutor } from "./executor.js";
-import { DEFAULT_HOST_EXECUTOR_MODULE, mountHostExecutor } from "./host-executor.js";
-import { registerPromptSection } from "./prompt.js";
-import { composeDshRuntime } from "./runtime.js";
-import { createDevcontainerTool } from "./tools.js";
+import { commandPlugin } from "./command.js";
+import { promptPlugin } from "./prompt.js";
+import { DshRuntimeService } from "./runtime.js";
+import { DevcontainerShellProvider } from "./shell.js";
+import { toolPlugin } from "./tools.js";
 export const name = "devcontainer";
 export const Config = Schema.object({
     workspace: Schema.string().description("Host workspace to manage (default: process.cwd())."),
@@ -26,81 +25,31 @@ export const Config = Schema.object({
     hostExecutorConfig: Schema.any().description("Config forwarded verbatim to that executor."),
 });
 export function apply(ctx, config = {}) {
-    const workspace = resolve(config.workspace ?? process.cwd());
-    const runtime = composeDshRuntime({
-        workspace,
+    // One row, five plugins. Each contribution is registered with `ctx.plugin` so it gets its own fiber,
+    // its own `inject` and its own config — dsh's composition model — instead of living inside this
+    // `apply` as a closure. That is what lets a profile compose only what it can use (the web app has no
+    // bash tool; ACP has no command surface) without losing the rest.
+    // The fibers are returned so a host (and the tests) can await a settled composition instead of
+    // guessing with timers: dsh activates plugins asynchronously.
+    const runtime = ctx.plugin(DshRuntimeService, {
+        ...(config.workspace !== undefined ? { workspace: config.workspace } : {}),
         ...(config.globalConfigPath !== undefined ? { globalConfigPath: config.globalConfigPath } : {}),
         ...(config.projectConfigPath !== undefined ? { projectConfigPath: config.projectConfigPath } : {}),
         projectTrusted: config.projectTrusted ?? false,
     });
-    // Workspaces without a devcontainer config keep the harness's own host executor; anything else
-    // would make this plugin a profile-wide hijack of `ctx.shell` (see `docs/dsh.md`).
-    const hostFallback = config.hostFallback ?? "delegate";
-    const hostExecutor = hostFallback === "delegate"
-        ? mountHostExecutor(ctx, {
-            module: config.hostExecutorModule ?? DEFAULT_HOST_EXECUTOR_MODULE,
-            ...(config.hostExecutorConfig !== undefined
-                ? { config: config.hostExecutorConfig }
-                : {}),
-        })
-        : undefined;
-    // The provider registers itself on this plugin's fiber, so unloading the bundle removes it and dsh
-    // reports the missing capability to its consumers instead of leaving a dead service behind.
-    new DevcontainerShellExecutor(ctx, {
-        execution: runtime.execution,
-        workspace,
-        timeoutMs: config.timeoutMs ?? 120_000,
-        maxTimeoutMs: config.maxTimeoutMs ?? runtime.config.maxTimeoutSeconds * 1000,
-        maxOutputBytes: runtime.config.maxOutputBytes,
-        ensureTarget: runtime.autoSelect,
-        ...(hostExecutor !== undefined ? { hostExecutor } : {}),
-        ...(config.activation === "always" ? { isManaged: () => true } : {}),
+    // The shell PROVIDER. dsh composes exactly one provider per context, which is why the bundle patch
+    // disables the base row instead of adding a parallel one.
+    const shell = ctx.plugin(DevcontainerShellProvider, {
+        ...(config.timeoutMs !== undefined ? { timeoutMs: config.timeoutMs } : {}),
+        ...(config.maxTimeoutMs !== undefined ? { maxTimeoutMs: config.maxTimeoutMs } : {}),
+        ...(config.activation !== undefined ? { activation: config.activation } : {}),
+        ...(config.hostFallback !== undefined ? { hostFallback: config.hostFallback } : {}),
+        ...(config.hostExecutorModule !== undefined ? { hostExecutorModule: config.hostExecutorModule } : {}),
+        ...(config.hostExecutorConfig !== undefined ? { hostExecutorConfig: config.hostExecutorConfig } : {}),
     });
-    // The agent has no other way to learn that a container is involved: dsh injects tool schemas, not the
-    // reason to call them, and the first thing it would otherwise see is a refusal.
-    registerPromptSection(ctx, runtime, { workspace });
-    // `commands` is DEFERRED, not merely optional: a plain `ctx.get("commands")` during `apply()` can
-    // run before the registry is mounted (load order is not guaranteed), which silently loses the
-    // command surface — observed in the web app, where `/devcontainer …` then did nothing at all.
-    // `ctx.inject` waits for the service on a child fiber, so this plugin stays ACTIVE with the shell
-    // provider regardless (a required `inject: ['commands']` would park the whole plugin PENDING in a
-    // composition that has no command UI, losing the primary capability).
-    // The TOOL is the surface every dsh app can use (ACP composes no command consumer at all), and the
-    // only one that can ask for approval — a tool runs inside a turn, a command does not.
-    ctx.inject(["tools"], (scoped) => {
-        const tools = scoped.tools;
-        const definition = createDevcontainerTool(runtime, {
-            workspace,
-            confirm: async (request) => {
-                if (request.agent === undefined)
-                    return false;
-                const approval = ctx.get("approval", false);
-                if (approval === undefined)
-                    return false;
-                try {
-                    const outcome = await approval.request({
-                        agent: request.agent,
-                        toolName: "devcontainer",
-                        reason: request.reason,
-                        signal: request.signal,
-                    });
-                    // Only an explicit one-time grant proceeds; everything else (`rejected`, `cancelled`,
-                    // `unavailable`) is a refusal, which is the service's fail-closed contract.
-                    return outcome === "allowed-once";
-                }
-                catch {
-                    // `request()` throws without an open turn and rejects on an uncommitted audit pair; both
-                    // mean "no decision", never "yes".
-                    return false;
-                }
-            },
-        });
-        tools.register(definition);
-    });
-    ctx.inject(["commands"], (scoped) => {
-        const commands = scoped.commands;
-        const definition = createDevcontainerCommand(runtime, { workspace });
-        commands.register(definition);
-    });
+    const prompt = ctx.plugin(promptPlugin);
+    const tool = ctx.plugin(toolPlugin);
+    const command = ctx.plugin(commandPlugin);
+    return Promise.all([runtime, shell, prompt, tool, command]);
 }
 //# sourceMappingURL=index.js.map

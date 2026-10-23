@@ -123,4 +123,43 @@ export function createDevcontainerTool(runtime, options) {
         },
     });
 }
+/**
+ * The tool as a dsh plugin (object form).
+ *
+ * `inject: ['tools']` is required rather than optional: without a tool registry there is nothing to
+ * register. ACP composes `tools` (it has no command surface), so this is the ONLY management surface
+ * there — which is why it is a plugin of its own and not a branch inside another `apply`.
+ *
+ * The approval service is NOT injected: it is optional (a headless deployment may not mount it), so it
+ * is read at the use site and its absence means "no confirmation available", which the handler turns
+ * into a refusal. That is the fail-closed direction a destructive verb needs.
+ */
+export const toolPlugin = {
+    name: "devcontainer-tool",
+    inject: ["devcontainerRuntime", "tools"],
+    apply(ctx) {
+        const runtime = ctx.devcontainerRuntime;
+        ctx.tools.register(createDevcontainerTool(runtime, {
+            workspace: runtime.workspace,
+            confirm: async (request) => {
+                if (request.agent === undefined)
+                    return false;
+                try {
+                    // Only an explicit one-time grant proceeds; `rejected`, `cancelled` and `unavailable` are
+                    // refusals, and `request()` throws without an open turn — all mean "no decision", never "yes".
+                    const outcome = await ctx.approval.request({
+                        agent: request.agent,
+                        toolName: "devcontainer",
+                        reason: request.reason,
+                        signal: request.signal,
+                    });
+                    return outcome === "allowed-once";
+                }
+                catch {
+                    return false;
+                }
+            },
+        }));
+    },
+};
 //# sourceMappingURL=tools.js.map

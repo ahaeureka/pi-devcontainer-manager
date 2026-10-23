@@ -23,10 +23,23 @@ export interface PromptSectionOptions {
 }
 export declare function devcontainerPromptText(runtime: DshRuntime, options: PromptSectionOptions): string;
 /**
+ * The prompt section as a dsh plugin (object form).
+ *
+ * `inject` is required: without a prompt registry there is nothing to contribute to, and dsh keeping
+ * the plugin PENDING is the honest outcome. Being a plugin (not a call inside another `apply`) is what
+ * gives the section its own fiber, so unloading the plugin retracts the text.
+ */
+export declare const promptPlugin: {
+    name: string;
+    inject: string[];
+    apply(ctx: Context): void;
+};
+/**
  * Register the section through dsh's `systemPrompt` service.
  *
- * `ctx.inject` (not a plain `ctx.get`) so a composition that mounts the prompt registry later still
- * gets the section — the same load-order trap that silently dropped command registration.
+ * Kept for callers that already hold a context and want the section without the plugin wrapper
+ * (tests, and the `ctx.inject` path). `ctx.inject` (not a plain `ctx.get`) so a composition that
+ * mounts the prompt registry later still gets the section.
  */
 export declare function registerPromptSection(ctx: Context, runtime: DshRuntime, options: PromptSectionOptions): void;
 //# sourceMappingURL=prompt.d.ts.map

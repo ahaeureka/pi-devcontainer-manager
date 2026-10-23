@@ -125,4 +125,21 @@ export function createDevcontainerCommand(runtime, options) {
         },
     };
 }
+/**
+ * The command as a dsh plugin (object form).
+ *
+ * `inject` is REQUIRED here — a command consumer without a command registry has nothing to do, so
+ * dsh keeping it PENDING is the correct outcome (and it costs nothing else: the shell provider, the
+ * tool and the prompt section are separate plugins with their own inject).
+ */
+export const commandPlugin = {
+    name: "devcontainer-command",
+    inject: ["devcontainerRuntime", "commands"],
+    apply(ctx) {
+        const definition = createDevcontainerCommand(ctx.devcontainerRuntime, {
+            workspace: ctx.devcontainerRuntime.workspace,
+        });
+        ctx.commands.register(definition);
+    },
+};
 //# sourceMappingURL=command.js.map

@@ -6,6 +6,31 @@ The same DevContainer management runs under **DeepSeek Harness** (`dsh`), becaus
 capability lives in a harness-free core (`src/`) with two thin entry points:
 `extensions/index.ts` for Pi and `extensions/dsh/index.ts` for dsh.
 
+## How it is structured as a dsh plugin
+
+dsh's composition model is "plugins that declare what they need", so the bundle is one row that
+composes five plugins, each with its own fiber, `inject` and config — not one `apply()` holding
+everything as closures:
+
+| Plugin | Role (dsh terminology) | `inject` | Config |
+|---|---|---|---|
+| `DshRuntimeService` (`devcontainerRuntime`) | **Service** — the shared runtime (config → audit → adapters → target store → execution gate) | — | `workspace`, `globalConfigPath`, `projectConfigPath`, `projectTrusted` |
+| `DevcontainerShellProvider` | **Service Provider** for `ctx.shell` (extends `ShellExecutor`) | `devcontainerRuntime` | `timeoutMs`, `maxTimeoutMs`, `activation`, `hostFallback`, `hostExecutorModule`, `hostExecutorConfig` |
+| `devcontainer` **tool** | Consumer of `tools` (the only management surface on ACP) | `devcontainerRuntime`, `tools` | — |
+| `devcontainer` **command** | Consumer of `commands` (web / TUI) | `devcontainerRuntime`, `commands` | — |
+| `devcontainer:execution-context` | Consumer of `systemPrompt` | `devcontainerRuntime`, `systemPrompt` | — |
+
+Consequences that matter operationally:
+
+- A surface a deployment cannot use simply parks PENDING (no command registry in ACP → only that
+  plugin waits) instead of taking the others down with it.
+- Each plugin's config is validated by its own `Config` schema, and the provider's defaults live in
+  the provider.
+- The approval service is deliberately **not** injected: it is optional, read at the use site, and its
+  absence means "no confirmation available" (a destructive verb then refuses).
+- The runtime is a service (not a closure) because dsh's answer to "two plugins need the same thing" is
+  `inject`, and because a service can be unloaded with its provider on HMR.
+
 What that buys: dsh's `ctx.shell` capability is *provided* by this package, so the bash
 tool — and any other dsh plugin using `ctx.shell` — executes inside the selected
 DevContainer instead of on the host. Management verbs are exposed as the `devcontainer`

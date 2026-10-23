@@ -1,3 +1,6 @@
+import { resolve } from "node:path";
+import { Service, type Context } from "@deepseek-ai/cordis";
+import Schema from "@deepseek-ai/schemastery";
 import { JsonlAuditWriter, defaultAuditDirectory } from "../../src/audit.js";
 import { defaultConfigPaths, loadConfigWithDiagnostics } from "../../src/config.js";
 import { ExecutionService } from "../../src/execution-service.js";
@@ -42,6 +45,8 @@ export interface DshRuntimeOptions {
 }
 
 export interface DshRuntime {
+  /** Canonical host workspace this runtime manages. */
+  readonly workspace: string;
   readonly config: EffectiveConfig;
   /** Configuration problems the operator must see (unreadable layer, withheld host execution…). */
   readonly diagnostics: readonly string[];
@@ -170,6 +175,7 @@ export function composeDshRuntime(options: DshRuntimeOptions): DshRuntime {
   };
 
   return {
+    workspace,
     config,
     diagnostics: loaded.diagnostics,
     targetStore,
@@ -185,4 +191,95 @@ export function composeDshRuntime(options: DshRuntimeOptions): DshRuntime {
       return registry();
     },
   };
+}
+
+/**
+ * The runtime as a dsh SERVICE.
+ *
+ * dsh's composition model is "a service the others inject", not "closures captured by one `apply`":
+ * the shell provider, the tool, the command and the prompt section are separate plugins with their own
+ * `inject`, their own fibers and their own config, so a deployment can drop any of them (the web app
+ * composes no bash tool; ACP composes no command surface) without losing the rest. That is only
+ * possible if what they share is reachable through `ctx`, which is what this class provides.
+ *
+ * The name is `devcontainerRuntime` (a capability of this package, not a harness seam).
+ */
+export class DshRuntimeService extends Service implements DshRuntime {
+  /** Services this one needs. Empty: it only composes `src/` and the host CLIs. */
+  static inject: string[] = [];
+
+  static Config: Schema<DshServiceConfig> = Schema.object({
+    workspace: Schema.string().description("Host workspace to manage (default: process.cwd())."),
+    globalConfigPath: Schema.string().description("Override this extension's global configuration file."),
+    projectConfigPath: Schema.string().description("Override the project configuration file."),
+    projectTrusted: Schema.boolean()
+      .default(false)
+      .description("Read the project configuration file (it can grant capabilities, so this is opt-in)."),
+  });
+
+  /** The workspace this instance manages (canonical host path). */
+  public readonly workspace: string;
+  private readonly inner: DshRuntime;
+
+  public constructor(ctx: Context, config: DshServiceConfig = {}) {
+    super(ctx, "devcontainerRuntime");
+    this.workspace = resolve(config.workspace ?? process.cwd());
+    this.inner = composeDshRuntime({
+      workspace: this.workspace,
+      ...(config.globalConfigPath !== undefined ? { globalConfigPath: config.globalConfigPath } : {}),
+      ...(config.projectConfigPath !== undefined ? { projectConfigPath: config.projectConfigPath } : {}),
+      projectTrusted: config.projectTrusted ?? false,
+    });
+  }
+
+  public get config(): EffectiveConfig {
+    return this.inner.config;
+  }
+
+  public get diagnostics(): readonly string[] {
+    return this.inner.diagnostics;
+  }
+
+  public get targetStore(): TargetStore {
+    return this.inner.targetStore;
+  }
+
+  public get execution(): ExecutionService {
+    return this.inner.execution;
+  }
+
+  public get host(): HostRuntime {
+    return this.inner.host;
+  }
+
+  public registry(): Promise<RegistryResult> {
+    return this.inner.registry();
+  }
+
+  public refresh(): Promise<RegistryResult> {
+    return this.inner.refresh();
+  }
+
+  public autoSelect(workspace: string): Promise<void> {
+    return this.inner.autoSelect(workspace);
+  }
+
+  public setAutoSelection(enabled: boolean): void {
+    this.inner.setAutoSelection(enabled);
+  }
+}
+
+/** Configuration accepted by the runtime service (the row's own keys). */
+export interface DshServiceConfig {
+  readonly workspace?: string;
+  readonly globalConfigPath?: string;
+  readonly projectConfigPath?: string;
+  readonly projectTrusted?: boolean;
+}
+
+declare module "@deepseek-ai/cordis" {
+  interface Context {
+    /** This package's runtime: shared by its shell provider, tool, command and prompt section. */
+    devcontainerRuntime: DshRuntimeService;
+  }
 }

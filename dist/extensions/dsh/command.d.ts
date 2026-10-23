@@ -1,3 +1,4 @@
+import type { Context } from "@deepseek-ai/cordis";
 import type { DshRuntime } from "./runtime.js";
 /**
  * The dsh `devcontainer` command: the management half of the port.
@@ -46,4 +47,16 @@ export declare function createDevcontainerCommand(runtime: DshRuntime, options: 
      */
     readonly diagnostics?: readonly string[];
 }): DevcontainerCommandDefinition;
+/**
+ * The command as a dsh plugin (object form).
+ *
+ * `inject` is REQUIRED here — a command consumer without a command registry has nothing to do, so
+ * dsh keeping it PENDING is the correct outcome (and it costs nothing else: the shell provider, the
+ * tool and the prompt section are separate plugins with their own inject).
+ */
+export declare const commandPlugin: {
+    name: string;
+    inject: string[];
+    apply(ctx: Context): void;
+};
 //# sourceMappingURL=command.d.ts.map

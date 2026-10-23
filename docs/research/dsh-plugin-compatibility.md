@@ -496,6 +496,26 @@ Original work order:
   `devcontainer` tool with no reason to call it and learns about containers only from a refusal.
   Verified against the REAL `SystemPrompt` service (registered → assembled → rendered) and live with a
   model asked to quote the section; it quoted the target line and the rebuild rule verbatim.
+- **2026-10-23 — restructured to the documented plugin shapes** (operator requirement: the dsh code must
+  follow dsh plugin practice). What changed, per the docs' own wording: (1) the shared runtime became a
+  **Service** (`DshRuntimeService`, name `devcontainerRuntime`, `static inject = []`, its own `Config`)
+  instead of an object captured by closures — because "服务是一个插件向其他插件公开的能力" and siblings
+  that need the same thing are supposed to `inject` it; (2) the shell provider became a **class plugin**
+  (`ctx.plugin(DevcontainerShellProvider)` with `static inject` + `static Config`) instead of
+  `new DevcontainerShellExecutor(...)` inside another `apply` — the docs' provider example is exactly
+  `class X extends MyCap { … }` + `ctx.plugin(X)`; (3) the tool, the command and the prompt section
+  became **object-form plugins** with required `inject` (`tools`/`commands`/`systemPrompt`), which is
+  also how a composition without that service parks only that plugin; (4) the entry's casts
+  (`ctx as unknown as { tools }`) are gone — services are reached through the real Context interface via
+  the packages' own module augmentation (`import type {} from '@deepseek-ai/dsh-commands'`); (5) the
+  approval service is not injected (optional dependency, read at the use site, absence = refusal);
+  (6) `apply()` returns its fibers so a host can await a settled composition. Two bugs surfaced by the
+  restructure, both fixed: an unbound `runtime.autoSelect` passed as a callback (the class form made the
+  detachment possible), and a test that asserted the entry itself contains `composeDshRuntime(` — the
+  composition now lives one hop in, in the runtime service. Third, a real defect the old shape hid: the
+  provider passed `runtime.autoSelect` unbound, so auto-adoption would have thrown on every command. Verified live after the refactor: a plain
+  `pwd` in an unmanaged workspace hits the sandboxed host executor, and in the fixture project it runs in
+  the container (`/workspaces/…`, `whoami` = `vscode`).
 - **2026-10-23 — presets decision (A):** the bundle disables `permission` (`@deepseek-ai/dsh-permission-presets`)
   rather than leaving it to the profile layer; `cordis.patch.yml`, `docs/dsh.md` and Troubleshooting
   updated to state the cost for host file tools.

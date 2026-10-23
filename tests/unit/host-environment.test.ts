@@ -117,8 +117,11 @@ describe("the host child environment has one definition", () => {
 
   it("both entry points go through the shared composition", () => {
     expect(piEntry).toContain("composeHostRuntime(");
-    expect(dshEntry).toContain("composeDshRuntime(");
+    // The dsh entry composes plugins; the runtime SERVICE is where the shared composition is reached,
+    // so the invariant is asserted one hop further in (and must not move back into the entry).
+    expect(dshEntry).toContain("DshRuntimeService");
     const dshRuntime = readFileSync(new URL("../../extensions/dsh/runtime.ts", import.meta.url), "utf8");
+    expect(dshRuntime).toContain("composeDshRuntime(");
     expect(dshRuntime).toContain("composeHostRuntime(");
   });
 

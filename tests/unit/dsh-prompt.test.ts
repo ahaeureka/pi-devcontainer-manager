@@ -18,6 +18,7 @@ import type { DshRuntime } from "../../extensions/dsh/runtime.js";
 function runtime(): DshRuntime {
   const registry = async () => ({ entries: [] as const, diagnostics: [] as const });
   return {
+    workspace: "/workspace",
     config: DEFAULTS,
     diagnostics: [],
     targetStore: new TargetStore({}),

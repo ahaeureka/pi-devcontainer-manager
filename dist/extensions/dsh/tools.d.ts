@@ -1,3 +1,4 @@
+import type { Context } from "@deepseek-ai/cordis";
 import type { Agent } from "@deepseek-ai/dsh-agent";
 import { type ToolDefinition } from "@deepseek-ai/dsh-tools";
 import type { DshRuntime } from "./runtime.js";
@@ -30,4 +31,20 @@ export interface DevcontainerToolOptions {
     readonly workspace: string;
 }
 export declare function createDevcontainerTool(runtime: DshRuntime, options: DevcontainerToolOptions): ToolDefinition;
+/**
+ * The tool as a dsh plugin (object form).
+ *
+ * `inject: ['tools']` is required rather than optional: without a tool registry there is nothing to
+ * register. ACP composes `tools` (it has no command surface), so this is the ONLY management surface
+ * there — which is why it is a plugin of its own and not a branch inside another `apply`.
+ *
+ * The approval service is NOT injected: it is optional (a headless deployment may not mount it), so it
+ * is read at the use site and its absence means "no confirmation available", which the handler turns
+ * into a refusal. That is the fail-closed direction a destructive verb needs.
+ */
+export declare const toolPlugin: {
+    name: string;
+    inject: string[];
+    apply(ctx: Context): void;
+};
 //# sourceMappingURL=tools.d.ts.map

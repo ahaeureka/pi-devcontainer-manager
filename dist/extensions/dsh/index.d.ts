@@ -46,5 +46,5 @@ export interface Config {
 }
 export declare const name = "devcontainer";
 export declare const Config: Schema<Config>;
-export declare function apply(ctx: Context, config?: Config): void;
+export declare function apply(ctx: Context, config?: Config): Promise<unknown>;
 //# sourceMappingURL=index.d.ts.map

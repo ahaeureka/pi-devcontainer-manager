@@ -1,3 +1,6 @@
+import { resolve } from "node:path";
+import { Service } from "@deepseek-ai/cordis";
+import Schema from "@deepseek-ai/schemastery";
 import { JsonlAuditWriter, defaultAuditDirectory } from "../../src/audit.js";
 import { defaultConfigPaths, loadConfigWithDiagnostics } from "../../src/config.js";
 import { ExecutionService } from "../../src/execution-service.js";
@@ -104,6 +107,7 @@ export function composeDshRuntime(options) {
             await targetStore.select(adoption);
     };
     return {
+        workspace,
         config,
         diagnostics: loaded.diagnostics,
         targetStore,
@@ -119,5 +123,68 @@ export function composeDshRuntime(options) {
             return registry();
         },
     };
+}
+/**
+ * The runtime as a dsh SERVICE.
+ *
+ * dsh's composition model is "a service the others inject", not "closures captured by one `apply`":
+ * the shell provider, the tool, the command and the prompt section are separate plugins with their own
+ * `inject`, their own fibers and their own config, so a deployment can drop any of them (the web app
+ * composes no bash tool; ACP composes no command surface) without losing the rest. That is only
+ * possible if what they share is reachable through `ctx`, which is what this class provides.
+ *
+ * The name is `devcontainerRuntime` (a capability of this package, not a harness seam).
+ */
+export class DshRuntimeService extends Service {
+    /** Services this one needs. Empty: it only composes `src/` and the host CLIs. */
+    static inject = [];
+    static Config = Schema.object({
+        workspace: Schema.string().description("Host workspace to manage (default: process.cwd())."),
+        globalConfigPath: Schema.string().description("Override this extension's global configuration file."),
+        projectConfigPath: Schema.string().description("Override the project configuration file."),
+        projectTrusted: Schema.boolean()
+            .default(false)
+            .description("Read the project configuration file (it can grant capabilities, so this is opt-in)."),
+    });
+    /** The workspace this instance manages (canonical host path). */
+    workspace;
+    inner;
+    constructor(ctx, config = {}) {
+        super(ctx, "devcontainerRuntime");
+        this.workspace = resolve(config.workspace ?? process.cwd());
+        this.inner = composeDshRuntime({
+            workspace: this.workspace,
+            ...(config.globalConfigPath !== undefined ? { globalConfigPath: config.globalConfigPath } : {}),
+            ...(config.projectConfigPath !== undefined ? { projectConfigPath: config.projectConfigPath } : {}),
+            projectTrusted: config.projectTrusted ?? false,
+        });
+    }
+    get config() {
+        return this.inner.config;
+    }
+    get diagnostics() {
+        return this.inner.diagnostics;
+    }
+    get targetStore() {
+        return this.inner.targetStore;
+    }
+    get execution() {
+        return this.inner.execution;
+    }
+    get host() {
+        return this.inner.host;
+    }
+    registry() {
+        return this.inner.registry();
+    }
+    refresh() {
+        return this.inner.refresh();
+    }
+    autoSelect(workspace) {
+        return this.inner.autoSelect(workspace);
+    }
+    setAutoSelection(enabled) {
+        this.inner.setAutoSelection(enabled);
+    }
 }
 //# sourceMappingURL=runtime.js.map

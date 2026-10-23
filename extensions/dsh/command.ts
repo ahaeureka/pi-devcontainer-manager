@@ -4,6 +4,9 @@ import {
   type CommandResult,
   type CommandServices,
 } from "../../src/commands.js";
+import type { Context } from "@deepseek-ai/cordis";
+// Type-only: brings `ctx.commands` into the Context interface (optional peer at runtime).
+import type {} from "@deepseek-ai/dsh-commands";
 import type { DshRuntime } from "./runtime.js";
 
 /**
@@ -173,3 +176,21 @@ export function createDevcontainerCommand(
     },
   };
 }
+
+/**
+ * The command as a dsh plugin (object form).
+ *
+ * `inject` is REQUIRED here — a command consumer without a command registry has nothing to do, so
+ * dsh keeping it PENDING is the correct outcome (and it costs nothing else: the shell provider, the
+ * tool and the prompt section are separate plugins with their own inject).
+ */
+export const commandPlugin = {
+  name: "devcontainer-command",
+  inject: ["devcontainerRuntime", "commands"] as string[],
+  apply(ctx: Context): void {
+    const definition = createDevcontainerCommand(ctx.devcontainerRuntime, {
+      workspace: ctx.devcontainerRuntime.workspace,
+    });
+    ctx.commands.register(definition as never);
+  },
+};
