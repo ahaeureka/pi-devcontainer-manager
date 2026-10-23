@@ -89,6 +89,26 @@ If those four rows look right, the **bundle layer** is live. Whether the harness
 `bash` into a container is a runtime question — see [Verifying it is in effect](#verifying-it-is-in-effect).
 
 
+### Plugin-page metadata (title, description, icon)
+
+dsh reads a plugin's display metadata from **exported resources**, not from the module: it resolves
+`<specifier>/locale/en.json` (+ `zh.json`, discovered in the same directory) and `<specifier>/icon`
+through the package's own `exports`. A package whose `exports` map lacks them shows up in the 插件
+page as a bare specifier with no description — which is exactly what happened here before these were
+added:
+
+| File | Provides |
+|---|---|
+| `locale/en.json`, `locale/zh.json` | `meta.title`, `meta.description` per language |
+| `assets/icon.svg` (manifest `icon`, also exported as `./icon`) | the row icon (SVG/PNG/JPEG/WebP, ≤ 256 KiB) |
+| `exports["./package.json"]` | needed for dsh to read the fallback `description` |
+
+Verify without booting:
+
+```bash
+node -e "const {readPluginMeta, resolveBundleDir}=require('@deepseek-ai/dsh-app-boot');"  # from the dsh install
+```
+
 ### Why the `@deepseek-ai/*` packages are optional peers
 
 dsh mounts plugin modules through its **own** module loader, resolving bare specifiers

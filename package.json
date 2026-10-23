@@ -1,7 +1,7 @@
 {
   "name": "pi-devcontainer-manager",
   "version": "1.0.0",
-  "description": "Host-side Pi extension for governed multi-DevContainer discovery and execution",
+  "description": "Governed DevContainer discovery, execution and routing for Pi and DeepSeek Harness",
   "type": "module",
   "main": "./dist/extensions/index.js",
   "types": "./dist/extensions/index.d.ts",
@@ -13,7 +13,10 @@
     "./dsh": {
       "types": "./dist/extensions/dsh/index.d.ts",
       "import": "./dist/extensions/dsh/index.js"
-    }
+    },
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./assets/icon.svg"
   },
   "files": [
     "dist",
@@ -25,7 +28,9 @@
     "SECURITY.md",
     "docs",
     "examples",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "locale",
+    "assets/icon.svg"
   ],
   "keywords": [
     "pi-package",
@@ -112,5 +117,6 @@
     "@deepseek-ai/dsh-user-approval": {
       "optional": true
     }
-  }
+  },
+  "icon": "./assets/icon.svg"
 }

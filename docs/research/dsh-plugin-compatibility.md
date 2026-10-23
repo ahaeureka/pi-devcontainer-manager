@@ -471,6 +471,13 @@ Original work order:
   returned `/workspaces/…` with `whoami` = `vscode`. Two facts learned the hard way: the module must be
   resolved from the harness (a plain `import()` inside a plugin cannot see `dsh-base`'s private deps),
   and the running bin is a SYMLINK, so `realpathSync(argv[1])` is the base that actually resolves it.
+- **2026-10-23 — plugin-page metadata is RESOURCE-based**: the 插件 page showed the package with no
+  title/description because dsh resolves display metadata through the package's `exports`
+  (`<specifier>/locale/en.json`, `<specifier>/icon`, `<specifier>/package.json`) and ours exported
+  neither. Fixed by exporting all three; verified by calling dsh's own `readPluginMeta` against the
+  installed profile, which returned `title {en, zh}`, the two descriptions and the SVG icon as a data
+  URL. Note this is independent of the module entry: a plugin can load perfectly and still render as a
+  bare name.
 - **2026-10-23 — presets decision (A):** the bundle disables `permission` (`@deepseek-ai/dsh-permission-presets`)
   rather than leaving it to the profile layer; `cordis.patch.yml`, `docs/dsh.md` and Troubleshooting
   updated to state the cost for host file tools.

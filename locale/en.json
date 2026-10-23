@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "DevContainers",
+    "description": "Manage DevContainers and run this session's shell inside them."
+  }
+}

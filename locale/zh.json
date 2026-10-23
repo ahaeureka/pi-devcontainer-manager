@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "DevContainer 管理",
+    "description": "管理 DevContainer，并让本会话的 shell 在容器内执行。"
+  }
+}
