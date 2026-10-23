@@ -361,6 +361,19 @@ design.
 
 See [dsh support](dsh.md) for what the bundle replaces and what disabling the presets costs.
 
+### My edit to `$DSH_HOME/profiles/<name>/cordis.patch.yml` has no effect
+
+On dsh 0.2.1-rc.2 the user patch layers are not always composed: the row can be silently
+dropped from the tree, with no diagnostic, while the identical file works as an overlay.
+
+```bash
+dsh --profile <name> --patch /path/to/overrides.yml --dump-config | grep -A3 "<your row id>"
+```
+
+If it appears only with `--patch`, that is the whole story — pass the file explicitly (or rely on
+the plugin defaults). Bundle layers (`dsh.bundle.patch`) are unaffected, which is why this
+package's own disables/inserts always apply. See [dsh support](dsh.md).
+
 ### `dsh` says `patch: name mismatch for "bash-sandbox" … skipping`
 
 A patch row in an older copy of this bundle tried to *rename* the base provider row. dsh only

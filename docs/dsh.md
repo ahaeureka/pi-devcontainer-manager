@@ -63,15 +63,18 @@ dsh plugin --profile devc add /abs/path/to/pi-devcontainer-manager-1.0.0.tgz
 Both record `pi-devcontainer-manager` in `dsh.profile.bundles`, so the package's patch is
 applied after `dsh-base`.
 
-### 3. Verify before booting
+### 3. Verify before booting (composition only, no model needed)
 
 ```bash
-dsh --profile devc --dump-config | grep -A2 "id: bash-sandbox"    # → disabled: true
-dsh --profile devc --dump-config | grep -A1 "id: devcontainer-shell"  # → name: pi-devcontainer-manager/dsh
-dsh --profile devc --dump-config | grep -A3 "id: permission"      # → disabled: true
+dsh --profile devc --dump-config | grep -A2 "id: bash-sandbox"        # → disabled: true
+dsh --profile devc --dump-config | grep -A3 "id: devcontainer-shell"  # → name: pi-devcontainer-manager/dsh
+dsh --profile devc --dump-config | grep -A14 "id: permission"         # → disabled: true
+dsh --profile devc --dump-config | grep -A6 "id: tool-bash"           # → enableRunInBackground: false
 ```
 
-Then boot the profile (`dsh --profile devc`, or `dsh devc`) and run `devcontainer list`.
+If those four rows look right, the **bundle layer** is live. Whether the harness then routes
+`bash` into a container is a runtime question — see [Verifying it is in effect](#verifying-it-is-in-effect).
+
 
 ### Why the `@deepseek-ai/*` packages are optional peers
 
@@ -121,7 +124,16 @@ that the presets describe a boundary the shell no longer has.
 
 ## Configuration
 
-The plugin takes its own options from `cordis.yml`/`cordis.patch.yml`:
+The plugin takes its own options from the composed profile tree — its row is
+`devcontainer-shell` (inserted by the bundle):
+
+```yaml
+- id: devcontainer-shell
+  name: 'pi-devcontainer-manager/dsh'
+  config:
+    workspace: '/path/to/project'
+```
+
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -135,6 +147,43 @@ The plugin takes its own options from `cordis.yml`/`cordis.patch.yml`:
 Every other key (`routeMode`, `allowedWorkspaceRoots`, `environmentAllowlist`, `audit`,
 `destructive`, `hostExecution`, …) is the one documented in [Configuration](configuration.md)
 and [Security](security.md); there is no second schema.
+
+### Where to put those options (verified caveat)
+
+On dsh 0.2.1-rc.2 the **user patch layers are not always composed**: a row written to
+`$DSH_HOME/profiles/<name>/cordis.patch.yml` or `$DSH_HOME/cordis.patch.yml` can be silently
+ignored (`--dump-config` shows neither the row nor a diagnostic), while the same file supplied
+as an overlay does apply:
+
+```bash
+dsh --profile <name> --patch /path/to/overrides.yml <task>     # applies (verified)
+```
+
+Bundle layers (`dsh.bundle.patch`, i.e. this package's own `cordis.patch.yml`) do apply — that is
+how `bash-sandbox`/`permission` are disabled and `devcontainer-shell` is inserted.
+
+Practical consequence: prefer the **defaults** (they make the plugin work without any patch: the
+workspace is the process cwd and the configuration file is the Pi-compatible one), and use
+`--patch` when you must override a key. Do not assume a profile-layer edit took effect —
+check it with `--dump-config`.
+
+## Verifying it is in effect
+
+Four checks, cheapest first. The first two need no model; the last two are the real proof.
+
+| # | Check | Passes when |
+|---|---|---|
+| 1 | `dsh --profile <name> --dump-config \| grep -A2 "id: bash-sandbox"` | `disabled: true` — the base provider is out of the way |
+| 2 | same, `grep -A3 "id: devcontainer-shell"` | the row exists with `name: pi-devcontainer-manager/dsh` |
+| 3 | ask the agent to run `pwd` through bash, **with no target selected** | the tool result is `Error: No DevContainer target is selected.` — a host `pwd` means the plugin is NOT owning `ctx.shell`, and any other error means it is not loading at all |
+| 4 | `devcontainer use <workspace>` then ask for `pwd` and `whoami` | `/workspaces/…` and the configuration's `remoteUser` (e.g. `vscode`) — i.e. the command really ran inside the container |
+
+Boot-time evidence for the second kind: the process prints **no** `warning: … did not activate`
+line. One that remains means a base row could not compose (before this bundle disabled it, that
+was the permission presets).
+
+A routed command also leaves the audit record the Pi extension leaves (same writer, same format):
+`operation: "routed-bash"`, a `targetId`, and no command text under `fingerprint-only`.
 
 ## Limitations (deliberate, and they fail loud)
 
