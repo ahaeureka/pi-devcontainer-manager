@@ -27,6 +27,8 @@ function runtime(): DshRuntime {
     host: {} as DshRuntime["host"],
     registry,
     refresh: registry,
+    autoSelect: async () => undefined,
+    setAutoSelection: () => undefined,
   };
 }
 

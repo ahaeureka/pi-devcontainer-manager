@@ -38,6 +38,7 @@ import { configPathOf, containerStateOf, primaryCandidate, selectedConfigPathFor
 import { JsonlAuditWriter, defaultAuditDirectory } from "../src/audit.js";
 import { LifecycleLogWriter } from "../src/lifecycle-log.js";
 import { composeHostRuntime } from "../src/runtime-composition.js";
+import { resolveTargetAdoption } from "../src/target-adoption.js";
 import { createShortCache } from "../src/short-cache.js";
 import { buildWorkspaceRegistry, nodeTraversal, workspaceHasConfig, workspacePathFor } from "../src/runtime/host-discovery.js";
 import { findContainerPath, hostToContainer, readWorkspaceConfigFacts as readWorkspaceConfig, } from "../src/path-mapper.js";
@@ -154,15 +155,23 @@ hostVisibility) {
         if (canonicalWorkspaceKey(workspace) !== cwdKey)
             return;
         const { entries } = await registry();
-        const match = entries.find((e) => canonicalWorkspaceKey(e.workspacePath) === cwdKey);
-        if (match === undefined)
+        // The adoption rule (match the request to a project, never pick among ambiguous candidates by
+        // Docker order) is shared with the dsh entry: `src/target-adoption.ts`. Pi uses `exact` scope
+        // because a tool call may name any path, and adopting on a mere prefix match would reroute the
+        // whole session.
+        const adoption = resolveTargetAdoption({
+            requestWorkspace: cwdKey,
+            // A fresh "nothing selected" snapshot: this branch only runs when the store is `none`, and the
+            // adoption rule ignores every field of an empty snapshot except its status.
+            snapshot: { status: "none", workspaceKey: undefined, candidateId: undefined, detail: undefined },
+            entries,
+            scope: "exact",
+        });
+        if (adoption === undefined)
             return;
-        // Ambiguous (2+ running containers) must never be auto-picked by Docker
-        // order — selectionFor returns selected-ambiguous when no id is supplied.
-        //
         // `selectIfNone` commits only if the store is still empty at commit time: an explicit
         // `/devcontainer use` that landed while this hook was discovering must win (L3-05).
-        await targetStore.selectIfNone(selectionFor(match, match.ambiguous ? undefined : primaryCandidate(match)?.id));
+        await targetStore.selectIfNone(adoption);
     };
     /**
      * Map a HOST workspace path to its in-container path (presentation only).

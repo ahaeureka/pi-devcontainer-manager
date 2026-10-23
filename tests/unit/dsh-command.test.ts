@@ -29,6 +29,8 @@ function runtime(diagnostics: readonly string[] = []): DshRuntime {
     host: {} as DshRuntime["host"],
     registry,
     refresh: registry,
+    autoSelect: async () => undefined,
+    setAutoSelection: () => undefined,
   };
 }
 
@@ -97,6 +99,51 @@ describe("devcontainer command adapter", () => {
     const second = await command.handler({ rawInput: "list", signal: signal() });
     expect(seen[0]).toContain("[config] scan pruned at maxDepth");
     expect(second.text).not.toContain("scan pruned at maxDepth");
+  });
+});
+
+describe("auto-selection wiring", () => {
+  it("adopts before a verb runs, and `off` suspends adoption instead", async () => {
+    const calls: string[] = [];
+    const base = runtime();
+    const command = createDevcontainerCommand(
+      {
+        ...base,
+        autoSelect: async (workspace: string) => {
+          calls.push(`autoSelect:${workspace}`);
+        },
+        setAutoSelection: (enabled: boolean) => {
+          calls.push(`setAutoSelection:${enabled}`);
+        },
+      },
+      { workspace: "/workspace" },
+    );
+    await command.handler({ rawInput: "status", signal: signal() });
+    expect(calls).toEqual(["autoSelect:/workspace"]);
+
+    calls.length = 0;
+    await command.handler({ rawInput: "off", signal: signal() });
+    // `off` must not re-adopt what it just cleared; it SUSPENDS adoption instead.
+    expect(calls).toEqual(["setAutoSelection:false"]);
+
+    calls.length = 0;
+    await command.handler({ rawInput: "up /workspace", signal: signal() });
+    expect(calls).toEqual(["autoSelect:/workspace", "setAutoSelection:true"]);
+  });
+
+  it("treats a failing adoption as best-effort: the verb still runs", async () => {
+    const base = runtime();
+    const command = createDevcontainerCommand(
+      {
+        ...base,
+        autoSelect: async () => {
+          throw new Error("docker unavailable");
+        },
+      },
+      { workspace: "/workspace" },
+    );
+    const result = await command.handler({ rawInput: "status", signal: signal() });
+    expect(result.text).toContain("DevContainer target");
   });
 });
 

@@ -68,6 +68,18 @@ export function createDevcontainerTool(runtime, options) {
             if (handler === undefined) {
                 throw new Error(`[unknown-verb] Unknown devcontainer verb \`${verb}\`. Verbs: ${VERBS.join(", ")}`);
             }
+            // Adopt the workspace's own container before the verb runs; `off` suspends adoption so the verb
+            // stays authoritative (mirrors the command adapter and the Pi entry's L1-02 guard).
+            if (verb !== "off") {
+                try {
+                    await runtime.autoSelect(options.workspace);
+                }
+                catch {
+                    // Best-effort: the verb's own output is what the caller acts on.
+                }
+            }
+            if (verb === "up" || verb === "use" || verb === "rebuild")
+                runtime.setAutoSelection(true);
             const notices = [];
             const context = {
                 cwd: options.workspace,
@@ -91,6 +103,8 @@ export function createDevcontainerTool(runtime, options) {
                     },
                 },
             };
+            if (verb === "off")
+                runtime.setAutoSelection(false);
             let result;
             try {
                 result = await handler(args.args ?? "", context);

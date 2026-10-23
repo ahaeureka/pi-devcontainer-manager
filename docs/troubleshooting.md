@@ -374,6 +374,20 @@ If it appears only with `--patch`, that is the whole story — pass the file exp
 the plugin defaults). Bundle layers (`dsh.bundle.patch`) are unaffected, which is why this
 package's own disables/inserts always apply. See [dsh support](dsh.md).
 
+### dsh: `No DevContainer target is selected`
+
+The provider adopts the workspace's own container automatically, so this refusal means one of:
+
+| Cause | Check | Remedy |
+|---|---|---|
+| no container for this workspace exists (or it is stopped) | `devcontainer status`, or `devcontainer list` | `devcontainer up` |
+| the shell runs for a DIFFERENT workspace than the running container | the container's `devcontainer.local_folder` label vs the workdir | run from the project, or `devcontainer use <workspace\|container-id>` |
+| more than one container matches | the refusal names `selected-ambiguous` instead | `devcontainer use <container-id>` |
+| the session ran `devcontainer off` | adoption stays suspended until an explicit `use`/`up` | `devcontainer use <workspace>` |
+
+Adoption never starts a container: a project that is not running stays refused, which is why the
+remedy is an explicit verb.
+
 ### dsh: `The host executor (@deepseek-ai/dsh-bash-sandbox) could not be mounted`
 
 Commands in a workspace **without** a devcontainer config are delegated to the harness's own host

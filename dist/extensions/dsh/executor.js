@@ -46,6 +46,7 @@ export class DevcontainerShellExecutor extends ShellExecutor {
         const delegate = this.delegateFor(spec.workdir);
         if (delegate !== undefined)
             return delegate.execute(spec);
+        await this.options.ensureTarget?.(spec.workdir);
         const shell = shellForm(spec.command);
         const explicitEnvironment = collectEnvironment(spec);
         const request = {

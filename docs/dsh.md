@@ -161,6 +161,21 @@ Verified live in one profile: `pwd` in a plain directory returned the host path 
 notice on stderr** (proving the delegate, not a bare spawn), and after `devcontainer up` on a
 fixture workspace the same tool returned `/workspaces/…` and `whoami` = `vscode`.
 
+### Automatic target selection
+
+A command needs no manual `devcontainer use`: before every routed command (and before every
+management verb except `off`) the provider asks `autoSelect()` to bind the workspace's own
+container, using the same rule as the Pi entry (`src/target-adoption.ts`, one implementation):
+
+| Situation | What happens |
+|---|---|
+| nothing selected, workspace's container running | bound automatically (`selected-valid`) |
+| nothing selected, workspace nested in another discovered project | the DEEPEST project wins (`at-or-under` scope; Pi uses `exact` because a tool call may name any path) |
+| two running containers for the workspace | `selected-ambiguous` — never decided by Docker's listing order; the remedy is `devcontainer use <container-id>` |
+| selection parked by reality (`stop`/container removed) | re-derived only when a RUNNING candidate now exists, so `stop` stays authoritative |
+| nothing selected, no container | nothing is bound; the refusal is `No DevContainer target is selected.` (it never starts a container) |
+| after `devcontainer off` | adoption is SUSPENDED until `use`/`up`/`rebuild`, so the verb is not undone by the next command |
+
 ### Host permission presets are disabled by the bundle
 
 `@deepseek-ai/dsh-base` mounts `permission` = `@deepseek-ai/dsh-permission-presets`, whose
@@ -237,8 +252,8 @@ Four checks, cheapest first. The first two need no model; the last two are the r
 |---|---|---|
 | 1 | `dsh --profile <name> --dump-config \| grep -A2 "id: bash-sandbox"` | `disabled: true` — the base provider is out of the way |
 | 2 | same, `grep -A3 "id: devcontainer-shell"` | the row exists with `name: pi-devcontainer-manager/dsh` |
-| 3 | ask the agent to run `pwd` through bash, **with no target selected** | the tool result is `Error: No DevContainer target is selected.` — a host `pwd` means the plugin is NOT owning `ctx.shell`, and any other error means it is not loading at all |
-| 4 | `devcontainer use <workspace>` then ask for `pwd` and `whoami` | `/workspaces/…` and the configuration's `remoteUser` (e.g. `vscode`) — i.e. the command really ran inside the container |
+| 3 | ask the agent to run `pwd` through bash, **without** calling any devcontainer verb | in a project whose container is running: `/workspaces/…` (auto-adopted, see below). In a project with no container: `Error: No DevContainer target is selected.` — which proves the provider owns `ctx.shell` and refuses to run on the host |
+| 4 | ask for `whoami` | the configuration's `remoteUser` (e.g. `vscode`) — the command ran in the container, not as the host user |
 
 Boot-time evidence for the second kind: the process prints **no** `warning: … did not activate`
 line. One that remains means a base row could not compose (before this bundle disabled it, that
@@ -261,9 +276,9 @@ A routed command also leaves the audit record the Pi extension leaves (same writ
 4. **Host paths only.** `devcontainer exec` is a host command; the CLI maps the workspace
    path itself. A dsh deployment whose shell runs under a sandbox or a remote executor is not
    supported — the refusal is typed, never a silent command on the wrong machine.
-5. **No automatic target adoption.** Unlike the Pi entry, the dsh entry does not adopt the
-   session-cwd workspace when nothing is selected: dsh has no `/reload` or session-restore
-   equivalent here, so a target exists only after an explicit `devcontainer use`/`up`.
+5. **Adoption needs a running container.** The provider adopts the workspace's own container
+   automatically (see below); it never starts one. With no container running the refusal is
+   `No DevContainer target is selected.`, whose remedy is `devcontainer up`.
 
 ## Related
 

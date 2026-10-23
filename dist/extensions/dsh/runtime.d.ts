@@ -8,9 +8,14 @@ import type { EffectiveConfig } from "../../src/types.js";
  *
  * Deliberately harness-free: it wires the same `src/` services the Pi entry wires (one shared
  * `composeHostRuntime`, one config loader, one audit writer, one execution gate), so the two entry
- * points cannot drift in what they call or what they record. What it does NOT do is adopt a target on
- * its own: dsh has no `/reload` and no session-restore equivalent, so the target is only ever the
- * result of an explicit `devcontainer use`/`up` (or a persisted selection the caller supplies).
+ * points cannot drift in what they call or what they record.
+ *
+ * It adopts a target the same way the Pi entry does ({@link DshRuntime.autoSelect}): when nothing is
+ * bound, the workspace's own running container is selected automatically, and a selection parked by
+ * reality (stopped/missing) is re-derived. Without that, every shell command in a DevContainer project
+ * failed with `No DevContainer target is selected` until the operator ran `devcontainer use` by hand —
+ * which is not how the Pi side behaves and not what "use the DevContainer environment" means.
+ * `devcontainer off` suspends adoption, so the verb stays authoritative.
  */
 export interface DshRuntimeOptions {
     /** Host workspace of the dsh process (its working directory). */
@@ -39,6 +44,18 @@ export interface DshRuntime {
     registry(): Promise<RegistryResult>;
     /** Re-run discovery after a mutation this runtime itself performed. */
     refresh(): Promise<RegistryResult>;
+    /**
+     * Establish a usable target for a workspace, adopting one when nothing is selected yet.
+     *
+     * Called before every routed command and before the management verbs, so a project whose container
+     * is already running needs no manual `devcontainer use`. Exact rules, mirroring the Pi entry:
+     * an empty selection adopts only the workspace's OWN container (running or stopped, never
+     * ambiguous by Docker order), and a stopped/missing selection is re-derived only when a RUNNING
+     * candidate now exists ({@link resolveTargetRepair}). Adoption never starts a container.
+     */
+    autoSelect(workspace: string): Promise<void>;
+    /** Suspend or resume adoption (`devcontainer off` suspends it; `use`/`up` resume it). */
+    setAutoSelection(enabled: boolean): void;
 }
 export declare function composeDshRuntime(options: DshRuntimeOptions): DshRuntime;
 //# sourceMappingURL=runtime.d.ts.map

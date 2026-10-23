@@ -88,6 +88,19 @@ export function createDevcontainerCommand(runtime, options) {
                     },
                 },
             };
+            // Adopt the workspace's own container before the verb runs, so `status` reports the real target
+            // and `up`/`logs` need no prior `use`. `off` clears and SUSPENDS adoption (below), which is what
+            // keeps the verb authoritative instead of letting the next command resurrect the target.
+            if (verb !== "off") {
+                try {
+                    await runtime.autoSelect(context.cwd);
+                }
+                catch {
+                    // Adoption is best-effort: the verb's own diagnostics are what the operator acts on.
+                }
+            }
+            if (verb === "up" || verb === "use" || verb === "rebuild")
+                runtime.setAutoSelection(true);
             let result;
             try {
                 result = await handler(args, context);
@@ -104,6 +117,8 @@ export function createDevcontainerCommand(runtime, options) {
                 result.text,
             ];
             const text = parts.filter((part) => part.length > 0).join("\n");
+            if (verb === "off")
+                runtime.setAutoSelection(false);
             // Classify from the handler's own text: the prefixed diagnostic lines must not turn a
             // successful verb into an error (their `[config]` label matches the failure prefix).
             return { kind: isFailure(result.text) ? "error" : "success", text };

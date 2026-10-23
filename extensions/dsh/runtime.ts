@@ -6,6 +6,7 @@ import { configPathOf, selectedConfigPathFor } from "../../src/registry-entry.js
 import { composeHostRuntime, type HostRuntime } from "../../src/runtime-composition.js";
 import { buildWorkspaceRegistry, nodeTraversal, type RegistryResult } from "../../src/runtime/host-discovery.js";
 import { TargetStore } from "../../src/target-store.js";
+import { resolveTargetAdoption } from "../../src/target-adoption.js";
 import type { EffectiveConfig, RegistryEntry } from "../../src/types.js";
 import { canonicalWorkspaceKey } from "../../src/workspace-path.js";
 
@@ -14,9 +15,14 @@ import { canonicalWorkspaceKey } from "../../src/workspace-path.js";
  *
  * Deliberately harness-free: it wires the same `src/` services the Pi entry wires (one shared
  * `composeHostRuntime`, one config loader, one audit writer, one execution gate), so the two entry
- * points cannot drift in what they call or what they record. What it does NOT do is adopt a target on
- * its own: dsh has no `/reload` and no session-restore equivalent, so the target is only ever the
- * result of an explicit `devcontainer use`/`up` (or a persisted selection the caller supplies).
+ * points cannot drift in what they call or what they record.
+ *
+ * It adopts a target the same way the Pi entry does ({@link DshRuntime.autoSelect}): when nothing is
+ * bound, the workspace's own running container is selected automatically, and a selection parked by
+ * reality (stopped/missing) is re-derived. Without that, every shell command in a DevContainer project
+ * failed with `No DevContainer target is selected` until the operator ran `devcontainer use` by hand —
+ * which is not how the Pi side behaves and not what "use the DevContainer environment" means.
+ * `devcontainer off` suspends adoption, so the verb stays authoritative.
  */
 export interface DshRuntimeOptions {
   /** Host workspace of the dsh process (its working directory). */
@@ -46,6 +52,18 @@ export interface DshRuntime {
   registry(): Promise<RegistryResult>;
   /** Re-run discovery after a mutation this runtime itself performed. */
   refresh(): Promise<RegistryResult>;
+  /**
+   * Establish a usable target for a workspace, adopting one when nothing is selected yet.
+   *
+   * Called before every routed command and before the management verbs, so a project whose container
+   * is already running needs no manual `devcontainer use`. Exact rules, mirroring the Pi entry:
+   * an empty selection adopts only the workspace's OWN container (running or stopped, never
+   * ambiguous by Docker order), and a stopped/missing selection is re-derived only when a RUNNING
+   * candidate now exists ({@link resolveTargetRepair}). Adoption never starts a container.
+   */
+  autoSelect(workspace: string): Promise<void>;
+  /** Suspend or resume adoption (`devcontainer off` suspends it; `use`/`up` resume it). */
+  setAutoSelection(enabled: boolean): void;
 }
 
 export function composeDshRuntime(options: DshRuntimeOptions): DshRuntime {
@@ -129,6 +147,28 @@ export function composeDshRuntime(options: DshRuntimeOptions): DshRuntime {
     },
   });
 
+  // `devcontainer off` must stay authoritative: after it, an auto-adopt would resurrect the target the
+  // operator just turned off on the very next command (the Pi entry hit the same trap, L1-02).
+  let autoSelectionEnabled = true;
+
+  const autoSelect = async (requestWorkspace: string): Promise<void> => {
+    if (!autoSelectionEnabled) return;
+    const snapshot = targetStore.snapshot();
+    // Nothing to adopt when a target is already healthy or explicitly ambiguous.
+    if (snapshot.status !== "none" && snapshot.status !== "selected-stopped" && snapshot.status !== "selected-missing") {
+      return;
+    }
+    const { entries } = await registry();
+    // `at-or-under`: dsh's provider is bound to one workspace, and a routed command may name a
+    // subdirectory of it. The rule itself lives in `src/target-adoption.ts`, shared with the Pi entry.
+    const adoption = resolveTargetAdoption({ requestWorkspace, snapshot, entries, scope: "at-or-under" });
+    if (adoption === undefined) return;
+    // An empty selection commits only if it is still empty: an explicit `use` that landed while the
+    // registry was being read must win. A parked selection is replaced outright.
+    if (snapshot.status === "none") await targetStore.selectIfNone(adoption);
+    else await targetStore.select(adoption);
+  };
+
   return {
     config,
     diagnostics: loaded.diagnostics,
@@ -136,6 +176,10 @@ export function composeDshRuntime(options: DshRuntimeOptions): DshRuntime {
     execution,
     host,
     registry,
+    autoSelect,
+    setAutoSelection: (enabled: boolean) => {
+      autoSelectionEnabled = enabled;
+    },
     refresh: async () => {
       cached = undefined;
       return registry();

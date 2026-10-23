@@ -478,6 +478,17 @@ Original work order:
   installed profile, which returned `title {en, zh}`, the two descriptions and the SVG icon as a data
   URL. Note this is independent of the module entry: a plugin can load perfectly and still render as a
   bare name.
+- **2026-10-23 — automatic target selection (fixing "No DevContainer target is selected")**: the dsh
+  port originally required an explicit `devcontainer use`, which made every shell command in a
+  DevContainer project fail until the operator typed one — the opposite of "use the DevContainer
+  environment", and unlike the Pi entry, which adopts the session-cwd workspace. The rule now lives in
+  ONE function, `src/target-adoption.ts#resolveTargetAdoption`, used by BOTH entries; the only
+  parameter is scope (`exact` for Pi, where a tool call may name any path; `at-or-under` for dsh, whose
+  provider is bound to one project and whose commands name subdirectories). `autoSelect()` runs before
+  every routed command and before every verb except `off`, and `off` SUSPENDS adoption so the verb
+  stays authoritative (the Pi entry's L1-02 trap). Adoption never starts a container and never picks
+  among ambiguous candidates by Docker order. Verified live: a bash-only prompt in the fixture project
+  returned `/workspaces/…` and `whoami` = `vscode` with no devcontainer verb called first.
 - **2026-10-23 — presets decision (A):** the bundle disables `permission` (`@deepseek-ai/dsh-permission-presets`)
   rather than leaving it to the profile layer; `cordis.patch.yml`, `docs/dsh.md` and Troubleshooting
   updated to state the cost for host file tools.

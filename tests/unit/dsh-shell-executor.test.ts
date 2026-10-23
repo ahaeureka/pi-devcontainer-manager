@@ -242,6 +242,51 @@ describe("per-workspace activation (host delegation)", () => {
   });
 });
 
+describe("target adoption before a container-side command", () => {
+  it("calls ensureTarget with the resolved workdir on the container path", async () => {
+    const seen: string[] = [];
+    const executor = new DevcontainerShellExecutor(new Context(), {
+      execution: { exec: async () => outcome() } as unknown as ExecutionService,
+      workspace: "/ws/project",
+      isManaged: () => true,
+      hostExecutor: () => undefined,
+      ensureTarget: async (workspace: string) => {
+        seen.push(workspace);
+      },
+    });
+    await executor.execute(executor.resolve({ command: "pwd" }));
+    expect(seen).toEqual(["/ws/project"]);
+  });
+
+  it("does NOT pay for adoption on the delegated host path", async () => {
+    const seen: string[] = [];
+    const delegate = {
+      resolve: (request: { command: string }) => ({ ...request, workdir: "/host", timeoutMs: 1, onExpiry: "kill", stdoutMaxBytes: 1 }),
+      execute: async () => ({
+        status: "completed",
+        exitCode: 0,
+        signal: null,
+        done: Promise.resolve(),
+        readOutput: () => ({ delta: "", lossy: false }),
+        observed: { stdout: { readFrom: () => ({ text: "", nextOffset: 0, lossy: false }) }, stderr: { readFrom: () => ({ text: "", nextOffset: 0, lossy: false }) } },
+        kill: () => false,
+        result: async () => ({ exitCode: 0, signal: null, timedOut: false, aborted: false, timeoutMs: 1, stdout: { text: "", truncated: false }, stderr: { text: "", truncated: false } }),
+      }),
+    } as unknown as import("@deepseek-ai/dsh-shell").ShellExecutor;
+    const executor = new DevcontainerShellExecutor(new Context(), {
+      execution: { exec: async () => outcome() } as unknown as ExecutionService,
+      workspace: "/plain/project",
+      isManaged: () => false,
+      hostExecutor: () => delegate,
+      ensureTarget: async (workspace: string) => {
+        seen.push(workspace);
+      },
+    });
+    await executor.execute(executor.resolve({ command: "pwd" }));
+    expect(seen).toEqual([]);
+  });
+});
+
 describe("host executor module resolution", () => {
   it("loads an absolute path and reports every base it tried for a missing specifier", async () => {
     const { loadExecutorModule } = await import("../../extensions/dsh/host-executor.js");

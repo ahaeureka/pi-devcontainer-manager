@@ -70,6 +70,12 @@ export interface DevcontainerShellOptions {
   readonly hostExecutor?: () => ShellExecutor | undefined;
   /** Whether a workspace is DevContainer-managed. Defaults to "has its own devcontainer config". */
   readonly isManaged?: (workspace: string) => boolean;
+  /**
+   * Establish a target before a container-side command runs (adopt the workspace's own container when
+   * nothing is selected). Called only on the container path — an unmanaged workspace never pays for a
+   * registry read, and a refused adoption surfaces as the execution gate's own typed error.
+   */
+  readonly ensureTarget?: (workspace: string) => Promise<void>;
 }
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -116,6 +122,7 @@ export class DevcontainerShellExecutor extends ShellExecutor {
   public async execute(spec: ShellExecSpec): Promise<ShellExecution> {
     const delegate = this.delegateFor(spec.workdir);
     if (delegate !== undefined) return delegate.execute(spec);
+    await this.options.ensureTarget?.(spec.workdir);
     const shell = shellForm(spec.command);
     const explicitEnvironment = collectEnvironment(spec);
     const request: Omit<ExecRequest, "signal"> = {

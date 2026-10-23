@@ -51,6 +51,7 @@ export function apply(ctx, config = {}) {
         timeoutMs: config.timeoutMs ?? 120_000,
         maxTimeoutMs: config.maxTimeoutMs ?? runtime.config.maxTimeoutSeconds * 1000,
         maxOutputBytes: runtime.config.maxOutputBytes,
+        ensureTarget: runtime.autoSelect,
         ...(hostExecutor !== undefined ? { hostExecutor } : {}),
         ...(config.activation === "always" ? { isManaged: () => true } : {}),
     });

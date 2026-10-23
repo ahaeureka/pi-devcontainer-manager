@@ -6,6 +6,7 @@ import { configPathOf, selectedConfigPathFor } from "../../src/registry-entry.js
 import { composeHostRuntime } from "../../src/runtime-composition.js";
 import { buildWorkspaceRegistry, nodeTraversal } from "../../src/runtime/host-discovery.js";
 import { TargetStore } from "../../src/target-store.js";
+import { resolveTargetAdoption } from "../../src/target-adoption.js";
 import { canonicalWorkspaceKey } from "../../src/workspace-path.js";
 export function composeDshRuntime(options) {
     const workspace = options.workspace;
@@ -78,6 +79,30 @@ export function composeDshRuntime(options) {
             return mapping === undefined ? undefined : hostToContainer(hostWorkspace, mapping) ?? undefined;
         },
     });
+    // `devcontainer off` must stay authoritative: after it, an auto-adopt would resurrect the target the
+    // operator just turned off on the very next command (the Pi entry hit the same trap, L1-02).
+    let autoSelectionEnabled = true;
+    const autoSelect = async (requestWorkspace) => {
+        if (!autoSelectionEnabled)
+            return;
+        const snapshot = targetStore.snapshot();
+        // Nothing to adopt when a target is already healthy or explicitly ambiguous.
+        if (snapshot.status !== "none" && snapshot.status !== "selected-stopped" && snapshot.status !== "selected-missing") {
+            return;
+        }
+        const { entries } = await registry();
+        // `at-or-under`: dsh's provider is bound to one workspace, and a routed command may name a
+        // subdirectory of it. The rule itself lives in `src/target-adoption.ts`, shared with the Pi entry.
+        const adoption = resolveTargetAdoption({ requestWorkspace, snapshot, entries, scope: "at-or-under" });
+        if (adoption === undefined)
+            return;
+        // An empty selection commits only if it is still empty: an explicit `use` that landed while the
+        // registry was being read must win. A parked selection is replaced outright.
+        if (snapshot.status === "none")
+            await targetStore.selectIfNone(adoption);
+        else
+            await targetStore.select(adoption);
+    };
     return {
         config,
         diagnostics: loaded.diagnostics,
@@ -85,6 +110,10 @@ export function composeDshRuntime(options) {
         execution,
         host,
         registry,
+        autoSelect,
+        setAutoSelection: (enabled) => {
+            autoSelectionEnabled = enabled;
+        },
         refresh: async () => {
             cached = undefined;
             return registry();
