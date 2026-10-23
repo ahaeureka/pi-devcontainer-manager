@@ -11,6 +11,7 @@ import {
 import { executeWithTimeout } from "../../src/bash-router.js";
 import { RuntimeError } from "../../src/errors.js";
 import { shellForm, type ExecOutcome, type ExecRequest, type ExecutionService } from "../../src/execution-service.js";
+import { workspaceHasConfig } from "../../src/runtime/host-discovery.js";
 import { canonicalWorkspaceKey } from "../../src/workspace-path.js";
 
 /**
@@ -35,6 +36,17 @@ import { canonicalWorkspaceKey } from "../../src/workspace-path.js";
  *   already settled, so there is nothing left to kill.
  * - **`stdin` is rejected.** No execution path in this project writes a command's stdin, and silently
  *   dropping bytes would corrupt the caller's protocol.
+ *
+ * ## Per-workspace activation, with a host delegate
+ *
+ * Replacing `ctx.shell` is process-wide, but DevContainer management is per WORKSPACE (the Pi side
+ * activates from the project's own `.devcontainer/…`). A provider that hijacked every workspace
+ * would break every non-DevContainer project in the same profile — every shell command refused with
+ * `no target is selected`. So this provider ACTIVATES the way the Pi extension does: when the
+ * workspace has its own devcontainer configuration, commands run in the container (and fail closed
+ * when no target is bound); otherwise the request is handed to a delegate executor — the harness's
+ * own host executor, with its sandbox semantics intact. Delegation is not a fallback that weakens a
+ * gate: a managed workspace never reaches it.
  */
 export interface DevcontainerShellOptions {
   /** The shared, governed execution service. */
@@ -47,6 +59,17 @@ export interface DevcontainerShellOptions {
   readonly maxTimeoutMs?: number;
   /** Per-stream capture cap for the collected output. */
   readonly maxOutputBytes?: number;
+  /**
+   * Host executor for workspaces that are NOT DevContainer-managed.
+   *
+   * Resolved lazily because the delegate registers itself on an isolated child scope and may not
+   * exist yet when this provider is constructed. Returning `undefined` means the deployment has no
+   * host executor: an unmanaged workspace then refuses with a typed error rather than silently
+   * running somewhere unexpected.
+   */
+  readonly hostExecutor?: () => ShellExecutor | undefined;
+  /** Whether a workspace is DevContainer-managed. Defaults to "has its own devcontainer config". */
+  readonly isManaged?: (workspace: string) => boolean;
 }
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -61,8 +84,15 @@ export class DevcontainerShellExecutor extends ShellExecutor {
     super(ctx);
   }
 
-  /** Fill the request's defaults and caps. Only `kill` deadlines are enforced; `none` arms nothing. */
+  /**
+   * Resolve through the delegate when this workspace is not DevContainer-managed.
+   *
+   * Both `resolve` and `execute` consult {@link isManaged} so a spec never mixes the two paths: dsh
+   * calls `resolve` then `execute`, and the workspace does not change in between.
+   */
   public resolve(request: ShellExecRequest): ShellExecSpec {
+    const delegate = this.delegateFor(request.workdir);
+    if (delegate !== undefined) return delegate.resolve(request);
     const maxTimeoutMs = this.options.maxTimeoutMs ?? DEFAULT_MAX_TIMEOUT_MS;
     const requested = request.timeoutMs ?? this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const timeoutMs = Math.max(1, Math.min(Math.round(requested), maxTimeoutMs));
@@ -84,6 +114,8 @@ export class DevcontainerShellExecutor extends ShellExecutor {
   }
 
   public async execute(spec: ShellExecSpec): Promise<ShellExecution> {
+    const delegate = this.delegateFor(spec.workdir);
+    if (delegate !== undefined) return delegate.execute(spec);
     const shell = shellForm(spec.command);
     const explicitEnvironment = collectEnvironment(spec);
     const request: Omit<ExecRequest, "signal"> = {
@@ -137,6 +169,14 @@ export class DevcontainerShellExecutor extends ShellExecutor {
     return settledHandle(runResult, killed ? "killed" : "completed");
   }
 
+  /** The host executor that owns this workspace, or `undefined` when the container path applies. */
+  private delegateFor(workdir: string | undefined): ShellExecutor | undefined {
+    const managed = this.options.isManaged ?? defaultIsManaged;
+    const workspace = workdir === undefined || !isAbsolutePath(workdir) ? this.options.workspace : workdir;
+    if (managed(workspace)) return undefined;
+    return this.options.hostExecutor?.();
+  }
+
   /**
    * The HOST working directory. `devcontainer exec` runs on the host and receives
    * `--workspace-folder <host path>`; the CLI maps the path itself, so a container path here would
@@ -147,6 +187,22 @@ export class DevcontainerShellExecutor extends ShellExecutor {
     if (!isAbsolutePath(candidate)) return this.options.workspace;
     const key = canonicalWorkspaceKey(candidate);
     return key.length > 0 ? key : this.options.workspace;
+  }
+}
+
+/**
+ * Default activation rule: the workspace declares its own devcontainer configuration.
+ *
+ * Same rule the Pi extension uses (`workspaceHasConfig`), so "is this project a DevContainer project?"
+ * has one answer in both harnesses.
+ */
+function defaultIsManaged(workspace: string): boolean {
+  try {
+    return workspaceHasConfig(workspace);
+  } catch {
+    // An unreadable workspace must not silently become a HOST one: treat it as managed so the
+    // container path's own diagnostics (missing target, policy denial) are what the caller sees.
+    return true;
   }
 }
 

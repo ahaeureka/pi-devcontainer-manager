@@ -374,6 +374,22 @@ If it appears only with `--patch`, that is the whole story — pass the file exp
 the plugin defaults). Bundle layers (`dsh.bundle.patch`) are unaffected, which is why this
 package's own disables/inserts always apply. See [dsh support](dsh.md).
 
+### dsh: `The host executor (@deepseek-ai/dsh-bash-sandbox) could not be mounted`
+
+Commands in a workspace **without** a devcontainer config are delegated to the harness's own host
+executor. If that module cannot be resolved from the process that launched dsh, the message lists
+every base that was tried. Managed workspaces keep working; only unmanaged ones are affected.
+
+```yaml
+- id: devcontainer-shell
+  name: 'pi-devcontainer-manager/dsh'
+  config:
+    hostExecutorModule: '/abs/path/to/@deepseek-ai/dsh-bash-sandbox/lib/index.js'
+```
+
+The default looks for the bin's realpath (so an npm/pnpm shim works), then the argv path, the node
+executable and the cwd. A container-only deployment can also set `hostFallback: refuse`.
+
 ### `dsh` says `patch: name mismatch for "bash-sandbox" … skipping`
 
 A patch row in an older copy of this bundle tried to *rename* the base provider row. dsh only

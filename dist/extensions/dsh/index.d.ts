@@ -26,6 +26,23 @@ export interface Config {
     timeoutMs?: number;
     /** Hard cap on a caller-supplied deadline in milliseconds. */
     maxTimeoutMs?: number;
+    /**
+     * Which workspaces this provider takes over.
+     *
+     * `workspace-config` (default) activates on a workspace that declares its own devcontainer
+     * configuration, exactly like the Pi extension; every other workspace keeps the host executor.
+     * `always` takes over the whole profile and refuses when no target is bound.
+     */
+    activation?: "workspace-config" | "always";
+    /**
+     * What an unmanaged workspace gets: `delegate` (default) hands the command to the host executor
+     * below, `refuse` keeps the container path and therefore fails closed everywhere.
+     */
+    hostFallback?: "delegate" | "refuse";
+    /** Module that exports the host executor (default `@deepseek-ai/dsh-bash-sandbox`). */
+    hostExecutorModule?: string;
+    /** That executor's own config, forwarded verbatim (no keys are invented here). */
+    hostExecutorConfig?: Record<string, unknown>;
 }
 export declare const name = "devcontainer";
 export declare const Config: Schema<Config>;

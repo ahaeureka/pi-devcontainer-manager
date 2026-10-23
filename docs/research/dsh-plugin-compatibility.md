@@ -461,6 +461,16 @@ Original work order:
   (the service throws outside an open turn), so destructive verbs are approval-gated through the tool
   and still refuse on the command surface. Web-UI end-to-end dispatch could not be driven by
   automation (the composer does not accept synthetic input), so the last click stays manual.
+- **2026-10-23 — per-workspace activation implemented (the fix for "the plugin must not hijack a
+  profile")**: replacing `ctx.shell` is process-wide while this capability is per workspace, so the
+  provider now mounts the harness's host executor on an ISOLATED `shell` scope (`ctx.isolate('shell')`)
+  and delegates whenever the workspace has no devcontainer config — the same activation rule the Pi
+  extension uses (`workspaceHasConfig`). Verified live in ONE profile: `pwd` in `/tmp/plainproject`
+  returned the host path and stderr carried the sandbox notice (`landlock-run: partial enforcement`),
+  i.e. the real sandboxed executor ran; after `devcontainer up` on the fixture workspace the same tool
+  returned `/workspaces/…` with `whoami` = `vscode`. Two facts learned the hard way: the module must be
+  resolved from the harness (a plain `import()` inside a plugin cannot see `dsh-base`'s private deps),
+  and the running bin is a SYMLINK, so `realpathSync(argv[1])` is the base that actually resolves it.
 - **2026-10-23 — presets decision (A):** the bundle disables `permission` (`@deepseek-ai/dsh-permission-presets`)
   rather than leaving it to the profile layer; `cordis.patch.yml`, `docs/dsh.md` and Troubleshooting
   updated to state the cost for host file tools.

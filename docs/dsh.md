@@ -112,6 +112,35 @@ install a second copy and break exactly that, which is why they stay
 dsh plugin --profile devc remove pi-devcontainer-manager
 ```
 
+### One profile, two kinds of workspace (activation & host delegation)
+
+`ctx.shell` is a single process-wide seam, but DevContainer management is per **workspace**. So the
+provider activates the way the Pi extension does — from the workspace's own configuration:
+
+| Workspace | Commands run |
+|---|---|
+| has `.devcontainer/devcontainer.json` (or `.devcontainer.json`) | inside the container; with no target bound it fails closed (`No DevContainer target is selected.`) |
+| anything else | on the host, through the harness's **own** executor — the bundle mounts it on an isolated `shell` scope and delegates, so sandbox mode, environment and semantics are the host ones |
+
+Delegation is not a weakened gate: a managed workspace never reaches the host executor. Two config
+keys control it:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `activation` | `workspace-config` | `always` takes over the whole profile (container-only deployments) |
+| `hostFallback` | `delegate` | `refuse` keeps the container path for unmanaged workspaces too |
+| `hostExecutorModule` | `@deepseek-ai/dsh-bash-sandbox` | which host executor to delegate to |
+| `hostExecutorConfig` | — | that executor's own config, forwarded verbatim |
+
+The delegate is resolved through the harness package that launched dsh (a bin symlink realpath, then
+the argv path, the node executable, and the cwd). If the module cannot be found, delegation fails with
+a message naming it and the managed path keeps working — install it beside the harness, or point
+`hostExecutorModule` at an absolute path.
+
+Verified live in one profile: `pwd` in a plain directory returned the host path **with the sandbox
+notice on stderr** (proving the delegate, not a bare spawn), and after `devcontainer up` on a
+fixture workspace the same tool returned `/workspaces/…` and `whoami` = `vscode`.
+
 ### Host permission presets are disabled by the bundle
 
 `@deepseek-ai/dsh-base` mounts `permission` = `@deepseek-ai/dsh-permission-presets`, whose

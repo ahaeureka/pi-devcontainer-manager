@@ -146,3 +146,116 @@ describe("DevcontainerShellExecutor.execute", () => {
     await expect(executor.execute(executor.resolve({ command: "x" }))).rejects.toThrow("not allowed");
   });
 });
+
+describe("per-workspace activation (host delegation)", () => {
+  const delegateRun = (): { delegate: import("@deepseek-ai/dsh-shell").ShellExecutor; seen: string[] } => {
+    const seen: string[] = [];
+    const delegate = {
+      resolve: (request: { command: string }) => {
+        seen.push(`resolve:${request.command}`);
+        return { command: request.command, workdir: "/host", timeoutMs: 1, onExpiry: "kill", stdoutMaxBytes: 1 };
+      },
+      execute: async (spec: { command: string }) => {
+        seen.push(`execute:${spec.command}`);
+        return {
+          status: "completed",
+          exitCode: 0,
+          signal: null,
+          done: Promise.resolve(),
+          readOutput: () => ({ delta: "host output", lossy: false }),
+          observed: { stdout: { readFrom: () => ({ text: "", nextOffset: 0, lossy: false }) }, stderr: { readFrom: () => ({ text: "", nextOffset: 0, lossy: false }) } },
+          kill: () => false,
+          result: async () => ({ exitCode: 0, signal: null, timedOut: false, aborted: false, timeoutMs: 1, stdout: { text: "host output", truncated: false }, stderr: { text: "", truncated: false } }),
+        };
+      },
+    } as unknown as import("@deepseek-ai/dsh-shell").ShellExecutor;
+    return { delegate, seen };
+  };
+
+  it("hands an UNMANAGED workspace to the host executor instead of refusing", async () => {
+    const calls: ExecRequest[] = [];
+    const service = {
+      exec: vi.fn(async (request: ExecRequest) => {
+        calls.push(request);
+        return outcome();
+      }),
+    } as unknown as ExecutionService;
+    const { delegate, seen } = delegateRun();
+    const executor = new DevcontainerShellExecutor(new Context(), {
+      execution: service,
+      workspace: "/plain/project",
+      isManaged: () => false,
+      hostExecutor: () => delegate,
+    });
+    const handle = await executor.execute(executor.resolve({ command: "pwd" }));
+    expect(seen).toEqual(["resolve:pwd", "execute:pwd"]);
+    expect(calls).toHaveLength(0);
+    expect(handle.readOutput().delta).toBe("host output");
+  });
+
+  it("keeps a MANAGED workspace on the container path (delegation is not a fallback)", async () => {
+    const calls: ExecRequest[] = [];
+    const service = {
+      exec: vi.fn(async (request: ExecRequest) => {
+        calls.push(request);
+        return outcome();
+      }),
+    } as unknown as ExecutionService;
+    const { delegate, seen } = delegateRun();
+    const executor = new DevcontainerShellExecutor(new Context(), {
+      execution: service,
+      workspace: "/ws/project",
+      isManaged: () => true,
+      hostExecutor: () => delegate,
+    });
+    await executor.execute(executor.resolve({ command: "pwd" }));
+    expect(seen).toEqual([]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("uses the workspace's own devcontainer config as the default activation rule", async () => {
+    const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const plain = mkdtempSync(join(tmpdir(), "plain-"));
+    const managed = mkdtempSync(join(tmpdir(), "managed-"));
+    mkdirSync(join(managed, ".devcontainer"));
+    writeFileSync(join(managed, ".devcontainer", "devcontainer.json"), "{}");
+
+    const { delegate, seen } = delegateRun();
+    const executor = new DevcontainerShellExecutor(new Context(), {
+      execution: { exec: async () => outcome() } as unknown as ExecutionService,
+      workspace: plain,
+      hostExecutor: () => delegate,
+    });
+    await executor.execute(executor.resolve({ command: "pwd" }));
+    expect(seen).toEqual(["resolve:pwd", "execute:pwd"]);
+
+    const managedExecutor = new DevcontainerShellExecutor(new Context(), {
+      execution: { exec: async () => outcome() } as unknown as ExecutionService,
+      workspace: managed,
+      hostExecutor: () => delegate,
+    });
+    await managedExecutor.execute(managedExecutor.resolve({ command: "pwd" }));
+    // Still only the plain workspace's delegation: the managed one never touched the delegate.
+    expect(seen).toHaveLength(2);
+  });
+});
+
+describe("host executor module resolution", () => {
+  it("loads an absolute path and reports every base it tried for a missing specifier", async () => {
+    const { loadExecutorModule } = await import("../../extensions/dsh/host-executor.js");
+    const path = await import("node:path");
+    const url = await import("node:url");
+    // An absolute path is the operator's escape hatch (`hostExecutorModule`), so it must work without
+    // touching any resolver base.
+    const resolved = await loadExecutorModule(
+      path.resolve("node_modules", "@deepseek-ai", "dsh-shell", "lib", "index.js"),
+    );
+    expect(Object.keys(resolved).length).toBeGreaterThan(0);
+    expect(url.pathToFileURL("x").protocol).toBe("file:");
+    await expect(loadExecutorModule("@example/definitely-not-installed")).rejects.toThrow(
+      /cannot resolve @example\/definitely-not-installed \(tried: /,
+    );
+  });
+});

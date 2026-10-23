@@ -2,6 +2,7 @@ import { ShellExecutor, } from "@deepseek-ai/dsh-shell";
 import { executeWithTimeout } from "../../src/bash-router.js";
 import { RuntimeError } from "../../src/errors.js";
 import { shellForm } from "../../src/execution-service.js";
+import { workspaceHasConfig } from "../../src/runtime/host-discovery.js";
 import { canonicalWorkspaceKey } from "../../src/workspace-path.js";
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_TIMEOUT_MS = 900_000;
@@ -12,8 +13,16 @@ export class DevcontainerShellExecutor extends ShellExecutor {
         super(ctx);
         this.options = options;
     }
-    /** Fill the request's defaults and caps. Only `kill` deadlines are enforced; `none` arms nothing. */
+    /**
+     * Resolve through the delegate when this workspace is not DevContainer-managed.
+     *
+     * Both `resolve` and `execute` consult {@link isManaged} so a spec never mixes the two paths: dsh
+     * calls `resolve` then `execute`, and the workspace does not change in between.
+     */
     resolve(request) {
+        const delegate = this.delegateFor(request.workdir);
+        if (delegate !== undefined)
+            return delegate.resolve(request);
         const maxTimeoutMs = this.options.maxTimeoutMs ?? DEFAULT_MAX_TIMEOUT_MS;
         const requested = request.timeoutMs ?? this.options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
         const timeoutMs = Math.max(1, Math.min(Math.round(requested), maxTimeoutMs));
@@ -34,6 +43,9 @@ export class DevcontainerShellExecutor extends ShellExecutor {
         };
     }
     async execute(spec) {
+        const delegate = this.delegateFor(spec.workdir);
+        if (delegate !== undefined)
+            return delegate.execute(spec);
         const shell = shellForm(spec.command);
         const explicitEnvironment = collectEnvironment(spec);
         const request = {
@@ -82,6 +94,14 @@ export class DevcontainerShellExecutor extends ShellExecutor {
         const killed = timedOut || abortedFirst || runResult.exitCode === null;
         return settledHandle(runResult, killed ? "killed" : "completed");
     }
+    /** The host executor that owns this workspace, or `undefined` when the container path applies. */
+    delegateFor(workdir) {
+        const managed = this.options.isManaged ?? defaultIsManaged;
+        const workspace = workdir === undefined || !isAbsolutePath(workdir) ? this.options.workspace : workdir;
+        if (managed(workspace))
+            return undefined;
+        return this.options.hostExecutor?.();
+    }
     /**
      * The HOST working directory. `devcontainer exec` runs on the host and receives
      * `--workspace-folder <host path>`; the CLI maps the path itself, so a container path here would
@@ -93,6 +113,22 @@ export class DevcontainerShellExecutor extends ShellExecutor {
             return this.options.workspace;
         const key = canonicalWorkspaceKey(candidate);
         return key.length > 0 ? key : this.options.workspace;
+    }
+}
+/**
+ * Default activation rule: the workspace declares its own devcontainer configuration.
+ *
+ * Same rule the Pi extension uses (`workspaceHasConfig`), so "is this project a DevContainer project?"
+ * has one answer in both harnesses.
+ */
+function defaultIsManaged(workspace) {
+    try {
+        return workspaceHasConfig(workspace);
+    }
+    catch {
+        // An unreadable workspace must not silently become a HOST one: treat it as managed so the
+        // container path's own diagnostics (missing target, policy denial) are what the caller sees.
+        return true;
     }
 }
 function isAbsolutePath(path) {
