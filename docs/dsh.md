@@ -31,6 +31,13 @@ Consequences that matter operationally:
 - The runtime is a service (not a closure) because dsh's answer to "two plugins need the same thing" is
   `inject`, and because a service can be unloaded with its provider on HMR.
 
+**Nothing in this structure is reachable from the Pi side.** The dsh packages are optional peers, so a
+Pi-only installation must not import them: `extensions/index.ts` and every module under `src/` are
+asserted to contain no `@deepseek-ai/` import (`tests/unit/pi-entry-compat.test.ts`), and the Pi entry is
+loaded against a stub `ExtensionAPI` to prove it still registers its command, hooks and tools. The one
+Pi behaviour the refactor touched is auto-adoption, which now calls the same
+`src/target-adoption.ts` with `scope: "exact"`; a test pins that a prefix match does NOT adopt.
+
 What that buys: dsh's `ctx.shell` capability is *provided* by this package, so the bash
 tool — and any other dsh plugin using `ctx.shell` — executes inside the selected
 DevContainer instead of on the host. Management verbs are exposed as the `devcontainer`
