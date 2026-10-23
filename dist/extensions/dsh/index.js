@@ -3,6 +3,7 @@ import Schema from "@deepseek-ai/schemastery";
 import { createDevcontainerCommand } from "./command.js";
 import { DevcontainerShellExecutor } from "./executor.js";
 import { DEFAULT_HOST_EXECUTOR_MODULE, mountHostExecutor } from "./host-executor.js";
+import { registerPromptSection } from "./prompt.js";
 import { composeDshRuntime } from "./runtime.js";
 import { createDevcontainerTool } from "./tools.js";
 export const name = "devcontainer";
@@ -55,6 +56,9 @@ export function apply(ctx, config = {}) {
         ...(hostExecutor !== undefined ? { hostExecutor } : {}),
         ...(config.activation === "always" ? { isManaged: () => true } : {}),
     });
+    // The agent has no other way to learn that a container is involved: dsh injects tool schemas, not the
+    // reason to call them, and the first thing it would otherwise see is a refusal.
+    registerPromptSection(ctx, runtime, { workspace });
     // `commands` is DEFERRED, not merely optional: a plain `ctx.get("commands")` during `apply()` can
     // run before the registry is mounted (load order is not guaranteed), which silently loses the
     // command surface — observed in the web app, where `/devcontainer …` then did nothing at all.

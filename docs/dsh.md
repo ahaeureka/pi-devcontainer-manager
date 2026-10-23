@@ -15,6 +15,7 @@ dsh command.
 
 | Surface | Behaviour under dsh |
 |---|---|
+| `systemPrompt` section `devcontainer:execution-context` | tells the model the container facts (current target, surfaces, remedies) — re-evaluated on every assembly |
 | `ctx.shell` (bash tool, hook bridges, other plugins) | runs inside the selected container through `devcontainer exec` |
 | **`devcontainer` tool** (model-facing) | all verbs; the only management surface on **ACP**, and the one that can ask for approval |
 | `devcontainer <verb>` command (web/TUI) | `list`, `status`, `use`, `off`, `up`, `rebuild`, `build`, `logs`, `host-exec` — destructive verbs refuse here |
@@ -160,6 +161,32 @@ a message naming it and the managed path keeps working — install it beside the
 Verified live in one profile: `pwd` in a plain directory returned the host path **with the sandbox
 notice on stderr** (proving the delegate, not a bare spawn), and after `devcontainer up` on a
 fixture workspace the same tool returned `/workspaces/…` and `whoami` = `vscode`.
+
+### What the model is told
+
+dsh injects tool SCHEMAS, not the reason to call them, so the plugin contributes a system-prompt
+section (`devcontainer:execution-context`, order 6000). It is evaluated on every assembly, so it
+reports the target the runtime holds NOW:
+
+```text
+## DevContainer execution context
+
+Target: none selected (workspace `/path/to/project`).
+
+Execution surfaces (choose by WHAT the command operates on, not by its name):
+- shell commands run INSIDE the selected container for a DevContainer-managed workspace; …
+- `devcontainer` tool / `/devcontainer <verb>` → list, status, use, off, up, rebuild, build, logs, stop, remove
+
+Rules:
+- A command refused with `No DevContainer target is selected.` … run `devcontainer up` …
+- Two running containers … `selected-ambiguous` … `devcontainer use <container-id>`.
+- `devcontainer off` suspends automatic adoption …
+- Host paths stay valid for host file tools (bind mount) …
+- Rebuilding is the way to apply a changed devcontainer.json/Dockerfile; `up` reuses …
+```
+
+Verified live: asked a model (no tools) to quote the section's `Target:` line and the rebuild sentence
+— it quoted both verbatim, i.e. the section reaches the model.
 
 ### Automatic target selection
 

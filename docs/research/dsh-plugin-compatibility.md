@@ -489,6 +489,13 @@ Original work order:
   stays authoritative (the Pi entry's L1-02 trap). Adoption never starts a container and never picks
   among ambiguous candidates by Docker order. Verified live: a bash-only prompt in the fixture project
   returned `/workspaces/…` and `whoami` = `vscode` with no devcontainer verb called first.
+- **2026-10-23 — the prompt seam was used, not skipped**: the study had listed prompt contribution as
+  "Medium — must be verified". It is now implemented: `ctx.inject(['systemPrompt'])` +
+  `systemPrompt.section({name:'devcontainer:execution-context', order:6000, interpolate:false,
+  text: () => …})`, evaluated per assembly so it reports the live target. Without it the agent sees a
+  `devcontainer` tool with no reason to call it and learns about containers only from a refusal.
+  Verified against the REAL `SystemPrompt` service (registered → assembled → rendered) and live with a
+  model asked to quote the section; it quoted the target line and the rebuild rule verbatim.
 - **2026-10-23 — presets decision (A):** the bundle disables `permission` (`@deepseek-ai/dsh-permission-presets`)
   rather than leaving it to the profile layer; `cordis.patch.yml`, `docs/dsh.md` and Troubleshooting
   updated to state the cost for host file tools.
