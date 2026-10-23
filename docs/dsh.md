@@ -16,10 +16,23 @@ dsh command.
 | Surface | Behaviour under dsh |
 |---|---|
 | `ctx.shell` (bash tool, hook bridges, other plugins) | runs inside the selected container through `devcontainer exec` |
-| `devcontainer <verb>` command | `list`, `status`, `use`, `off`, `up`, `rebuild`, `build`, `logs`, `host-exec` |
-| Destructive verbs (`stop`, `remove`, `rebuild`, `setup`) | **refuse**: dsh commands have no confirm dialog, so the gate is never bypassed |
+| **`devcontainer` tool** (model-facing) | all verbs; the only management surface on **ACP**, and the one that can ask for approval |
+| `devcontainer <verb>` command (web/TUI) | `list`, `status`, `use`, `off`, `up`, `rebuild`, `build`, `logs`, `host-exec` — destructive verbs refuse here |
+| Destructive verbs (`stop`, `remove`, `rebuild`, `setup`) | through the **tool**: approval is requested first (web dialog / ACP permission request); through the **command**: refused, because a command runs between turns and cannot ask |
 | Policy, audit, routing guard, path mapping, timeouts | unchanged — the same `src/` services the Pi extension uses |
 | Configuration | the same files the Pi extension reads; the project layer is opt-in (see below) |
+
+### web vs acp vs headless
+
+| App | Human command (`/devcontainer …`) | Tool | Approval dialog |
+|---|---|---|---|
+| **web** (browser UI) | yes — listed in the composer's `/` menu | yes | yes (approval UI) |
+| **acp** (agent-client-protocol) | **no** — the ACP app composes no command consumer | yes | yes (ACP permission request) |
+| headless (`dsh … "task"`) | no | yes | policy `never`/`always` |
+
+Because ACP has no command surface, "select a container" there is a tool call, not a keystroke:
+ask the agent to use `devcontainer use <workspace>`; the target it binds is what `ctx.shell` routes
+to for the rest of the session.
 
 ## Install
 

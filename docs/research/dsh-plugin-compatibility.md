@@ -449,6 +449,18 @@ Original work order:
   recorded in `docs/dsh.md`: `dsh plugin add` on an unknown profile creates a base-only profile with
   no app (create it from a template first), and a linked checkout runs `dist/`, so `npm run build`
   precedes every install/update.
+- **2026-10-23 — primary surfaces are web and acp** (operator). Three consequences, each measured:
+  (1) in the web app `/devcontainer …` now appears in the composer's command menu — verified by
+  reading the composed menu; before that a plain `ctx.get("commands")` during `apply()` could miss a
+  registry mounted later and silently lose the surface, so registration moved to
+  `ctx.inject(["commands"])`; (2) ACP composes **no** command consumer (`inject` = agents/llm/
+  sessions/sessionPersistence), so management must be a **tool** — `extensions/dsh/tools.ts` now
+  registers a model-facing `devcontainer` tool, verified end to end against the REAL
+  `ToolRegistry` (schema accepted, catalog entry present, `ctx.tools.execute()` returns our text);
+  (3) a **tool** runs inside a turn and can call `ctx.approval.request()`, while a **command** cannot
+  (the service throws outside an open turn), so destructive verbs are approval-gated through the tool
+  and still refuse on the command surface. Web-UI end-to-end dispatch could not be driven by
+  automation (the composer does not accept synthetic input), so the last click stays manual.
 - **2026-10-23 — presets decision (A):** the bundle disables `permission` (`@deepseek-ai/dsh-permission-presets`)
   rather than leaving it to the profile layer; `cordis.patch.yml`, `docs/dsh.md` and Troubleshooting
   updated to state the cost for host file tools.

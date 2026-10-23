@@ -3,6 +3,7 @@ import Schema from "@deepseek-ai/schemastery";
 import { createDevcontainerCommand } from "./command.js";
 import { DevcontainerShellExecutor } from "./executor.js";
 import { composeDshRuntime } from "./runtime.js";
+import { createDevcontainerTool } from "./tools.js";
 export const name = "devcontainer";
 export const Config = Schema.object({
     workspace: Schema.string().description("Host workspace to manage (default: process.cwd())."),
@@ -31,12 +32,48 @@ export function apply(ctx, config = {}) {
         maxTimeoutMs: config.maxTimeoutMs ?? runtime.config.maxTimeoutSeconds * 1000,
         maxOutputBytes: runtime.config.maxOutputBytes,
     });
-    // `commands` is optional: a headless composition may not mount it, and a missing command surface
-    // must not hold the shell provider hostage (injecting it would keep this plugin PENDING forever).
-    const commands = ctx.get("commands", false);
-    if (commands === undefined)
-        return;
-    const definition = createDevcontainerCommand(runtime, { workspace });
-    commands.register(definition);
+    // `commands` is DEFERRED, not merely optional: a plain `ctx.get("commands")` during `apply()` can
+    // run before the registry is mounted (load order is not guaranteed), which silently loses the
+    // command surface — observed in the web app, where `/devcontainer …` then did nothing at all.
+    // `ctx.inject` waits for the service on a child fiber, so this plugin stays ACTIVE with the shell
+    // provider regardless (a required `inject: ['commands']` would park the whole plugin PENDING in a
+    // composition that has no command UI, losing the primary capability).
+    // The TOOL is the surface every dsh app can use (ACP composes no command consumer at all), and the
+    // only one that can ask for approval — a tool runs inside a turn, a command does not.
+    ctx.inject(["tools"], (scoped) => {
+        const tools = scoped.tools;
+        const definition = createDevcontainerTool(runtime, {
+            workspace,
+            confirm: async (request) => {
+                if (request.agent === undefined)
+                    return false;
+                const approval = ctx.get("approval", false);
+                if (approval === undefined)
+                    return false;
+                try {
+                    const outcome = await approval.request({
+                        agent: request.agent,
+                        toolName: "devcontainer",
+                        reason: request.reason,
+                        signal: request.signal,
+                    });
+                    // Only an explicit one-time grant proceeds; everything else (`rejected`, `cancelled`,
+                    // `unavailable`) is a refusal, which is the service's fail-closed contract.
+                    return outcome === "allowed-once";
+                }
+                catch {
+                    // `request()` throws without an open turn and rejects on an uncommitted audit pair; both
+                    // mean "no decision", never "yes".
+                    return false;
+                }
+            },
+        });
+        tools.register(definition);
+    });
+    ctx.inject(["commands"], (scoped) => {
+        const commands = scoped.commands;
+        const definition = createDevcontainerCommand(runtime, { workspace });
+        commands.register(definition);
+    });
 }
 //# sourceMappingURL=index.js.map

@@ -63,18 +63,23 @@
     "install:local": "node scripts/install-local.mjs"
   },
   "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-commands": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-shell": "^0.2.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.5",
     "@earendil-works/pi-coding-agent": "*",
     "typebox": "*",
-    "@deepseek-ai/cordis": "^4.0.5",
-    "@deepseek-ai/dsh-shell": "^0.2.1-rc.2",
-    "@deepseek-ai/dsh-commands": "^0.2.1-rc.2",
-    "@deepseek-ai/schemastery": "^3.18.5"
+    "@deepseek-ai/dsh-tools": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-user-approval": "^0.2.1-rc.2"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
     "@deepseek-ai/dsh-commands": "^0.2.1-rc.2",
     "@deepseek-ai/dsh-sandbox": "^0.2.1-rc.2",
     "@deepseek-ai/dsh-shell": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-system-prompt": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-user-approval": "^0.2.1-rc.2",
     "@deepseek-ai/schemastery": "^3.18.5",
     "@devcontainers/cli": "0.88.0",
     "@earendil-works/pi-coding-agent": "0.84.4",
@@ -99,6 +104,12 @@
       "optional": true
     },
     "@deepseek-ai/schemastery": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-user-approval": {
       "optional": true
     }
   }
