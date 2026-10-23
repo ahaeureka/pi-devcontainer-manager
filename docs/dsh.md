@@ -23,17 +23,77 @@ dsh command.
 
 ## Install
 
-The package publishes a dsh **bundle** (`dsh.bundle.patch` → `cordis.patch.yml`). The bundle
-patch visits the base rows by id: it **disables** `bash-sandbox` (dsh composes exactly one
-`ctx.shell` provider) and **inserts** its own row, then turns off `run_in_background` on
-`tool-bash`. A patch row must keep the target row's `name` — dsh refuses a rename and logs
-`patch: name mismatch … skipping` — which is why the provider is swapped by
-`disabled` + `insert` rather than by renaming a row.
+Three steps: have a **profile** (dsh's unit of composition), install this package into
+it, then boot it. `dsh` reads the profile's `package.json` (`dsh.profile.bundles`) plus
+its own `cordis.patch.yml` layers — this package contributes one bundle layer and its own
+patch (`dsh.bundle.patch` → `cordis.patch.yml`).
+
+### 1. Prepare the package
+
+A **checkout** is linked, not copied, so its `dist/` is what runs — build it first:
 
 ```bash
-dsh plugin --profile <name> add /path/to/pi-devcontainer-manager   # or the published tarball
-dsh --profile <name> --dump-config          # shows this bundle's layer
-dsh --profile <name>
+git clone <repo> && cd pi-devcontainer-manager
+npm ci && npm run build          # dist/ must exist; the dsh entry is dist/extensions/dsh/index.js
+```
+
+To install a **stable copy** instead of a live link, pack it and install the tarball:
+
+```bash
+npm pack                          # → pi-devcontainer-manager-1.0.0.tgz
+```
+
+### 2. Pick (or create) a profile, then add the plugin
+
+An existing profile (e.g. `web`) works as-is. To make a dedicated one, create it from a
+shipped template first — `dsh plugin … add` on an unknown name creates a profile that has
+`@deepseek-ai/dsh-base` but **no app**, so nothing boots:
+
+```bash
+dsh devc --from-default-profile headless --dump-config   # creates $DSH_HOME/profiles/devc
+```
+
+Then install, either from the checkout (live link) or the tarball (copy):
+
+```bash
+dsh plugin --profile devc add /abs/path/to/pi-devcontainer-manager
+dsh plugin --profile devc add /abs/path/to/pi-devcontainer-manager-1.0.0.tgz
+```
+
+Both record `pi-devcontainer-manager` in `dsh.profile.bundles`, so the package's patch is
+applied after `dsh-base`.
+
+### 3. Verify before booting
+
+```bash
+dsh --profile devc --dump-config | grep -A2 "id: bash-sandbox"    # → disabled: true
+dsh --profile devc --dump-config | grep -A1 "id: devcontainer-shell"  # → name: pi-devcontainer-manager/dsh
+dsh --profile devc --dump-config | grep -A3 "id: permission"      # → disabled: true
+```
+
+Then boot the profile (`dsh --profile devc`, or `dsh devc`) and run `devcontainer list`.
+
+### Why the `@deepseek-ai/*` packages are optional peers
+
+dsh mounts plugin modules through its **own** module loader, resolving bare specifiers
+against the dsh installation, so `@deepseek-ai/cordis`, `-dsh-shell`, `-schemastery` and
+`-dsh-commands` resolve to the harness's copies — one instance, so `ShellExecutor` and the
+service registry are the same classes dsh uses. Declaring them as `dependencies` would
+install a second copy and break exactly that, which is why they stay
+`peerDependencies` + `optional: true`.
+
+### Updating
+
+| Install kind | Update |
+|---|---|
+| Linked checkout | edit/`git pull`, `npm run build`, restart dsh — no reinstall |
+| Tarball copy | `npm pack` again, `dsh plugin --profile <name> add <new .tgz>`, restart |
+| Configuration-only | the plugin's `config` row or the global configuration file; a restart reapplies it (dsh has no `/reload`) |
+
+### Removing
+
+```bash
+dsh plugin --profile devc remove pi-devcontainer-manager
 ```
 
 ### Host permission presets are disabled by the bundle

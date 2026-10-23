@@ -362,6 +362,15 @@ Implementation as shipped:
 
 ### Verified against the real loader (dsh 0.2.1-rc.2, live)
 
+A fourth fact, which decides how the package must declare its dependencies: **dsh mounts plugin
+modules through its own Node loader with `bareModuleBaseUrl` = the dsh installation**
+(`mountRootInclude` → `ctx.loader.internal.import(specifier, bareModuleBaseUrl)`). Bare specifiers in
+a plugin therefore resolve to the *harness's* copies of `@deepseek-ai/*`, not to whatever sits beside
+the plugin. That is why a tarball-installed copy works with `peerDependencies` declared
+`optional: true`, and why declaring them as `dependencies` would be a defect (second Cordis instance
+→ a `ShellExecutor` from a different module graph than the host's).
+
+
 Three facts that the documentation does not state, each found by running the bundle in a real
 profile (`dsh plugin --profile devc add <checkout>`):
 
@@ -434,6 +443,12 @@ Original work order:
   (decision pending on whether the bundle should do it), and the deployment's global configuration
   must grant `allowedWorkspaceRoots` (the operator's file currently grants none, so every workspace
   is refused by design).
+- **2026-10-23 — local install verified both ways:** a linked checkout and a packed tarball, each
+  installed into a profile with `dsh plugin --profile <name> add …`; the tarball copy booted and the
+  bash tool again reached our provider (typed refusal, nothing on the host). Two operational facts
+  recorded in `docs/dsh.md`: `dsh plugin add` on an unknown profile creates a base-only profile with
+  no app (create it from a template first), and a linked checkout runs `dist/`, so `npm run build`
+  precedes every install/update.
 - **2026-10-23 — presets decision (A):** the bundle disables `permission` (`@deepseek-ai/dsh-permission-presets`)
   rather than leaving it to the profile layer; `cordis.patch.yml`, `docs/dsh.md` and Troubleshooting
   updated to state the cost for host file tools.
