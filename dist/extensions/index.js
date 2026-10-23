@@ -34,18 +34,13 @@ import { createBashToolDefinition, createLocalBashOperations } from "@earendil-w
 import { defaultConfigPaths, loadConfigWithDiagnostics } from "../src/config.js";
 import { createDiagnosticSink, reportDiscoveryDiagnostics } from "../src/discovery-diagnostics.js";
 import { allowsAutoSelection, decideActivation, surfacesFor } from "../src/activation.js";
-import { configPathOf, containerStateOf, primaryCandidate, } from "../src/registry-entry.js";
+import { configPathOf, containerStateOf, primaryCandidate, selectedConfigPathFor, } from "../src/registry-entry.js";
 import { JsonlAuditWriter, defaultAuditDirectory } from "../src/audit.js";
 import { LifecycleLogWriter } from "../src/lifecycle-log.js";
-import { composeHostEnvironment } from "../src/host-environment.js";
-import { NodeProcessRunner } from "../src/runtime/process-runner.js";
-import { NodeCapabilityService } from "../src/runtime/capabilities.js";
-import { NodeDockerAdapter } from "../src/runtime/docker-adapter.js";
-import { NodeDevcontainerAdapter } from "../src/runtime/devcontainer-adapter.js";
+import { composeHostRuntime } from "../src/runtime-composition.js";
 import { createShortCache } from "../src/short-cache.js";
-import { NodeDockerLifecycleAdapter } from "../src/runtime/docker-lifecycle.js";
 import { buildWorkspaceRegistry, nodeTraversal, workspaceHasConfig, workspacePathFor } from "../src/runtime/host-discovery.js";
-import { findContainerPath, hostToContainer, readConfigFacts, } from "../src/path-mapper.js";
+import { findContainerPath, hostToContainer, readWorkspaceConfigFacts as readWorkspaceConfig, } from "../src/path-mapper.js";
 import { TargetStore } from "../src/target-store.js";
 import { ExecutionService } from "../src/execution-service.js";
 import { createRoutedBashOperations } from "../src/bash-router.js";
@@ -69,35 +64,12 @@ function composeRuntime(config, audit, sessionWorkspace, activation,
  * extension closure (it is per session), so it is passed in rather than created here.
  */
 hostVisibility) {
-    const runner = new NodeProcessRunner();
     const lifecycleLogs = new LifecycleLogWriter({ workspacePath: sessionWorkspace });
-    const capabilities = new NodeCapabilityService(runner, {
-        dockerPath: config.dockerPath,
-        devcontainerPath: config.devcontainerPath,
-    });
-    void capabilities.check().catch(() => undefined);
-    // One definition of what a host child sees (`src/host-environment.ts`), shared by every adapter
-    // below — docker, the Dev Containers CLI, the lifecycle commands, the host runner, `setup` — so the
-    // composed environment cannot drift between them. It carries the executable/cache basics and the
-    // operator's proxy variables, which the CLI's own OCI Feature fetch needs to reach the registry.
-    const env = composeHostEnvironment(process.env);
-    const docker = new NodeDockerAdapter(runner, {
-        dockerPath: config.dockerPath,
-        env,
+    // One definition of the host adapters and the composed environment, shared with the dsh entry
+    // (`src/runtime-composition.ts`): docker, the Dev Containers CLI and the lifecycle commands cannot
+    // drift between the two harnesses.
+    const { runner, env, docker, devcontainer, dockerLifecycle } = composeHostRuntime(config, {
         cwd: sessionWorkspace,
-        maxOutputBytes: config.maxOutputBytes,
-    });
-    const devcontainer = new NodeDevcontainerAdapter(runner, {
-        devcontainerPath: config.devcontainerPath,
-        env,
-        cwd: sessionWorkspace,
-        limits: { maxOutputBytes: config.maxOutputBytes, timeoutMs: config.maxTimeoutSeconds * 1000 },
-    });
-    const dockerLifecycle = new NodeDockerLifecycleAdapter(runner, {
-        dockerPath: config.dockerPath,
-        env,
-        cwd: sessionWorkspace,
-        maxOutputBytes: config.maxOutputBytes,
     });
     const targetStore = new TargetStore({});
     const discoveryInput = (traversal) => ({
@@ -121,14 +93,7 @@ hostVisibility) {
      * Before this, a selected named configuration only reached the CLI's argv; the derived views kept
      * using the registry primary, so the two disagreed (review finding L1-04).
      */
-    const effectiveConfigPath = (workspaceKey, discovered) => {
-        const snapshot = targetStore.snapshot();
-        if (snapshot.configPath === undefined || snapshot.workspaceKey === undefined)
-            return discovered;
-        return canonicalWorkspaceKey(snapshot.workspaceKey) === canonicalWorkspaceKey(workspaceKey)
-            ? snapshot.configPath
-            : discovered;
-    };
+    const effectiveConfigPath = (workspaceKey, discovered) => selectedConfigPathFor(targetStore.snapshot(), workspaceKey, discovered);
     /**
      * Surface a configuration the extension could not parse.
      *
@@ -392,33 +357,6 @@ function renderSelectionSummary(snapshot, config) {
  * Host-command identity for audit records, mirroring the execution
  * service's capture policy (none / fingerprint-only / redacted-text).
  */
-/**
- * Read a workspace's devcontainer.json once and derive everything the agent view needs: the
- * host<->container mapping (workspaceMount preferred, workspaceFolder fallback) and the
- * container-only mounts the host cannot see.
- *
- * Returns empty facts when the config is absent/unreadable, cannot be parsed, or declares none of
- * them — and `onProblem` (when given) receives a line explaining the *unparsable* case, because
- * that is the one where the mapping silently disappears and with it the host container-path guard
- * that depends on it (review finding L0-02).
- */
-function readWorkspaceConfig(configPath, onProblem) {
-    let raw;
-    try {
-        raw = readFileSync(configPath, "utf8");
-    }
-    catch (error) {
-        // Discovery SAW this configuration, so failing to read it means the mapping — and with it the
-        // host container-path guard — is silently unavailable. Say so (L0-02).
-        onProblem?.(`${configPath} could not be read (${error instanceof Error ? error.message : String(error)}); the host<->container mapping and the container-path guard are inactive for this workspace.`);
-        return {};
-    }
-    const read = readConfigFacts(workspacePathFor(configPath), raw);
-    if (read.kind === "ok")
-        return read.facts;
-    onProblem?.(`${configPath} could not be parsed as JSONC (${read.detail}); the host<->container mapping and the container-path guard are inactive for this workspace.`);
-    return {};
-}
 /** Compose the effective config, always including the session cwd as a root. */
 function composeRuntimeConfig(cwd, base) {
     const roots = new Set([...base.allowedWorkspaceRoots]);

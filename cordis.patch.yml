@@ -1,0 +1,55 @@
+# dsh bundle patch: DevContainer support.
+#
+# Applied after `@deepseek-ai/dsh-base`, so these rows address base rows by id and the last write wins
+# (a patch replaces the targeted row's WHOLE config — every key a row needs must be restated here).
+#
+# The loader REFUSES a patch row whose `name` does not match the row it targets — verified against
+# dsh 0.2.1-rc.2, which logs `patch: name mismatch for "bash-sandbox" … skipping` and applies nothing.
+# A provider therefore cannot be swapped in place: the base row is DISABLED and ours is INSERTED.
+#
+# 1. `bash-sandbox` is the provider of dsh's `ctx.shell` seam. dsh composes exactly ONE provider per
+#    context (a second registration throws), and every shell consumer — the bash tool, hook bridges,
+#    job runners — resolves through it. Disabling it and inserting our provider is therefore how "use
+#    the DevContainer environment" becomes true for the whole harness instead of for two
+#    hand-registered tools. Our provider delegates to the same governed execution service the Pi
+#    extension uses, so target binding, policy, audit, the routing guard and output accounting are
+#    unchanged.
+#
+# 2. `tool-bash` keeps its model-facing contract, but background execution is disabled: the executor
+#    settles the command before it returns (it wraps a batch execution API), so a `run_in_background`
+#    call would block and then report a finished process. Refusing the mode is honest; see
+#    `extensions/dsh/executor.ts` for the limitation and what implementing it would require. This row
+#    keeps the base name (a config-only override), which is the only patch kind the loader accepts for
+#    an existing row.
+#
+# 3. `permission` (`@deepseek-ai/dsh-permission-presets`) is DISABLED. It bundles a host sandbox mode
+#    and its constructor refuses an executor that cannot confine
+#    (`the mounted bash executor does not confine (no sandboxMode) … misconfiguration`), which in a
+#    stock profile degrades to `warning: 1 entry did not activate` on every boot. That refusal is
+#    correct — commands run inside the container, so a host sandbox mode is a claim this provider
+#    cannot honour. The trade-off, documented because it reaches beyond the shell: dsh's own host
+#    FILE tools also lose the sandbox preset constraint (they stay subject to `fs` policy and to the
+#    `approval` service, which is a separate row and keeps working). A deployment that wants the
+#    presets back must remove this disable AND accept that they describe a boundary the shell
+#    bypasses.
+#
+# Enable this layer only for a deployment that is expected to work inside a DevContainer: every shell
+# command in the process then fails closed (`no-candidate`/`target-stopped`) until the operator runs
+# `devcontainer use` and a target exists.
+
+- id: bash-sandbox
+  name: '@deepseek-ai/dsh-bash-sandbox'
+  disabled: true
+
+- insert:
+    - id: devcontainer-shell
+      name: 'pi-devcontainer-manager/dsh'
+
+- id: permission
+  name: '@deepseek-ai/dsh-permission-presets'
+  disabled: true
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  config:
+    enableRunInBackground: false

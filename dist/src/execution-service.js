@@ -169,7 +169,11 @@ export class ExecutionService {
             });
         }
         const environment = buildChildEnvironment(request.environment, snapshot.effectiveConfig.environmentAllowlist);
-        const remoteEnv = Object.keys(environment).length > 0 ? environment : undefined;
+        // Harness-declared values are merged AFTER the filtered set, so an allowlisted inherited value
+        // cannot shadow an explicit one (and vice versa the explicit value always wins, which is what
+        // "the caller asked for this command's environment" means).
+        const delivered = { ...environment, ...(request.explicitEnvironment ?? {}) };
+        const remoteEnv = Object.keys(delivered).length > 0 ? delivered : undefined;
         let result;
         try {
             result = await this.options.devcontainer.exec(ctx.workspaceKey, ctx.candidateId, request.cmd, request.args, {

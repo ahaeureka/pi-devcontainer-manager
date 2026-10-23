@@ -15,6 +15,7 @@ Start with the [README](../README.md) if you just want to install and use it.
 | [Security](security.md) | Understanding the threat model, the policy gates, the audit trail, or `/devcontainer setup` |
 | [Compatibility](compatibility.md) | Checking the v1 support matrix, failure modes, and discovery/path behavior |
 | [Troubleshooting](troubleshooting.md) | A typed error appeared (`target-stopped`, `no-candidate`, `policy-denied`, …) |
+| [dsh support](dsh.md) | Running the same capability under DeepSeek Harness instead of Pi |
 | [Contributing](../CONTRIBUTING.md) | Building, testing, and sending a change |
 | [Security policy](../SECURITY.md) | Reporting a vulnerability |
 | [Changelog](../CHANGELOG.md) | Seeing what changed in each release |
@@ -49,6 +50,11 @@ HOST                                        container
   error instead.
 
 ## Reference material that is not documentation
+
+[`research/`](research/) holds exploratory notes that inform future decisions but
+describe no shipped behavior — for example
+[dsh plugin compatibility](research/dsh-plugin-compatibility.md), a measured
+study of bridging DeepSeek Harness plugins.
 
 `.rpiv/artifacts/` holds the project's own discover → research → design → plan →
 validation record. It is development history, not user documentation, and some of

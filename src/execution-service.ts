@@ -46,6 +46,18 @@ export interface ExecRequest {
   readonly args: readonly string[];
   /** Approved environment variables already filtered by the caller. */
   readonly environment?: Readonly<Record<string, string>>;
+  /**
+   * Environment an in-process harness asked for by name, delivered verbatim.
+   *
+   * Deliberately NOT filtered by `environmentAllowlist`: that list governs INHERITED ambient state
+   * (the router hands Pi's whole environment here and the allowlist decides what survives), while
+   * this field carries values a harness declared for one command — dsh's `ShellExecRequest.env`
+   * (hooks set `CLAUDE_PROJECT_DIR`) and `dshEnv` (`DSH_*` facts). Filtering those by a list the
+   * operator never wrote for them both breaks the harness contract and re-introduces the coupling
+   * `environmentAllowlist` was narrowed to avoid. It is unreachable from model input: no tool
+   * schema exposes an arbitrary environment, so only in-process callers can set it.
+   */
+  readonly explicitEnvironment?: Readonly<Record<string, string>>;
   readonly timeoutMs?: number;
   readonly signal?: AbortSignal;
   readonly onData?: (chunk: Buffer) => void;
@@ -361,7 +373,11 @@ export class ExecutionService {
       request.environment,
       snapshot.effectiveConfig.environmentAllowlist,
     );
-    const remoteEnv = Object.keys(environment).length > 0 ? environment : undefined;
+    // Harness-declared values are merged AFTER the filtered set, so an allowlisted inherited value
+    // cannot shadow an explicit one (and vice versa the explicit value always wins, which is what
+    // "the caller asked for this command's environment" means).
+    const delivered = { ...environment, ...(request.explicitEnvironment ?? {}) };
+    const remoteEnv = Object.keys(delivered).length > 0 ? delivered : undefined;
 
     let result: ExecResult;
     try {

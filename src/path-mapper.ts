@@ -19,9 +19,11 @@
  * are *presented* to the agent (tool summaries, workspace keys) so the agent
  * sees one consistent in-container view.
  */
+import { readFileSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import { isAtOrUnder, normalizeSegments } from "./workspace-path.js";
 import { parseJsonc } from "./jsonc.js";
+import { workspacePathFor } from "./runtime/host-discovery.js";
 
 export interface PathMapping {
   /** Host-side directory (absolute, real). */
@@ -168,6 +170,39 @@ export type ConfigRead =
  *
  * @param configDir host directory that contains the configuration (see `buildPathMapping`)
  */
+/**
+ * Read a workspace's devcontainer.json once and derive everything the agent view needs: the
+ * host<->container mapping (workspaceMount preferred, workspaceFolder fallback) and the
+ * container-only mounts the host cannot see.
+ *
+ * Returns empty facts when the config is absent/unreadable, cannot be parsed, or declares none of
+ * them — and `onProblem` (when given) receives a line explaining the *unparsable* case, because that
+ * is the one where the mapping silently disappears and with it the host container-path guard that
+ * depends on it (review finding L0-02).
+ *
+ * One owner for both entry points (Pi and dsh): a harness that re-derived these facts itself would
+ * eventually disagree about which guard is active.
+ */
+export function readWorkspaceConfigFacts(configPath: string, onProblem?: (message: string) => void): ConfigFacts {
+  let raw: string;
+  try {
+    raw = readFileSync(configPath, "utf8");
+  } catch (error) {
+    // Discovery SAW this configuration, so failing to read it means the mapping — and with it the
+    // host container-path guard — is silently unavailable. Say so (L0-02).
+    onProblem?.(
+      `${configPath} could not be read (${error instanceof Error ? error.message : String(error)}); the host<->container mapping and the container-path guard are inactive for this workspace.`,
+    );
+    return {};
+  }
+  const read = readConfigFacts(workspacePathFor(configPath), raw);
+  if (read.kind === "ok") return read.facts;
+  onProblem?.(
+    `${configPath} could not be parsed as JSONC (${read.detail}); the host<->container mapping and the container-path guard are inactive for this workspace.`,
+  );
+  return {};
+}
+
 export function readConfigFacts(configDir: string, text: string): ConfigRead {
   let parsed: unknown;
   try {

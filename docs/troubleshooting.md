@@ -345,6 +345,35 @@ at load (which surfaces as an error, not a silent no-op).
 `pi install npm:pi-devcontainer-manager` (or a tarball/git path) and then
 `/reload`. See [Installation](installation.md).
 
+## DeepSeek Harness (dsh)
+
+### `permission (@deepseek-ai/dsh-permission-presets): … does not confine (no sandboxMode)`
+
+dsh's permission **presets** bundle a host sandbox mode and refuse an executor that cannot
+confine. Under this bundle `ctx.shell` runs commands inside the DevContainer, so a host sandbox
+mode cannot be honoured — the refusal is correct. The shipped bundle already disables that row.
+
+Seeing it means the `permission` disable is not reaching the profile: check with
+`dsh --profile <name> --dump-config | grep -A2 'id: permission'` that `disabled: true` is present,
+and that the package is installed in that profile (`dsh plugin --profile <name> add …`) rather
+than merely linked elsewhere. A profile that re-enables the row will hit the error again by
+design.
+
+See [dsh support](dsh.md) for what the bundle replaces and what disabling the presets costs.
+
+### `dsh` says `patch: name mismatch for "bash-sandbox" … skipping`
+
+A patch row in an older copy of this bundle tried to *rename* the base provider row. dsh only
+accepts a patch whose `name` matches the targeted row; the bundle now disables `bash-sandbox` and
+inserts its own row instead. Re-install the package (or refresh the linked checkout) so the
+current `cordis.patch.yml` is used.
+
+### Every command is refused with `[policy-denied] … workspace-not-allowed`
+
+`allowedWorkspaceRoots` ships empty and fails closed, and a project layer cannot widen it. Grant
+the roots in the **global** layer this bundle reads (`globalConfigPath`, by default the same file
+the Pi extension uses) or in the plugin's `config` row.
+
 ## Still stuck?
 
 Open an issue with the failing surface, the typed error line, and the relevant

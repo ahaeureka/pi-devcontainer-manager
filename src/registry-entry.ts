@@ -7,6 +7,7 @@
  * `configPath.length === 0` again. These are the only sanctioned ways to ask.
  */
 import type { ConfigCandidate, RegistryCandidate, RegistryEntry } from "./types.js";
+import { canonicalWorkspaceKey } from "./workspace-path.js";
 
 /**
  * The primary container candidate, or undefined when the workspace has no container.
@@ -36,4 +37,23 @@ export function configPathOf(entry: RegistryEntry): string | undefined {
 /** The container's observed state, or undefined when the workspace has no container. */
 export function containerStateOf(entry: RegistryEntry): RegistryCandidate["state"] | undefined {
   return primaryCandidate(entry)?.state;
+}
+
+/**
+ * The configuration that should drive mapping, presentation and the routing guard for a workspace.
+ *
+ * The operator's SELECTED configuration wins when it belongs to that workspace, else the workspace's
+ * discovered primary. Before this rule existed in one place, a selected named configuration reached
+ * only the CLI's argv while every derived view kept using the registry primary, so the two disagreed
+ * (review finding L1-04). Shared by both entry points for the same reason.
+ */
+export function selectedConfigPathFor(
+  selection: { readonly workspaceKey?: string | undefined; readonly configPath?: string | undefined },
+  workspaceKey: string,
+  discovered: string,
+): string {
+  if (selection.configPath === undefined || selection.workspaceKey === undefined) return discovered;
+  return canonicalWorkspaceKey(selection.workspaceKey) === canonicalWorkspaceKey(workspaceKey)
+    ? selection.configPath
+    : discovered;
 }

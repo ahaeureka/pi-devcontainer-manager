@@ -186,6 +186,29 @@ describe("ExecutionService.exec", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("delivers a harness-declared environment verbatim while the allowlist still governs inherited values", async () => {
+    // dsh's `ShellExecRequest.env`/`dshEnv` are values a trusted in-process caller declared for THIS
+    // command (hook bridges, DSH_* facts), not ambient state the allowlist governs. They must arrive
+    // even though `DSH_CALL_ID` is not allowlisted — and the allowlisted inherited value must still
+    // be filtered and still win for its own name.
+    const { adapter, calls } = fakeDevcontainer([execOk]);
+    const { service } = makeService({ devcontainer: adapter });
+    await service.exec({
+      operation: "routed-bash",
+      initiator: "routed-bash",
+      workspace: "/ws/project-a",
+      cmd: "/bin/sh",
+      args: ["-lc", "env"],
+      environment: { FOO: "bar" },
+      explicitEnvironment: { DSH_CALL_ID: "c1", CLAUDE_PROJECT_DIR: "/p" },
+    });
+    expect(calls[0]!.options.remoteEnv).toEqual({
+      FOO: "bar",
+      DSH_CALL_ID: "c1",
+      CLAUDE_PROJECT_DIR: "/p",
+    });
+  });
+
   it("throws policy-denied for stop/remove when destructive grants are off", async () => {
     const { adapter, calls } = fakeDockerLifecycle();
     const { service } = makeService({ dockerLifecycle: adapter });

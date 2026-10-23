@@ -70,6 +70,20 @@ export type ConfigRead = {
  *
  * @param configDir host directory that contains the configuration (see `buildPathMapping`)
  */
+/**
+ * Read a workspace's devcontainer.json once and derive everything the agent view needs: the
+ * host<->container mapping (workspaceMount preferred, workspaceFolder fallback) and the
+ * container-only mounts the host cannot see.
+ *
+ * Returns empty facts when the config is absent/unreadable, cannot be parsed, or declares none of
+ * them — and `onProblem` (when given) receives a line explaining the *unparsable* case, because that
+ * is the one where the mapping silently disappears and with it the host container-path guard that
+ * depends on it (review finding L0-02).
+ *
+ * One owner for both entry points (Pi and dsh): a harness that re-derived these facts itself would
+ * eventually disagree about which guard is active.
+ */
+export declare function readWorkspaceConfigFacts(configPath: string, onProblem?: (message: string) => void): ConfigFacts;
 export declare function readConfigFacts(configDir: string, text: string): ConfigRead;
 /**
  * Absolute container paths this config mounts that the workspace bind mount does not cover — i.e.

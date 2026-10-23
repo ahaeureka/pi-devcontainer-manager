@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/extensions/index.d.ts",
       "import": "./dist/extensions/index.js"
+    },
+    "./dsh": {
+      "types": "./dist/extensions/dsh/index.d.ts",
+      "import": "./dist/extensions/dsh/index.js"
     }
   },
   "files": [
@@ -20,7 +24,8 @@
     "CONTRIBUTING.md",
     "SECURITY.md",
     "docs",
-    "examples"
+    "examples",
+    "cordis.patch.yml"
   ],
   "keywords": [
     "pi-package",
@@ -43,7 +48,8 @@
     ]
   },
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=22.19.0",
+    "dsh": ">=0.2.1-rc.2 <0.3.0"
   },
   "scripts": {
     "clean": "rm -rf dist",
@@ -58,14 +64,42 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
-    "typebox": "*"
+    "typebox": "*",
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-shell": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-commands": "^0.2.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.5"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-commands": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-sandbox": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-shell": "^0.2.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.5",
     "@devcontainers/cli": "0.88.0",
     "@earendil-works/pi-coding-agent": "0.84.4",
     "@types/node": "22.19.19",
     "typescript": "5.9.3",
     "vitest": "4.1.9"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-shell": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-commands": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  }
 }

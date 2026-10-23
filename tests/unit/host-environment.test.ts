@@ -104,16 +104,30 @@ describe("composeHostEnvironment", () => {
 });
 
 describe("the host child environment has one definition", () => {
-  const source = readFileSync(new URL("../../extensions/index.ts", import.meta.url), "utf8");
+  // Both entry points compose their adapters through ONE module (`src/runtime-composition.ts`), so
+  // the source assertions moved with the composition. A harness that built its own environment would
+  // recreate the divergence the shared composer exists to prevent.
+  const composition = readFileSync(new URL("../../src/runtime-composition.ts", import.meta.url), "utf8");
+  const piEntry = readFileSync(new URL("../../extensions/index.ts", import.meta.url), "utf8");
+  const dshEntry = readFileSync(new URL("../../extensions/dsh/index.ts", import.meta.url), "utf8");
 
-  it("the extension composes it through composeHostEnvironment", () => {
-    expect(source).toContain("composeHostEnvironment(process.env)");
+  it("the shared composition uses composeHostEnvironment", () => {
+    expect(composition).toContain("composeHostEnvironment(process.env)");
+  });
+
+  it("both entry points go through the shared composition", () => {
+    expect(piEntry).toContain("composeHostRuntime(");
+    expect(dshEntry).toContain("composeDshRuntime(");
+    const dshRuntime = readFileSync(new URL("../../extensions/dsh/runtime.ts", import.meta.url), "utf8");
+    expect(dshRuntime).toContain("composeHostRuntime(");
   });
 
   it("no call site builds its own host environment", () => {
     // The facade has no injection point of its own, so the wiring is asserted against the source:
     // one definition is what keeps "what does a host child see?" from drifting between call sites.
-    expect(source).not.toMatch(/PATH:\s*process\.env\.PATH/);
-    expect(source).not.toMatch(/HOME:\s*process\.env\.HOME/);
+    for (const source of [composition, piEntry, dshEntry]) {
+      expect(source).not.toMatch(/PATH:\s*process\.env\.PATH/);
+      expect(source).not.toMatch(/HOME:\s*process\.env\.HOME/);
+    }
   });
 });
